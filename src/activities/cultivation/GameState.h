@@ -21,9 +21,12 @@ struct StatsSnapshot {
   uint32_t sessions = 0;
   uint32_t completedBooks = 0;
   std::array<uint32_t, 4> timeOfDaySeconds{};  // Morning, Afternoon, Evening, Night
-  std::array<uint32_t, 7> dayOfWeekSeconds{};  // Monday = 0; lets the soft cap attribute reading to days
+  std::array<uint32_t, 7> dayOfWeekSeconds{};  // Monday = 0; lets the allowance attribute reading to weeks
   uint32_t lastVisitDay = kNoDay;              // readingStatsDayIndex() of the last visit
-  uint32_t secondsCountedOnLastVisitDay = 0;   // reading already credited on that day (soft cap)
+  // Reading already credited in the calendar week (Mon-Sun) containing
+  // lastVisitDay, for the weekly allowance. Save v1 stored "seconds credited
+  // on that day" here; read as a week total it only under-counts, never more.
+  uint32_t secondsCountedInLastVisitWeek = 0;
 
   static constexpr uint32_t kNoDay = 0xFFFFFFFFu;
 };
@@ -75,11 +78,14 @@ struct ProgressBlock {
   uint8_t soulClarity = 0;
   uint8_t consolidation = 0;        // 0..40
   uint8_t daoHeart = 0;             // 0..100
-  uint8_t progressFlags = 0;        // kInGreatPerfection, kHalfStep
+  uint8_t progressFlags = 0;        // kInGreatPerfection, kHalfStep, kOddPageCarry
   uint32_t gameReadingSeconds = 0;  // reading counted by this character since creation
 
   static constexpr uint8_t kInGreatPerfection = 0x01;
   static constexpr uint8_t kHalfStep = 0x02;
+  // One page toward the next "1 stone per 2 pages" (decision 5B). A bit in a
+  // byte that already exists, so the save layout does not change.
+  static constexpr uint8_t kOddPageCarry = 0x04;
 };
 
 // The save file, about 950 bytes. Blocks that later milestones fill in are

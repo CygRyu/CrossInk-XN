@@ -175,9 +175,11 @@ void CultivationActivity::startVisit() {
   visit_ = absorb(*state_, gains);
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
-  LOG_INF("CULT", "Visit: %lu s read, %lu qualifying, reset=%d, stages+%u", static_cast<unsigned long>(gains.seconds),
-          static_cast<unsigned long>(gains.tiers.qualifyingSeconds()), gains.resetDetected ? 1 : 0,
-          static_cast<unsigned>(visit_.stagesGained));
+  LOG_INF("CULT", "Visit: %lu s read, %lu qualifying, %lu pages, reset=%d, stages+%u, stones+%lu, stamina+%u",
+          static_cast<unsigned long>(gains.seconds), static_cast<unsigned long>(gains.tiers.qualifyingSeconds()),
+          static_cast<unsigned long>(gains.pages), gains.resetDetected ? 1 : 0,
+          static_cast<unsigned>(visit_.stagesGained), static_cast<unsigned long>(visit_.stonesGained),
+          static_cast<unsigned>(visit_.staminaGained));
   persist();
   screen_ = Screen::Cultivator;
 }
@@ -547,15 +549,26 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
   renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, line), y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
 
+  // The bar is drawn here rather than with GUI.drawProgressBar, which adds a
+  // centred percentage 15 px under the bar: on the X3 that landed between the
+  // Qi line and the next one, on its own baseline. Qi on the left and the
+  // percentage on the right now share one line.
   const QiNumber cost = stageCost(p.realm, p.stage);
-  GUI.drawProgressBar(renderer, Rect{x, y, width, metrics.progressBarHeight}, QiNumber::fillPermille(p.qi, cost), 1000);
-  y += metrics.progressBarHeight + 4;
+  const uint32_t fill = QiNumber::fillPermille(p.qi, cost);  // 0..1000
+  const int barHeight = metrics.progressBarHeight;
+  renderer.drawRect(x, y, width, barHeight);
+  const int fillWidth = static_cast<int>(static_cast<int64_t>(width - 4) * fill / 1000);
+  if (fillWidth > 0) renderer.fillRect(x + 2, y + 2, fillWidth, barHeight - 4);
+  y += barHeight + 4;
   char have[24];
   char need[24];
   p.qi.format(have, sizeof(have));
   cost.format(need, sizeof(need));
   snprintf(line, sizeof(line), tr(STR_CULT_QI_FORMAT), have, need);
   renderer.drawText(SMALL_FONT_ID, x, y, line);
+  char percent[8];
+  snprintf(percent, sizeof(percent), "%u%%", static_cast<unsigned>(fill / 10));
+  renderer.drawText(SMALL_FONT_ID, x + width - renderer.getTextWidth(SMALL_FONT_ID, percent), y, percent);
   y += renderer.getLineHeight(SMALL_FONT_ID) + metrics.verticalSpacing * 2;
 
   snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
@@ -578,6 +591,15 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
 
   snprintf(line, sizeof(line), tr(STR_CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
   renderer.drawText(UI_10_FONT_ID, x, y, line);
+  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+
+  snprintf(line, sizeof(line), tr(STR_CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
+           static_cast<unsigned>(kStaminaCap));
+  renderer.drawText(UI_10_FONT_ID, x, y, line);
+  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+
+  snprintf(line, sizeof(line), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
+  renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing * 2;
 
   // What this visit brought.
@@ -590,7 +612,8 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
   } else {
     char gained[24];
     visit_.qiGained.format(gained, sizeof(gained));
-    snprintf(line, sizeof(line), tr(STR_CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained);
+    snprintf(line, sizeof(line), tr(STR_CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained,
+             static_cast<unsigned long>(visit_.stonesGained));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
   }
   if (visit_.stagesGained > 0) {

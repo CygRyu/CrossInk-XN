@@ -21,7 +21,7 @@ GameState sampleState(const uint32_t marker) {
   s.snapshot.timeOfDaySeconds = {1, 2, 3, 4};
   s.snapshot.dayOfWeekSeconds = {10, 20, 30, 40, 50, 60, 70};
   s.snapshot.lastVisitDay = 9800;
-  s.snapshot.secondsCountedOnLastVisitDay = 1800;
+  s.snapshot.secondsCountedInLastVisitWeek = 1800;
   s.baseline = {1000, 200, 30, 4};
   const char name[] = "Lin Yue";
   memcpy(s.character.name.data(), name, sizeof(name) - 1);
@@ -58,7 +58,7 @@ void expectSame(const GameState& a, const GameState& b) {
   EXPECT_EQ(a.snapshot.timeOfDaySeconds, b.snapshot.timeOfDaySeconds);
   EXPECT_EQ(a.snapshot.dayOfWeekSeconds, b.snapshot.dayOfWeekSeconds);
   EXPECT_EQ(a.snapshot.lastVisitDay, b.snapshot.lastVisitDay);
-  EXPECT_EQ(a.snapshot.secondsCountedOnLastVisitDay, b.snapshot.secondsCountedOnLastVisitDay);
+  EXPECT_EQ(a.snapshot.secondsCountedInLastVisitWeek, b.snapshot.secondsCountedInLastVisitWeek);
   EXPECT_EQ(a.baseline.seconds, b.baseline.seconds);
   EXPECT_EQ(a.baseline.completedBooks, b.baseline.completedBooks);
   EXPECT_EQ(a.character.name, b.character.name);

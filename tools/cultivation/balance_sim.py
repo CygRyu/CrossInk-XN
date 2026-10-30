@@ -73,13 +73,19 @@ TUNING = {
     "qi_per_minute": 10,
     "mhat_base": 1.6,                  # M_hat_r = 1.6^r
     "stage_cost_step": 0.12,           # +12% per minor stage
-    "soft_cap": [(120, 1.0), (240, 0.5), (None, 0.25)],
+    # Weekly allowance (decision 6A, replaces the doc's daily soft cap): 100% for
+    # the first 14 h read in a calendar week (Mon-Sun), 50% for the next 14 h,
+    # 25% after. Minutes into the week -> factor.
+    "soft_cap": [(14 * 60, 1.0), (28 * 60, 0.5), (None, 0.25)],
     "pity_per_failure": 15,
     "pity_cap": 90,
     "failure_bar_loss": 0.25,
     "start_age": 16,
     "rerolls": 3,
     "stamina_cap": 12,
+    "stamina_minutes": 15,             # decision 4A: +1 stamina per 15 min read, nothing per session
+    "stones_per_minute": 1,            # decision 5B: 1 stone per minute read ...
+    "pages_per_stone": 2,              # ... + 1 per 2 pages, page part <= half the minutes of the visit
     "consolidation_max": 40,
     "dao_heart_breakthrough_max": 15,
     "dao_heart_grade_max": 25,
@@ -109,14 +115,11 @@ TUNING = {
     "pill_grade_points": 10,           # typical pill contribution to grade score
     "breakthrough_pill_bonus": 15,     # DOC range +10..+25; typical value
     "pill_key_hours": 3.0,             # reading hours in-realm to brew a breakthrough pill as key
-    "dao_heart_full_streak": 30,       # streak days for Dao Heart 100
-    "dao_heart_decay": 0.10,           # DOC: -10% per missed day
-    "dao_heart_floor_frac": 0.5,       # DOC: floor at half the longest-streak value
+    "dao_heart_full_hours": 15,        # decision 2B: Dao Heart 100 after 15 h read, never decays
     "flowing_water_unlock_night_h": 5,  # DOC
     "dao_time_of_day_unlock_any_h": 40,  # DOC
     "dao_level_hours": 10,             # hours in bucket per extra Dao level
-    "flowing_water_qi_per_level": 0.02,  # DOC says "+Qi at night"; magnitude proposed
-    "pages_per_minute": 1.0,           # for stone accounting
+    "myriad_paths_unlock_h": 150,      # decision 5B: Dao of the Myriad Paths unlocks at 150 h read (was 10,000 pages)
 }
 
 
@@ -137,12 +140,14 @@ def stage_cost(r: int, s: int) -> float:
     return realm_qi(r) * (1 + step * s) / denom
 
 
-def soft_cap_factor(minutes_already_today: float) -> tuple[float, float]:
-    """Return (Qi factor, minutes until the factor changes) for the next reading minute."""
+def soft_cap_factor(minutes_already_this_week: float) -> tuple[float, float]:
+    """Return (Qi factor, minutes until the factor changes) for the next reading minute.
+
+    The allowance is weekly (decision 6A): minutes count from Monday."""
     lower = 0.0
     for limit, factor in TUNING["soft_cap"]:
-        if limit is None or minutes_already_today < limit:
-            return factor, (math.inf if limit is None else limit - minutes_already_today)
+        if limit is None or minutes_already_this_week < limit:
+            return factor, (math.inf if limit is None else limit - minutes_already_this_week)
         lower = limit
     raise AssertionError(lower)
 
@@ -177,6 +182,14 @@ def weekends(minutes_per_weekend_day: float, bucket: int = 1):
     def f(day: int):
         return [(bucket, minutes_per_weekend_day)] if day % 7 in (5, 6) else []
     return f
+
+
+def stones_for_visit(minutes: float, pages: float) -> int:
+    """Spirit Stones for one visit (decision 5B): 1 per whole minute read plus 1 per
+    2 pages, where the page part can't exceed half the minutes of the same visit."""
+    m = int(minutes)
+    page_part = min(int(pages) // TUNING["pages_per_stone"], m // 2)
+    return TUNING["stones_per_minute"] * m + page_part
 
 
 def mixed_buckets(minutes: float):
@@ -251,18 +264,17 @@ class Character:
         self.manual_mult = 1.0          # best equipped Cultivation manual
         self.unused_scroll_this_realm = False
         self.hours = 0.0               # all reading hours (drives age)
-        self.qual_minutes_today = 0.0
+        self.qual_minutes_week = 0.0
         self.bucket_h = [0.0] * 4
-        self.streak = 0
+        self.streak = 0                # kept as flavor and for the Dao of Time unlock only
         self.longest = 0
-        self.dao_heart = 0.0
-        self.charm = 0
         self.read_today = False
         self.omen_bucket = 0
         self.stamina_earned = 0
         self.stamina_lost_to_cap = 0
         self.stamina_bank = 0
         self.stamina_minutes = 0.0
+        self.stamina_sessions = 0
         self.books_finished = 0
         self.book = self._new_book()
         self.records: list[RealmRecord] = []
@@ -287,6 +299,11 @@ class Character:
         return Book(hours=hours, kind=self.rng.randrange(len(TECHNIQUE_KINDS)),
                     comprehension=self.rng.uniform(*t["comprehension_range"]))
 
+    @property
+    def dao_heart(self) -> float:
+        """Decision 2B: grows with reading hours, full (100) after 15 h, never decays."""
+        return min(100.0, 100.0 * self.hours / TUNING["dao_heart_full_hours"])
+
     # -- multipliers ------------------------------------------------------
     def dao_level(self, bucket: int) -> int:
         t = TUNING
@@ -304,8 +321,7 @@ class Character:
         m *= 1 + t["study_bonus_max"] * min(1.0, self.book.read_h / self.book.hours)
         m *= self.foundation_mult * self.core_mult
         m *= (1 + t["meridian_qi_per_point"]) ** self.meridian_points
-        if bucket == 3:  # Dao of Flowing Water: +Qi at night (DOC)
-            m *= 1 + t["flowing_water_qi_per_level"] * self.dao_level(3)
+        # Decision 1A: no time-of-day Dao gives Qi (Flowing Water's night perk is event luck).
         if bucket == self.omen_bucket:
             m *= 1 + t["omen_bucket_bonus"]
         return m
@@ -382,35 +398,24 @@ class Character:
     # -- the reading loop ----------------------------------------------------
     def new_day(self, day: int):
         self.day = day
-        # Streak / Dao Heart bookkeeping for the day that just ended.
-        t = TUNING
+        # The streak is flavor now (and the Dao of Time unlock); Dao Heart comes from hours (2B).
         if day > 0:
-            if self.read_today:
-                self.streak += 1
-            elif self.charm > 0:
-                self.charm -= 1
-            else:
-                self.streak = 0
-                floor = t["dao_heart_floor_frac"] * min(100.0, 100.0 * self.longest / t["dao_heart_full_streak"])
-                self.dao_heart = max(floor, self.dao_heart * (1 - t["dao_heart_decay"]))
+            self.streak = self.streak + 1 if self.read_today else 0
             self.longest = max(self.longest, self.streak)
-            self.dao_heart = max(self.dao_heart, min(100.0, 100.0 * self.streak / t["dao_heart_full_streak"]))
-            if day % 7 == 0 and self.read_week:
-                self.charm = 1  # one Stillness Charm per week, earned by reading
-        if day % 7 == 0:
-            self.read_week = False
         self.read_today = False
-        self.qual_minutes_today = 0.0
+        if day % 7 == 0:   # day 0 is a Monday: calendar weeks, Mon-Sun (decision 6A)
+            self.qual_minutes_week = 0.0
         self.omen_bucket = self.rng.randrange(4)
 
     def read_session(self, bucket: int, minutes: float, day: int):
         t = TUNING
         self.read_today = True
-        self.read_week = True
-        # Stamina (DOC): +1 per session of 5+ min, +1 per 20 min read (accumulated across sessions), cap 12.
-        before = int(self.stamina_minutes // 20)
+        self.stamina_sessions += 1
+        # Stamina (decision 4A): +1 per 15 min read, accumulated across sessions; nothing per session. Cap 12.
+        step_min = t["stamina_minutes"]
+        before = int(self.stamina_minutes // step_min)
         self.stamina_minutes += minutes
-        gained = (1 if minutes >= 5 else 0) + int(self.stamina_minutes // 20) - before
+        gained = int(self.stamina_minutes // step_min) - before
         self.stamina_earned += gained
         room = t["stamina_cap"] - self.stamina_bank
         self.stamina_lost_to_cap += max(0, gained - room)
@@ -418,7 +423,7 @@ class Character:
 
         left = minutes
         while left > 1e-9 and not self.done:
-            cap_factor, until_cap_change = soft_cap_factor(self.qual_minutes_today)
+            cap_factor, until_cap_change = soft_cap_factor(self.qual_minutes_week)
             rate = t["qi_per_minute"] * self.multiplier(bucket) * cap_factor   # Qi per minute
             book_left_min = (self.book.hours - self.book.read_h) * 60
             need_qi = self.current_need() - self.qi
@@ -433,7 +438,7 @@ class Character:
 
     def _advance(self, bucket: int, minutes: float, rate: float):
         self.qi += rate * minutes
-        self.qual_minutes_today += minutes
+        self.qual_minutes_week += minutes
         h = minutes / 60
         self.hours += h
         self.bucket_h[bucket] += h
@@ -624,33 +629,35 @@ def report(mode: str, runs: int, seed: int, profiles: dict, gp_linger: float, ou
 
 
 def fairness(runs: int, seed: int, gp_linger: float, w):
-    w("Fairness checks (DOC fairness rules):\n")
-    cmp = {**{k: PROFILES[k] for k in ("30/day", "night30", "weekend")}, **EXTRA_PROFILES}
+    w("Fairness checks (DOC fairness rules, with decisions 1A 2B 4A 5B 6A):\n")
+    cmp = {**{k: PROFILES[k] for k in ("30/day", "60/day", "90/day", "night30", "weekend")}, **EXTRA_PROFILES}
     res = {k: summarize(simulate(p, "modeled", runs, seed, gp_linger)) for k, p in cmp.items()}
 
     def med_h(k):
         return statistics.median(res[k]["total_hours"]) if res[k]["total_hours"] else float("nan")
 
     ref = med_h("evening30")
-    w("  Reading hours to finish the Mortal Plane at the same weekly minutes (lower = stronger):\n")
-    for k in ("evening30", "mixed30", "night30", "3x10", "30/day", "weekend"):
+    w("  Reading hours to finish the Mortal Plane (lower = stronger):\n")
+    for k in ("evening30", "mixed30", "night30", "3x10", "30/day", "weekend", "60/day", "90/day", "weekend-binge"):
         w(f"    {cmp[k].name:<38}{med_h(k):>7.0f} h  ({(med_h(k) / ref - 1) * 100:+.1f}% vs evening)\n")
-    w(f"    {cmp['weekend-binge'].name:<38}{med_h('weekend-binge'):>7.0f} h  (soft cap bites above 120 min/day)\n")
 
-    dh = {k: statistics.median([c.dao_heart for c in res[k]["chars"]]) for k in ("30/day", "weekend", "3x10")}
-    w(f"  Dao Heart at the end (0-100): daily {dh['30/day']:.0f}, weekends-only {dh['weekend']:.0f}\n")
+    dh = {k: statistics.median([c.dao_heart for c in res[k]["chars"]]) for k in ("30/day", "weekend")}
+    w(f"  Dao Heart at the end (0-100, full after {TUNING['dao_heart_full_hours']} h read): "
+      f"daily {dh['30/day']:.0f}, weekends-only {dh['weekend']:.0f}\n")
 
-    w("  Stamina per week (+1/session >=5 min, +1/20 min, bank cap 12):\n")
+    w(f"  Stamina per week (+1 per {TUNING['stamina_minutes']} min read, nothing per session, bank cap "
+      f"{TUNING['stamina_cap']}):\n")
     for k in ("30/day", "3x10", "weekend", "weekend-binge"):
         cs = res[k]["chars"]
         weeks = statistics.median([max(1, c.day) / 7 for c in cs])
         earned = statistics.median([c.stamina_earned for c in cs]) / weeks
         w(f"    {cmp[k].name:<38}{earned:>6.1f}/week earned\n")
-    w("    (cap only bites for one sitting over ~3.7 h with a full bank; the game spends between visits)\n")
 
     ppm_slow, ppm_fast = 0.7, 1.4
-    w(f"  Spirit Stones: 1 per page. At 30 min/day a slow reader ({ppm_slow} pages/min) earns "
-      f"{30 * ppm_slow:.0f}/day, a fast one ({ppm_fast}) {30 * ppm_fast:.0f}/day -> {ppm_fast / ppm_slow:.1f}x.\n\n")
+    slow = stones_for_visit(30, 30 * ppm_slow)
+    fast = stones_for_visit(30, 30 * ppm_fast)
+    w(f"  Spirit Stones (1/min + 1 per 2 pages, page part <= half the minutes): at 30 min/day a slow reader "
+      f"({ppm_slow} pages/min) earns {slow}/day, a fast one ({ppm_fast}) {fast}/day -> {fast / slow:.2f}x.\n\n")
 
 
 # ---------------------------------------------------------------------------

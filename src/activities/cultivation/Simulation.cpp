@@ -186,6 +186,24 @@ bool atBottleneck(const GameState& state) {
          state.progress.qi >= stageCost(state.progress.realm, state.progress.stage);
 }
 
+uint32_t stonesForVisit(const uint32_t minutes, const uint32_t pages, bool& oddPage) {
+  const uint32_t pageTotal = satAdd(pages, oddPage ? 1u : 0u);
+  const uint32_t limit = minutes / 2;
+  uint32_t pageStones = pageTotal / kPagesPerStone;
+  if (pageStones >= limit) {
+    pageStones = limit;
+    oddPage = false;  // pages past the limit are not banked: auto page-turns earn nothing extra
+  } else {
+    oddPage = (pageTotal % kPagesPerStone) != 0;
+  }
+  return satAdd(minutes, pageStones);
+}
+
+uint8_t daoHeartFor(const uint32_t gameReadingSeconds) {
+  if (gameReadingSeconds >= kDaoHeartFullSeconds) return kDaoHeartMax;
+  return static_cast<uint8_t>(static_cast<uint64_t>(gameReadingSeconds) * kDaoHeartMax / kDaoHeartFullSeconds);
+}
+
 uint16_t ageYears(const GameState& state) { return static_cast<uint16_t>(state.progress.ageMonths / 12u); }
 
 AbsorbResult absorb(GameState& state, const VisitGains& gains) {
@@ -209,8 +227,26 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   r.monthsPassed = ageSeconds / kSecondsPerMonth;
   p.ageSecondsCarry = static_cast<uint16_t>(ageSeconds % kSecondsPerMonth);
   p.ageMonths = satAdd(p.ageMonths, r.monthsPassed);
+
+  // Stones, stamina and Dao Heart all count whole steps of this character's
+  // total reading time, so no extra carry fields are needed: the remainder is
+  // gameReadingSeconds itself.
+  const uint32_t before = p.gameReadingSeconds;
   p.gameReadingSeconds = satAdd(p.gameReadingSeconds, gains.seconds);
-  p.stones = satAdd(p.stones, gains.pages);
+  const uint32_t after = p.gameReadingSeconds;
+
+  bool oddPage = (p.progressFlags & ProgressBlock::kOddPageCarry) != 0;
+  r.stonesGained = stonesForVisit(after / kSecondsPerStone - before / kSecondsPerStone, gains.pages, oddPage);
+  p.progressFlags = static_cast<uint8_t>(oddPage ? (p.progressFlags | ProgressBlock::kOddPageCarry)
+                                                 : (p.progressFlags & ~ProgressBlock::kOddPageCarry));
+  p.stones = satAdd(p.stones, r.stonesGained);
+
+  const uint32_t staminaSteps = after / kSecondsPerStamina - before / kSecondsPerStamina;
+  const uint8_t room = p.stamina < kStaminaCap ? static_cast<uint8_t>(kStaminaCap - p.stamina) : 0;
+  r.staminaGained = static_cast<uint8_t>(staminaSteps < room ? staminaSteps : room);
+  p.stamina = static_cast<uint8_t>(p.stamina + r.staminaGained);
+
+  p.daoHeart = daoHeartFor(after);
 
   // Fill the bar; minor stages advance on their own, Peak waits for a breakthrough.
   if (p.realm >= kMortalRealmCount) p.realm = kMortalRealmCount - 1;

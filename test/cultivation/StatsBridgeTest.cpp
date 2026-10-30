@@ -67,87 +67,115 @@ TEST(StatsBridge, DifferencesSinceLastVisit) {
   EXPECT_EQ(again.tiers.qualifyingSeconds(), 0u);
 }
 
-TEST(StatsBridge, SessionsOfFiveMinutesAreApproximated) {
-  FakeDevice dev;
-  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
-  RevisionWatch watch;
-  for (int i = 0; i < 6; ++i) dev.read(kMonday, 1);  // six one-minute peeks
-  dev.read(kMonday, 10);
-  const VisitGains g = bridge::collect(snap, dev.on(kMonday), watch);
-  EXPECT_EQ(g.sessions, 7u);
-  EXPECT_EQ(g.sessionsOfFiveMinutes, 3u);  // 16 minutes / 5
+TEST(StatsBridge, WeeksRunMondayToSunday) {
+  EXPECT_EQ(bridge::weekOf(kMonday), bridge::weekOf(kMonday + 6));      // Monday..Sunday
+  EXPECT_EQ(bridge::weekOf(kMonday + 7), bridge::weekOf(kMonday) + 1);  // next Monday
+  EXPECT_EQ(bridge::weekOf(kMonday - 1), bridge::weekOf(kMonday) - 1);  // the Sunday before
+  EXPECT_EQ(bridge::firstDayOfWeek(bridge::weekOf(kMonday + 3)), kMonday);
+  EXPECT_EQ(bridge::lastDayOfWeek(bridge::weekOf(kMonday + 3)), kMonday + 6);
+  EXPECT_EQ(bridge::weekOf(0), bridge::weekOf(1));  // Sat 2000-01-01 and Sun 01-02
+  EXPECT_EQ(bridge::firstDayOfWeek(0), 0u);
+  EXPECT_EQ(bridge::lastDayOfWeek(0), 1u);
 }
 
-TEST(StatsBridge, SoftCapWithinOneDay) {
+TEST(StatsBridge, WeeklyAllowanceWithinOneVisit) {
+  // Decision 6A: 100% for the first 14 h of a week, 50% for the next 14 h, 25% after.
   FakeDevice dev;
   StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
   RevisionWatch watch;
-  dev.read(kMonday, 300);  // 5 hours
+  dev.read(kMonday, 30 * 60);  // 30 h
   const VisitGains g = bridge::collect(snap, dev.on(kMonday), watch);
-  EXPECT_EQ(g.tiers.fullSeconds, 120 * kMin);
-  EXPECT_EQ(g.tiers.halfSeconds, 120 * kMin);
-  EXPECT_EQ(g.tiers.quarterSeconds, 60 * kMin);
-  EXPECT_EQ(g.tiers.qualifyingSeconds(), (120 + 60 + 15) * kMin);
+  EXPECT_EQ(g.tiers.fullSeconds, 14 * 60 * kMin);
+  EXPECT_EQ(g.tiers.halfSeconds, 14 * 60 * kMin);
+  EXPECT_EQ(g.tiers.quarterSeconds, 2 * 60 * kMin);
+  EXPECT_EQ(g.tiers.qualifyingSeconds(), (14 * 60 + 7 * 60 + 30) * kMin);
 }
 
-TEST(StatsBridge, SoftCapRemembersEarlierVisitsTheSameDay) {
+TEST(StatsBridge, WeekendBingeIsNotCappedLikeADay) {
+  // 3.5 h on Saturday and Sunday: the old daily cap halved part of it, the weekly allowance does not.
   FakeDevice dev;
   StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
   RevisionWatch watch;
-  dev.read(kMonday, 100);
-  EXPECT_EQ(bridge::collect(snap, dev.on(kMonday), watch).tiers.fullSeconds, 100 * kMin);
-  dev.read(kMonday, 100);  // same day: only 20 more full minutes remain
-  const VisitGains g = bridge::collect(snap, dev.on(kMonday), watch);
-  EXPECT_EQ(g.tiers.fullSeconds, 20 * kMin);
-  EXPECT_EQ(g.tiers.halfSeconds, 80 * kMin);
-  EXPECT_EQ(snap.secondsCountedOnLastVisitDay, 200 * kMin);
-}
-
-TEST(StatsBridge, NewDayStartsAFreshCap) {
-  FakeDevice dev;
-  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
-  RevisionWatch watch;
-  dev.read(kMonday, 200);
-  bridge::collect(snap, dev.on(kMonday), watch);
-  dev.read(kMonday + 1, 100);
-  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 1), watch);
-  EXPECT_EQ(g.tiers.fullSeconds, 100 * kMin);
+  dev.read(kMonday + 5, 210);
+  dev.read(kMonday + 6, 210);
+  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 6), watch);
+  EXPECT_EQ(g.tiers.fullSeconds, 420 * kMin);
   EXPECT_EQ(g.tiers.halfSeconds, 0u);
 }
 
-TEST(StatsBridge, GapOfSeveralDaysCapsEachDaySeparately) {
-  // Read 3 h on Monday, Tuesday and Wednesday; visit only on Wednesday.
+TEST(StatsBridge, AllowanceRemembersEarlierVisitsTheSameWeek) {
   FakeDevice dev;
   StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
   RevisionWatch watch;
-  for (uint32_t d = 0; d < 3; ++d) dev.read(kMonday + d, 180);
-  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 2), watch);
-  EXPECT_EQ(g.tiers.fullSeconds, 3 * 120 * kMin);
-  EXPECT_EQ(g.tiers.halfSeconds, 3 * 60 * kMin);
-  EXPECT_EQ(g.tiers.quarterSeconds, 0u);
+  dev.read(kMonday, 600);
+  EXPECT_EQ(bridge::collect(snap, dev.on(kMonday), watch).tiers.fullSeconds, 600 * kMin);
+  dev.read(kMonday + 3, 600);  // Thursday, same week: only 4 more full hours remain
+  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 3), watch);
+  EXPECT_EQ(g.tiers.fullSeconds, 240 * kMin);
+  EXPECT_EQ(g.tiers.halfSeconds, 360 * kMin);
+  EXPECT_EQ(snap.secondsCountedInLastVisitWeek, 1200 * kMin);
 }
 
-TEST(StatsBridge, GapLongerThanAWeekSharesWeekdayAllowance) {
-  // Two Mondays with 3 h each; the weekday bucket merges them (6 h on "Monday").
+TEST(StatsBridge, NewWeekStartsAFreshAllowance) {
   FakeDevice dev;
-  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday - 1));
+  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
   RevisionWatch watch;
-  dev.read(kMonday, 180);
-  dev.read(kMonday + 7, 180);
-  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 8), watch);
-  EXPECT_EQ(g.tiers.fullSeconds, 240 * kMin);  // 2 Mondays x 120
-  EXPECT_EQ(g.tiers.halfSeconds, 120 * kMin);
-  EXPECT_EQ(g.tiers.quarterSeconds, 0u);
+  dev.read(kMonday + 6, 20 * 60);  // Sunday: 20 h
+  bridge::collect(snap, dev.on(kMonday + 6), watch);
+  dev.read(kMonday + 7, 100);  // next Monday
+  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 7), watch);
+  EXPECT_EQ(g.tiers.fullSeconds, 100 * kMin);
+  EXPECT_EQ(g.tiers.halfSeconds, 0u);
+  EXPECT_EQ(snap.secondsCountedInLastVisitWeek, 100 * kMin);
 }
 
-TEST(StatsBridge, ReadingWithoutAClockIsCappedAsOneDay) {
+TEST(StatsBridge, GapIntoTheNextWeekSplitsByWeekday) {
+  // Wednesday visit with 10 h credited; then 8 h on Saturday (same week) and
+  // 8 h on the next Monday; visit on that Tuesday.
+  FakeDevice dev;
+  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
+  RevisionWatch watch;
+  dev.read(kMonday + 2, 600);
+  bridge::collect(snap, dev.on(kMonday + 2), watch);
+  dev.read(kMonday + 5, 480);
+  dev.read(kMonday + 7, 480);
+  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 8), watch);
+  EXPECT_EQ(g.tiers.fullSeconds, (240 + 480) * kMin);  // 4 h left last week + 8 h this week
+  EXPECT_EQ(g.tiers.halfSeconds, 240 * kMin);
+  EXPECT_EQ(g.tiers.quarterSeconds, 0u);
+  EXPECT_EQ(snap.secondsCountedInLastVisitWeek, 480 * kMin);
+}
+
+TEST(StatsBridge, GapOfSeveralWeeksGivesEachWeekItsAllowance) {
+  // 20 h on each of three Mondays; the weekday bucket merges them (60 h on "Monday").
+  FakeDevice dev;
+  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday));
+  RevisionWatch watch;
+  for (uint32_t w = 0; w < 3; ++w) dev.read(kMonday + 7 * w, 20 * 60);
+  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 14), watch);
+  EXPECT_EQ(g.tiers.fullSeconds, 3 * 14 * 60 * kMin);
+  EXPECT_EQ(g.tiers.halfSeconds, 3 * 6 * 60 * kMin);
+  EXPECT_EQ(g.tiers.quarterSeconds, 0u);
+  EXPECT_EQ(snap.secondsCountedInLastVisitWeek, 20 * 60 * kMin);
+}
+
+TEST(StatsBridge, GapGainsAlwaysAddUpToTheSecondsRead) {
+  FakeDevice dev;
+  StatsSnapshot snap = bridge::takeBaseline(dev.on(kMonday + 4));
+  RevisionWatch watch;
+  for (uint32_t d = 0; d < 40; ++d) dev.read(kMonday + 4 + d, 37 + 13 * (d % 5));
+  const VisitGains g = bridge::collect(snap, dev.on(kMonday + 43), watch);
+  EXPECT_EQ(g.tiers.fullSeconds + g.tiers.halfSeconds + g.tiers.quarterSeconds, g.seconds);
+}
+
+TEST(StatsBridge, ReadingWithoutAClockIsCappedAsOneWeek) {
   FakeDevice dev;
   StatsSnapshot snap = bridge::takeBaseline(dev.on(StatsSnapshot::kNoDay));
   RevisionWatch watch;
-  dev.read(0, 300, 0, 2, /*clockSet=*/false);
+  dev.read(0, 30 * 60, 0, 2, /*clockSet=*/false);
   const VisitGains g = bridge::collect(snap, dev.on(StatsSnapshot::kNoDay), watch);
-  EXPECT_EQ(g.tiers.fullSeconds, 120 * kMin);
-  EXPECT_EQ(g.tiers.quarterSeconds, 60 * kMin);
+  EXPECT_EQ(g.tiers.fullSeconds, 14 * 60 * kMin);
+  EXPECT_EQ(g.tiers.quarterSeconds, 2 * 60 * kMin);
 }
 
 TEST(StatsBridge, ResetIsDetectedWhenTotalsFall) {

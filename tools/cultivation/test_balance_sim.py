@@ -31,11 +31,46 @@ class FormulaTests(unittest.TestCase):
         self.assertAlmostEqual(b.realm_qi(0), 600 * 4.5)
         self.assertAlmostEqual(b.realm_qi(3), 600 * 52 * 1.6 ** 3)
 
-    def test_soft_cap(self):
-        self.assertEqual(b.soft_cap_factor(0), (1.0, 120))
-        self.assertEqual(b.soft_cap_factor(119)[0], 1.0)
-        self.assertEqual(b.soft_cap_factor(120), (0.5, 120))
-        self.assertEqual(b.soft_cap_factor(240)[0], 0.25)
+    def test_weekly_allowance(self):
+        # Decision 6A: 100% for the first 14 h of a calendar week, 50% for the next 14 h, 25% after.
+        self.assertEqual(b.soft_cap_factor(0), (1.0, 840))
+        self.assertEqual(b.soft_cap_factor(839)[0], 1.0)
+        self.assertEqual(b.soft_cap_factor(840), (0.5, 840))
+        self.assertEqual(b.soft_cap_factor(1680)[0], 0.25)
+
+    def test_weekly_allowance_resets_on_monday(self):
+        binge = b.Profile("binge", b.weekends(600))
+        c = b.Character(b.random.Random(0), "modeled", binge).run(max_days=8)
+        self.assertEqual(c.qual_minutes_week, 0.0)  # day 7 is the next Monday
+
+    def test_stones_rule(self):
+        # Decision 5B: 1 per minute + 1 per 2 pages, page part capped at half the minutes.
+        self.assertEqual(b.stones_for_visit(30, 21), 30 + 10)
+        self.assertEqual(b.stones_for_visit(30, 42), 30 + 15)   # capped
+        self.assertEqual(b.stones_for_visit(30, 300), 45)       # auto page-turn farming gains nothing extra
+        self.assertEqual(b.stones_for_visit(0.9, 10), 0)
+
+    def test_dao_heart_from_hours(self):
+        c = b.Character(b.random.Random(0), "modeled", b.PROFILES["30/day"])
+        self.assertEqual(c.dao_heart, 0)
+        c.hours = 7.5
+        self.assertAlmostEqual(c.dao_heart, 50)
+        c.hours = 40
+        self.assertEqual(c.dao_heart, 100)
+
+    def test_stamina_per_minutes_not_sessions(self):
+        short = b.Character(b.random.Random(0), "modeled", b.Profile("3x10", b.daily(30, pieces=3))).run(max_days=14)
+        long = b.Character(b.random.Random(0), "modeled", b.Profile("1x30", b.daily(30))).run(max_days=14)
+        self.assertEqual(short.stamina_earned, long.stamina_earned)
+        self.assertEqual(long.stamina_earned, 14 * 30 // 15)
+
+    def test_night_reading_gives_no_extra_qi(self):
+        night = b.Character(b.random.Random(0), "modeled", b.PROFILES["night30"])
+        evening = b.Character(b.random.Random(0), "modeled", b.EXTRA_PROFILES["evening30"])
+        night.hours = evening.hours = 60
+        night.bucket_h[3] = evening.bucket_h[2] = 60
+        night.omen_bucket = evening.omen_bucket = 0
+        self.assertAlmostEqual(night.multiplier(3), evening.multiplier(2))
 
     def test_scroll_tiers(self):
         self.assertEqual([b.scroll_tier(h) for h in (0, 2.9, 3, 7.9, 8, 15, 24.9, 25, 90)],
@@ -60,6 +95,13 @@ class SimulationTests(unittest.TestCase):
         for r in range(len(b.REALMS)):
             ratio = statistics.median(s["hours"][r]) / b.TARGET_HOURS[r]
             self.assertLess(abs(ratio - 1), 0.25, f"realm {r}: {ratio:.2f}")
+
+    def test_fairness_spread_within_5_percent(self):
+        # Same weekly minutes, different habits: Mortal Plane hours within 5% of evening-only.
+        ref = statistics.median(b.summarize(b.simulate(b.EXTRA_PROFILES["evening30"], "modeled", 60, 7))["total_hours"])
+        for prof in (b.PROFILES["night30"], b.PROFILES["weekend"], b.EXTRA_PROFILES["weekend-binge"]):
+            h = statistics.median(b.summarize(b.simulate(prof, "modeled", 60, 7))["total_hours"])
+            self.assertLess(abs(h / ref - 1), 0.05, prof.name)
 
     def test_deterministic(self):
         a = b.summarize(b.simulate(b.PROFILES["60/day"], "modeled", 10, 3))["total_hours"]

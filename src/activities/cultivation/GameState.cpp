@@ -176,7 +176,7 @@ void transfer(Io& io, State& s) {
   for (auto& v : s.snapshot.timeOfDaySeconds) io.u32(v);
   for (auto& v : s.snapshot.dayOfWeekSeconds) io.u32(v);
   io.u32(s.snapshot.lastVisitDay);
-  io.u32(s.snapshot.secondsCountedOnLastVisitDay);
+  io.u32(s.snapshot.secondsCountedInLastVisitWeek);
   // Baseline at creation: 16 bytes
   io.u32(s.baseline.seconds);
   io.u32(s.baseline.pages);

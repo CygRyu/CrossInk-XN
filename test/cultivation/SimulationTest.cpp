@@ -101,10 +101,66 @@ TEST(Simulation, AgeIsOneYearPerReadingHour) {
   EXPECT_EQ(s.progress.ageSecondsCarry, 240);
 }
 
-TEST(Simulation, StonesAreOnePerPage) {
+TEST(Simulation, StonesAreOnePerMinutePlusOnePerTwoPages) {
+  // Decision 5B: 10 minutes and 7 pages -> 10 + 3 stones, one page carried.
   GameState s = newCharacter();
-  absorb(s, minutes(5, 17));
-  EXPECT_EQ(s.progress.stones, 17u);
+  AbsorbResult r = absorb(s, minutes(10, 7));
+  EXPECT_EQ(r.stonesGained, 13u);
+  EXPECT_EQ(s.progress.stones, 13u);
+  EXPECT_NE(s.progress.progressFlags & ProgressBlock::kOddPageCarry, 0);
+  r = absorb(s, minutes(10, 1));  // the carried page completes a pair
+  EXPECT_EQ(r.stonesGained, 11u);
+  EXPECT_EQ(s.progress.progressFlags & ProgressBlock::kOddPageCarry, 0);
+}
+
+TEST(Simulation, PageStonesCannotExceedHalfTheMinutes) {
+  GameState s = newCharacter();
+  const AbsorbResult r = absorb(s, minutes(30, 500));  // auto page-turn farming
+  EXPECT_EQ(r.stonesGained, 30u + 15u);
+  EXPECT_EQ(s.progress.progressFlags & ProgressBlock::kOddPageCarry, 0);
+}
+
+TEST(Simulation, FastAndSlowReadersEarnSimilarStones) {
+  GameState slow = newCharacter();
+  GameState fast = newCharacter();
+  for (int day = 0; day < 30; ++day) {
+    absorb(slow, minutes(30, 21));  // 0.7 pages/min
+    absorb(fast, minutes(30, 42));  // 1.4 pages/min
+  }
+  EXPECT_EQ(slow.progress.stones, 30u * (30 + 10) + 15u);  // 15 carried odd pages paired up
+  EXPECT_EQ(fast.progress.stones, 30u * 45);
+}
+
+TEST(Simulation, StoneMinutesCarryAcrossShortVisits) {
+  GameState s = newCharacter();
+  VisitGains g;
+  g.seconds = 30;
+  g.tiers.fullSeconds = 30;
+  EXPECT_EQ(absorb(s, g).stonesGained, 0u);
+  EXPECT_EQ(absorb(s, g).stonesGained, 1u);  // the second half-minute completes one
+}
+
+TEST(Simulation, StaminaIsOnePerFifteenMinutesCappedAtTwelve) {
+  GameState a = newCharacter();
+  GameState b = newCharacter();
+  for (int i = 0; i < 3; ++i) absorb(a, minutes(10));  // three short sessions
+  absorb(b, minutes(30));                              // one long one
+  EXPECT_EQ(a.progress.stamina, 2);
+  EXPECT_EQ(b.progress.stamina, 2);
+  const AbsorbResult r = absorb(b, minutes(600));
+  EXPECT_EQ(b.progress.stamina, kStaminaCap);
+  EXPECT_EQ(r.staminaGained, kStaminaCap - 2);
+}
+
+TEST(Simulation, DaoHeartGrowsWithHoursAndNeverDecays) {
+  GameState s = newCharacter();
+  absorb(s, minutes(90));
+  EXPECT_EQ(s.progress.daoHeart, 10);  // 1.5 of 15 h
+  absorb(s, minutes(0));               // a long absence changes nothing
+  EXPECT_EQ(s.progress.daoHeart, 10);
+  absorb(s, minutes(15 * 60));
+  EXPECT_EQ(s.progress.daoHeart, kDaoHeartMax);
+  EXPECT_EQ(daoHeartFor(UINT32_MAX), kDaoHeartMax);
 }
 
 TEST(Simulation, MinorStagesAdvanceAutomatically) {
@@ -143,6 +199,8 @@ TEST(Simulation, ResetGainsChangeNothing) {
   absorb(s, g);
   EXPECT_TRUE(s.progress.qi.isZero());
   EXPECT_EQ(s.progress.stones, 0u);
+  EXPECT_EQ(s.progress.stamina, 0);
+  EXPECT_EQ(s.progress.daoHeart, 0);
   EXPECT_EQ(ageYears(s), 16);
 }
 
