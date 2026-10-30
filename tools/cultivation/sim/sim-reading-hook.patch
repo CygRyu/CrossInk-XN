@@ -1,0 +1,43 @@
+--- a/src/activities/cultivation/CultivationActivity.cpp
++++ b/src/activities/cultivation/CultivationActivity.cpp
+@@ -127,6 +127,30 @@
+ 
+ }  // namespace
+ 
++
++#ifdef SIMULATOR
++// TEST HOOK, applied only to a scratch copy by tools/cultivation/sim/simbuild.py: CULT_SIM_READ_MINUTES
++// adds that much reading to CrossInk's own stats before the visit, as if the
++// player had read, through GlobalReadingStats itself.
++#include <cstdlib>
++#include "activities/reader/GlobalReadingStats.h"
++static void simAddReading() {
++  const char* v = std::getenv("CULT_SIM_READ_MINUTES");
++  if (v == nullptr) return;
++  const uint32_t seconds = static_cast<uint32_t>(std::strtoul(v, nullptr, 10)) * 60u;
++  GlobalReadingStats g = GlobalReadingStats::load();
++  g.totalReadingSeconds += seconds;
++  g.totalPagesTurned += seconds / 40u;
++  g.totalSessions += 1;
++  const StatsSample now = readLocalStats();
++  const uint32_t weekday = now.today != StatsSnapshot::kNoDay ? (5u + now.today) % 7u : 0u;
++  g.dayOfWeekSeconds[weekday] += seconds;
++  g.timeOfDaySeconds[2] += seconds;
++  g.save();
++  LOG_INF("CULT", "SIM: added %lu reading seconds", static_cast<unsigned long>(seconds));
++}
++#endif
++
+ // --- Lifecycle ------------------------------------------------------------------
+ 
+ void CultivationActivity::onEnter() {
+@@ -146,6 +170,9 @@
+   }
+ 
+   loadPacks();
++#ifdef SIMULATOR
++  simAddReading();
++#endif
+ 
+   switch (save::load(*state_)) {
+     case save::LoadResult::Loaded:

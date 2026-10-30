@@ -87,51 +87,52 @@ void formatLabel(const uint32_t season, char* out, const size_t outLen) {
 
 namespace {
 
-struct Candidate {
-  const char* key;
-  uint8_t weight;
-};
-constexpr uint8_t kMaxCandidates = 5;
+// Which list a season draws from, from three independent rolls seeded by the
+// season alone (never by the character's state):
+//   any      30%: "log.any"
+//   special  35% of the rest: Great Perfection or Half-step lines, when in that state
+//   origin   3 in 7 of the rest, in Body Tempering: the origin's own list (else "log.body")
+// Each list counts its uses by its own roll alone, so entering Great
+// Perfection, failing a breakthrough or changing realm never shifts the order
+// of a list (found in the simulator: replaying weighted picks did).
+constexpr uint32_t kSpecialPermille = 350;
+constexpr uint32_t kAnyPermille = 300;
+constexpr uint32_t kOriginOf7 = 3;
 
-// The lists a season line can come from, by realm, origin and state, with
-// their weights; lists without entries get weight 0.
-uint8_t gatherCandidates(const GameState& state, const Grammar& grammar, const GrammarContext& ctx,
-                         Candidate (&out)[kMaxCandidates], uint32_t& total) {
-  uint8_t n = 0;
-  const uint8_t realm = state.progress.realm;
-  if (realm == 0) {
-    const int origin = static_cast<int>(state.character.origin);
-    if (origin < static_cast<int>(Origin::Count)) out[n++] = {kOriginLists[origin], 3};
-    out[n++] = {"log.body", 4};
-  } else if (realm == 1) {
-    out[n++] = {"log.qi", 6};
-  } else if (realm == 2) {
-    out[n++] = {"log.foundation", 6};
-  }
-  if (breakthrough::inGreatPerfection(state)) {
-    out[n++] = {"log.gp", 4};
-  } else if (breakthrough::isHalfStep(state)) {
-    out[n++] = {"log.halfstep", 3};
-  }
-  out[n++] = {"log.any", 3};
-  total = 0;
-  for (uint8_t i = 0; i < n; ++i) {
-    if (!grammar.hasKey(out[i].key, ctx)) out[i].weight = 0;
-    total += out[i].weight;
-  }
-  return n;
+struct SeasonRolls {
+  bool special;
+  bool any;
+  bool origin;
+};
+
+SeasonRolls rollsFor(const uint32_t world, const uint32_t season) {
+  Rng rng(mix32(contentSeed(world, kKindSeasonLine, season)));
+  SeasonRolls r;
+  r.special = rng.below(1000) < kSpecialPermille;
+  r.any = rng.below(1000) < kAnyPermille;
+  r.origin = rng.below(7) < kOriginOf7;
+  return r;
 }
 
-// Which candidate season `season` draws from: a weighted pick seeded by the season.
-uint8_t chooseCandidate(const Candidate (&c)[kMaxCandidates], const uint8_t n, const uint32_t total,
-                        const uint32_t world, const uint32_t season) {
-  Rng rng(mix32(contentSeed(world, kKindSeasonLine, season)));
-  uint32_t roll = rng.below(total);
-  for (uint8_t i = 0; i < n; ++i) {
-    if (roll < c[i].weight) return i;
-    roll -= c[i].weight;
+enum class Slot : uint8_t { Special, Any, Realm, Origin, Body };
+
+// Does season s count toward slot `slot`'s position? A superset of the
+// seasons that really used it is fine: positions only have to grow by at
+// least one between two real uses.
+bool countsFor(const Slot slot, const SeasonRolls& r) {
+  switch (slot) {
+    case Slot::Special:
+      return !r.any && r.special;
+    case Slot::Any:
+      return r.any;
+    case Slot::Realm:
+      return !r.any;
+    case Slot::Origin:
+      return !r.any && r.origin;
+    case Slot::Body:
+      return !r.any && !r.origin;
   }
-  return 0;
+  return false;
 }
 
 uint32_t gcd(uint32_t a, uint32_t b) {
@@ -148,32 +149,69 @@ uint32_t gcd(uint32_t a, uint32_t b) {
 SeasonPick seasonPick(const GameState& state, const uint32_t season, const Grammar& grammar,
                       const GrammarContext& ctx) {
   SeasonPick pick;
-  Candidate candidates[kMaxCandidates] = {};
-  uint32_t total = 0;
-  const uint8_t n = gatherCandidates(state, grammar, ctx, candidates, total);
-  if (total == 0) return pick;
   const uint32_t world = worldSeedOf(state);
-  const uint8_t chosen = chooseCandidate(candidates, n, total, world, season);
-  pick.key = candidates[chosen].key;
+  const SeasonRolls rolls = rollsFor(world, season);
+  const uint8_t realm = state.progress.realm;
+  auto has = [&](const char* key) { return key != nullptr && grammar.hasKey(key, ctx); };
 
-  // No early repeats: this is the list's nth use (counting every season
-  // that would have drawn from it), and the list is walked in a shuffled
-  // order, so all of its entries are used before any comes back. The
-  // count is recomputed, never stored: a few thousand cheap steps at most.
-  uint32_t nth = 0;
-  for (uint32_t s = 0; s < season; ++s) {
-    if (chooseCandidate(candidates, n, total, world, s) == chosen) ++nth;
+  const char* key = nullptr;
+  Slot slot = Slot::Any;
+  bool everySeason = false;  // the list is the only one: its position is the season count
+  const char* special = breakthrough::inGreatPerfection(state) ? "log.gp"
+                        : breakthrough::isHalfStep(state)      ? "log.halfstep"
+                                                               : nullptr;
+  // Special lines only ever take a realm-list season, so log.any (shared by
+  // every realm and state) never skips a position.
+  if (!rolls.any && special != nullptr && rolls.special && has(special)) {
+    key = special;
+    slot = Slot::Special;
+  } else if (!rolls.any) {
+    if (realm == 0) {
+      const int origin = static_cast<int>(state.character.origin);
+      const char* own = origin < static_cast<int>(Origin::Count) ? kOriginLists[origin] : nullptr;
+      if (rolls.origin && has(own)) {
+        key = own;
+        slot = Slot::Origin;
+      } else if (has("log.body")) {
+        key = "log.body";
+        slot = Slot::Body;
+      }
+    } else if (realm == 1 && has("log.qi")) {
+      key = "log.qi";
+      slot = Slot::Realm;
+    } else if (realm == 2 && has("log.foundation")) {
+      key = "log.foundation";
+      slot = Slot::Realm;
+    }
   }
-  const uint32_t size = grammar.entryCount(pick.key, ctx);
+  if (key == nullptr) {
+    if (!has("log.any")) return pick;
+    key = "log.any";
+    slot = Slot::Any;
+    // Realms without lists of their own use log.any every season.
+    everySeason = realm > 2;
+  }
+  pick.key = key;
+
+  // No early repeats: the list's position is how many seasons before this
+  // one counted toward its slot (recomputed, never stored), and the list is
+  // walked in one fixed shuffled order per world. An entry only comes back
+  // after every other entry of its list has been used.
+  uint32_t position = season;
+  if (!everySeason) {
+    position = 0;
+    for (uint32_t s = 0; s < season; ++s) {
+      if (countsFor(slot, rollsFor(world, s))) ++position;
+    }
+  }
+  const uint32_t size = grammar.entryCount(key, ctx);
   if (size <= 1) return pick;
-  const uint32_t cycle = nth / size;
-  const uint32_t position = nth % size;
-  // Shuffle of 0..size-1 for this cycle: position -> (a * position + b) mod size, a coprime to size.
-  Rng rng(contentSeed(world, packKeyHash(pick.key), cycle));
+  // position -> (a * position + b) mod size, a coprime to size: one fixed order per list and world.
+  Rng rng(contentSeed(world, packKeyHash(key), 0));
   uint32_t a = 1 + rng.below(size - 1);
   while (gcd(a, size) != 1) a = a % (size - 1) + 1;
   const uint32_t b = rng.below(size);
-  pick.entry = static_cast<uint32_t>((static_cast<uint64_t>(a) * position + b) % size);
+  pick.entry = static_cast<uint32_t>((static_cast<uint64_t>(a) * (position % size) + b) % size);
   return pick;
 }
 

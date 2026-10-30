@@ -232,7 +232,9 @@ void CultivationActivity::startVisit() {
   visit_ = absorb(*state_, gains);
   change.ageMonthsAfter = state_->progress.ageMonths;
   change.stagesGained = visit_.stagesGained;
-  change.reachedBottleneck = !bottleneckBefore && atBottleneck(*state_);
+  // Only the first time the bar fills in a realm: after a failed breakthrough,
+  // refilling it is not news (found in the simulator).
+  change.reachedBottleneck = !bottleneckBefore && atBottleneck(*state_) && state_->progress.failures == 0;
   updateRumor();
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
@@ -994,19 +996,26 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
     }
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   }
+  // At a bottleneck the "Break through" row says what to do; only a missing
+  // key needs a line of its own (the Breakthrough screen explains which keys).
   if (atBottleneck(s)) {
     const breakthrough::Chance c = breakthrough::chanceFor(s);
     if (c.needsKey && !c.hasKey && c.target < kMortalRealmCount) {
-      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_FORMAT), text(kRealmNames[c.target]));
-      y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, line, fits(smallLine, 4));
-    } else {
-      y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_BOTTLENECK), fits(smallLine, 2));
+      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_SHORT_FORMAT), text(kRealmNames[c.target]));
+      y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, line, fits(smallLine, 1));
     }
   }
   if (rumor_[0] != '\0') {
     snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
     y += metrics.verticalSpacing * 2;
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, fits(textLine, 4));
+    // On the busiest screens (Great Perfection, a missing key, two actions)
+    // the rumor drops to the small font rather than lose its end.
+    const int wanted = static_cast<int>(renderer.wrappedText(UI_10_FONT_ID, line, width, 6).size());
+    if (fits(textLine, wanted) >= wanted) {
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, line, wanted);
+    } else {
+      y = drawWrapped(SMALL_FONT_ID, x, y, width, line, fits(smallLine, 5));
+    }
   }
   if (packs_ && packs_->sdProblems() > 0)
     y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_PACK_PROBLEMS), 3);
@@ -1164,9 +1173,16 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
     stageText(stage, sizeof(stage));
     snprintf(line, sizeof(line), "%s, %s", text(kRealmNames[p.realm < kMortalRealmCount ? p.realm : 0]), stage);
     renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
+    const int realmWidth = renderer.getTextWidth(UI_10_FONT_ID, line, EpdFontFamily::BOLD);
     snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
              static_cast<unsigned>(realm.lifespanYears));
-    renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, line), y, line);
+    const int ageWidth = renderer.getTextWidth(UI_10_FONT_ID, line);
+    if (realmWidth + ageWidth + 16 > width) {  // "Qi Condensation, Great Perfection": age on its own line
+      y += renderer.getLineHeight(UI_10_FONT_ID);
+      renderer.drawText(UI_10_FONT_ID, x, y, line);
+    } else {
+      renderer.drawText(UI_10_FONT_ID, x + width - ageWidth, y, line);
+    }
     y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
     char gained[24];
@@ -1250,8 +1266,8 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, c
     const int lineHeight = renderer.getLineHeight(font);
     const auto wrapped = renderer.wrappedText(font, buf, width, 8, style);
     const int height = static_cast<int>(wrapped.size()) * lineHeight;
-    // Keep a heading with at least one line of what follows it.
-    const int needed = heading ? height + renderer.getLineHeight(UI_10_FONT_ID) : height;
+    // Keep a heading with what follows it: room for a full entry (up to 3 lines) below it.
+    const int needed = heading ? height + 3 * renderer.getLineHeight(UI_10_FONT_ID) : height;
     if (drewAny && y + needed > bottom) break;
     for (const auto& w : wrapped) {
       renderer.drawText(font, x, y, w.c_str(), true, style);

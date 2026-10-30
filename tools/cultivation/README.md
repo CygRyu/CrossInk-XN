@@ -5,6 +5,7 @@ Host-side tools for the cultivation game. Nothing in this folder is compiled int
 - `balance_sim.py`: the balance simulator (below).
 - `PACKS.md`: how to write content packs for the grammar engine, and how to check them.
 - `example-pack/`: an SD pack to copy to `/.crosspoint/cultivation/` for trying out packs.
+- `sim/`: builds the CrossInk simulator with the game on (no PlatformIO needed) and plays button scripts with screenshots, with fake reading time; see `sim/README.md`.
 
 ## Balance simulator
 

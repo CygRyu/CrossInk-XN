@@ -240,6 +240,70 @@ TEST(LifeLog, NoEntryRepeatsBeforeItsListIsUsedUp) {
   }
 }
 
+// Found in the simulator: a new shuffle per pass let the last entry of one
+// pass come back first in the next. The order is now fixed, so an entry is
+// never reused before every other entry of its list.
+TEST(LifeLog, AnEntryWaitsForTheWholeListAcrossPasses) {
+  BuiltinPacks packs;
+  GrammarContext ctx;
+  GameState s = makeCharacter(Origin::FarmersChild);  // log.body.farmer has only 5 entries
+  std::map<std::string, std::vector<uint32_t>> used;
+  for (uint32_t season = 0; season < 800; ++season) {
+    const SeasonPick p = seasonPick(s, season, *packs.grammar, ctx);
+    used[p.key].push_back(p.entry);
+  }
+  for (const auto& [key, entries] : used) {
+    const uint32_t size = packs.grammar->entryCount(key.c_str(), ctx);
+    for (size_t i = 0; i < entries.size(); ++i) {
+      for (size_t j = i + 1; j < entries.size() && j < i + size; ++j) {
+        EXPECT_NE(entries[i], entries[j]) << key << " uses " << i << " and " << j;
+      }
+    }
+  }
+}
+
+// Found in the simulator: a failed breakthrough (Half-step) changed which
+// lists were in the mix, and the replayed counts shifted, so a log.body line
+// came back after 13 seasons. The state now changes along the way.
+TEST(LifeLog, StateChangesDoNotBringEntriesBackEarly) {
+  BuiltinPacks packs;
+  GrammarContext ctx;
+  GameState s = makeCharacter(Origin::SectServant);
+  std::map<std::string, std::vector<uint32_t>> used;
+  for (uint32_t season = 64; season < 700; ++season) {
+    if (season == 120) s.progress.progressFlags = ProgressBlock::kHalfStep;
+    if (season == 140) s.progress.progressFlags = 0;
+    if (season == 200) s.progress.realm = 1;  // breakthrough: log.any carries on
+    if (season == 300) s.progress.progressFlags = ProgressBlock::kInGreatPerfection;
+    if (season == 340) s.progress.progressFlags = ProgressBlock::kHalfStep;
+    if (season == 380) {
+      s.progress.progressFlags = 0;
+      s.progress.realm = 2;
+    }
+    const SeasonPick p = seasonPick(s, season, *packs.grammar, ctx);
+    // Great Perfection and Half-step lines only count within one stretch of
+    // that state; between stretches any order is fine.
+    const std::string key = p.key;
+    const std::string stretch = (key == "log.gp" || key == "log.halfstep") && season >= 300 ? key + "#2" : key;
+    used[stretch].push_back(p.entry);
+  }
+  for (const auto& [stretchKey, entries] : used) {
+    const std::string key = stretchKey.substr(0, stretchKey.find('#'));
+    const uint32_t size = packs.grammar->entryCount(key.c_str(), ctx);
+    // log.any is never skipped: strictly the whole list between repeats. A
+    // realm list loses the seasons that Great Perfection or Half-step lines
+    // take while that state lasts, so it keeps at least half its spacing.
+    const size_t gap = key == "log.any" ? size : size / 2;
+    for (size_t i = 0; i < entries.size(); ++i) {
+      for (size_t j = i + 1; j < entries.size() && j < i + gap; ++j) {
+        EXPECT_NE(entries[i], entries[j]) << key << " uses " << i << " and " << j;
+      }
+    }
+  }
+  EXPECT_GT(used["log.halfstep"].size() + used["log.halfstep#2"].size(), 5u);
+  EXPECT_GT(used["log.gp#2"].size(), 3u);
+}
+
 TEST(LifeLog, LongRunsUseEveryEntry) {
   BuiltinPacks packs;
   GrammarContext ctx;

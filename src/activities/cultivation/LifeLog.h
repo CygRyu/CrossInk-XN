@@ -69,13 +69,13 @@ struct LifeLog {
 // Without a grammar engine (out of memory) the log has the counts but no lines.
 void build(LifeLog& log, const VisitChange& change, uint32_t monthsPassed, const GameState& state, Grammar* grammar);
 
-// Where a season's line comes from (exposed for tests). The list is a
-// weighted pick: realm 0 mixes the origin's own list (3), "log.body" (4) and
-// "log.any" (3); realm 1 "log.qi" (6) and "log.any"; realm 2
-// "log.foundation" (6) and "log.any"; later realms "log.any" only. In Great
-// Perfection "log.gp" (4) joins, after a failed breakthrough "log.halfstep"
-// (3). The entry is the list's next one in a shuffled order seeded by the
-// world, so a list's entries are all used before any repeats.
+// Where a season's line comes from (exposed for tests). Three rolls seeded by
+// the season alone pick the list: "log.any" 30% of the time, Great Perfection
+// or Half-step lines 35% of the rest while in that state, otherwise the realm's own list
+// (Body Tempering: the origin's list 3 in 7, else "log.body"; Qi
+// Condensation "log.qi"; Foundation "log.foundation"; later realms "log.any").
+// The entry is the list's next one in a fixed shuffled order per world, so a
+// list's entries are all used before any repeats, whatever the state does.
 struct SeasonPick {
   const char* key = nullptr;
   uint32_t entry = 0;
