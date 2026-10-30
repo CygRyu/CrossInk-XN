@@ -70,6 +70,14 @@ jobs:
         if: matrix.environment == 'cultivation'
         run: python3 tools/cultivation/test_balance_sim.py
 
+      - name: Game core host tests
+        if: matrix.environment == 'cultivation'
+        run: |
+          set -euo pipefail
+          cmake -S test/cultivation -B build/cultivation-tests
+          cmake --build build/cultivation-tests -j 4
+          ctest --test-dir build/cultivation-tests --output-on-failure
+
       - name: Build ${{ matrix.environment }}
         run: |
           set -euo pipefail
