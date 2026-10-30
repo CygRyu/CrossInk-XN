@@ -269,7 +269,9 @@ bool tryLoad(const char* path, GameState& state) {
     state.reset();
     return false;
   }
-  if (version > kSaveVersion) LOG_INF("CULT", "Loaded newer save v%u with firmware v%u", version, kSaveVersion);
+  if (version > kSaveVersion) {
+    LOG_INF("CULT", "Loaded newer save v%u with firmware v%u", version, kSaveVersion);
+  }
   return true;
 }
 
@@ -385,7 +387,9 @@ bool store(const GameState& state, const char* path) {
   }
   if (!Storage.rename(tmpPath, path)) {
     LOG_ERR("CULT", "Could not publish %s", path);
-    if (hadOriginal && !Storage.rename(bakPath, path)) LOG_ERR("CULT", "Could not restore %s", bakPath);
+    if (hadOriginal && !Storage.rename(bakPath, path)) {
+      LOG_ERR("CULT", "Could not restore %s", bakPath);
+    }
     if (hadOriginal && Storage.exists(path)) Storage.remove(tmpPath);
     return false;
   }

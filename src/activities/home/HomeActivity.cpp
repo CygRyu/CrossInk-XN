@@ -25,6 +25,10 @@
 #include "../reader/BookStatsActivity.h"
 #include "../reader/BookStatsTracking.h"
 #include "../reader/EpubReaderUtils.h"
+#include "activities/cultivation/CultivationConfig.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivationActivity.h"
+#endif
 #include "BookmarkStore.h"
 #include "ClippingStore.h"
 #include "CrossPointSettings.h"
@@ -59,6 +63,9 @@ enum class HomeMenuAction {
   Library,
   OpdsBrowser,
   ReadingStats,
+#if CROSSINK_CULTIVATION
+  Cultivation,
+#endif
   Bookmarks,
   FileTransfer,
   Settings,
@@ -71,7 +78,7 @@ struct HomeMenuEntry {
 };
 
 struct HomeMenuEntries {
-  static constexpr int kCapacity = 8;
+  static constexpr int kCapacity = 8 + (CROSSINK_CULTIVATION ? 1 : 0);
   std::array<HomeMenuEntry, kCapacity> entries{};
   int count = 0;
 
@@ -84,6 +91,15 @@ struct HomeMenuEntries {
 
   const HomeMenuEntry& operator[](int index) const { return entries[index]; }
 };
+
+#if CROSSINK_CULTIVATION
+// Path of Immortal Reading: shown whenever reading stats are tracked, since
+// reading is the game's only income.
+bool showCultivationEntry() { return SETTINGS.shouldTrackReadingStats(); }
+void appendCultivationEntry(HomeMenuEntries& items) {
+  if (showCultivationEntry()) items.push({tr(STR_CULT_MENU), Book, HomeMenuAction::Cultivation});
+}
+#endif
 
 bool containsPoint(const Rect& rect, const int x, const int y) {
   return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
@@ -244,6 +260,9 @@ void appendHomeMenuItems(HomeMenuEntries& items, bool hasOpdsServers, bool hasRe
   if (hasReadingStats) {
     items.push({tr(STR_READING_STATS), Chart, HomeMenuAction::ReadingStats});
   }
+#if CROSSINK_CULTIVATION
+  appendCultivationEntry(items);
+#endif
   if (hasBookmarks || hasClippings) {
     items.push({savedItemsLabel(hasBookmarks, hasClippings), BookmarkIcon, HomeMenuAction::Bookmarks});
   }
@@ -275,6 +294,9 @@ HomeMenuEntries buildMinimalMenuItems(bool hasOpdsServers, bool hasReadingStats,
   if (hasReadingStats) {
     items.push({tr(STR_READING_STATS), Chart, HomeMenuAction::ReadingStats});
   }
+#if CROSSINK_CULTIVATION
+  appendCultivationEntry(items);
+#endif
 
   items.push({tr(STR_FILE_TRANSFER), Transfer, HomeMenuAction::FileTransfer});
   return items;
@@ -543,6 +565,9 @@ int HomeActivity::getMenuItemCount() const {
   if (hasReadingStats) {
     count++;
   }
+#if CROSSINK_CULTIVATION
+  if (showCultivationEntry()) count++;
+#endif
   if (hasBookmarks || hasClippings) {
     count++;
   }
@@ -1469,6 +1494,11 @@ void HomeActivity::loop() {
           case HomeMenuAction::ReadingStats:
             onReadingStatsOpen();
             break;
+#if CROSSINK_CULTIVATION
+          case HomeMenuAction::Cultivation:
+            onCultivationOpen();
+            break;
+#endif
           case HomeMenuAction::Bookmarks:
             onSavedItemsOpen();
             break;
@@ -1714,6 +1744,11 @@ void HomeActivity::loop() {
       case HomeMenuAction::ReadingStats:
         onReadingStatsOpen();
         break;
+#if CROSSINK_CULTIVATION
+      case HomeMenuAction::Cultivation:
+        onCultivationOpen();
+        break;
+#endif
       case HomeMenuAction::Bookmarks:
         onSavedItemsOpen();
         break;
@@ -2332,6 +2367,21 @@ void HomeActivity::onSettingsOpen() { activityManager.goToSettings(); }
 void HomeActivity::onFileTransferOpen() { activityManager.goToFileTransfer(); }
 
 void HomeActivity::onOpdsBrowserOpen() { activityManager.goToBrowser(); }
+
+#if CROSSINK_CULTIVATION
+void HomeActivity::onCultivationOpen() {
+  if (!SETTINGS.shouldTrackReadingStats()) return;
+  auto game = makeUniqueNoThrow<CultivationActivity>(renderer, mappedInput);
+  if (!game) {
+    LOG_ERR("CULT", "Could not allocate CultivationActivity");
+    return;
+  }
+  startActivityForResult(std::move(game), [this](const ActivityResult&) {
+    mappedInput.suppressNextConfirmRelease();
+    requestUpdate();
+  });
+}
+#endif
 
 void HomeActivity::onReadingStatsOpen() {
   if (!SETTINGS.shouldTrackReadingStats()) return;

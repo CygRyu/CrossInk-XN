@@ -34,9 +34,11 @@ add_executable(CultivationCoreTest
   QiNumberTest.cpp
   GameStateTest.cpp
   StatsBridgeTest.cpp
+  SimulationTest.cpp
   ${CULTIVATION_SRC}/QiNumber.cpp
   ${CULTIVATION_SRC}/GameState.cpp
   ${CULTIVATION_SRC}/StatsBridge.cpp
+  ${CULTIVATION_SRC}/Simulation.cpp
 )
 
 target_include_directories(CultivationCoreTest PRIVATE

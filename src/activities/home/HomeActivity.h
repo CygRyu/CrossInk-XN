@@ -11,6 +11,7 @@
 #include "./FileBrowserActivity.h"
 #include "QuickActions.h"
 #include "activities/Activity.h"
+#include "activities/cultivation/CultivationConfig.h"
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/GlobalReadingStats.h"
 #include "components/CoverGridHomeUi.h"
@@ -105,6 +106,9 @@ class HomeActivity final : public Activity {
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
   void onReadingStatsOpen();
+#if CROSSINK_CULTIVATION
+  void onCultivationOpen();
+#endif
   void onSavedItemsOpen();
 
   int getMenuItemCount() const;
