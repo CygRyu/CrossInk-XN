@@ -105,7 +105,6 @@ class HomeActivity final : public Activity {
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
   void onReadingStatsOpen();
-  void onCultivationOpen();
   void onSavedItemsOpen();
 
   int getMenuItemCount() const;

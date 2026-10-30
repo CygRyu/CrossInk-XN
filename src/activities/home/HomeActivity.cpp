@@ -25,7 +25,6 @@
 #include "../reader/BookStatsActivity.h"
 #include "../reader/BookStatsTracking.h"
 #include "../reader/EpubReaderUtils.h"
-#include "CultivationActivity.h"
 #include "BookmarkStore.h"
 #include "ClippingStore.h"
 #include "CrossPointSettings.h"
@@ -54,20 +53,12 @@ constexpr uint32_t CAROUSEL_FRAME_MIN_MAX_ALLOC_AFTER_ALLOC = 24U * 1024U;
 constexpr unsigned long HOME_BOOK_SWAP_LONG_PRESS_MS = 1000;
 constexpr int HOME_BOOK_SWAP_RECENT_COUNT = 2;
 
-// Build with -DCROSSINK_CULTIVATION=0 to drop the reading-driven cultivation
-// game entry from the Home menu.
-#ifndef CROSSINK_CULTIVATION
-#define CROSSINK_CULTIVATION 1
-#endif
-constexpr bool kCultivationEnabled = CROSSINK_CULTIVATION != 0;
-
 enum class HomeMenuAction {
   BrowseFiles,
   ContinueReading,
   Library,
   OpdsBrowser,
   ReadingStats,
-  Cultivation,
   Bookmarks,
   FileTransfer,
   Settings,
@@ -80,7 +71,7 @@ struct HomeMenuEntry {
 };
 
 struct HomeMenuEntries {
-  static constexpr int kCapacity = 10;
+  static constexpr int kCapacity = 8;
   std::array<HomeMenuEntry, kCapacity> entries{};
   int count = 0;
 
@@ -252,9 +243,6 @@ void appendHomeMenuItems(HomeMenuEntries& items, bool hasOpdsServers, bool hasRe
   }
   if (hasReadingStats) {
     items.push({tr(STR_READING_STATS), Chart, HomeMenuAction::ReadingStats});
-    if (kCultivationEnabled) {
-      items.push({tr(STR_CULTIVATION), Book, HomeMenuAction::Cultivation});
-    }
   }
   if (hasBookmarks || hasClippings) {
     items.push({savedItemsLabel(hasBookmarks, hasClippings), BookmarkIcon, HomeMenuAction::Bookmarks});
@@ -286,9 +274,6 @@ HomeMenuEntries buildMinimalMenuItems(bool hasOpdsServers, bool hasReadingStats,
   }
   if (hasReadingStats) {
     items.push({tr(STR_READING_STATS), Chart, HomeMenuAction::ReadingStats});
-    if (kCultivationEnabled) {
-      items.push({tr(STR_CULTIVATION), Book, HomeMenuAction::Cultivation});
-    }
   }
 
   items.push({tr(STR_FILE_TRANSFER), Transfer, HomeMenuAction::FileTransfer});
@@ -557,9 +542,6 @@ int HomeActivity::getMenuItemCount() const {
   }
   if (hasReadingStats) {
     count++;
-    if (kCultivationEnabled) {
-      count++;  // Cultivation game entry
-    }
   }
   if (hasBookmarks || hasClippings) {
     count++;
@@ -1487,9 +1469,6 @@ void HomeActivity::loop() {
           case HomeMenuAction::ReadingStats:
             onReadingStatsOpen();
             break;
-          case HomeMenuAction::Cultivation:
-            onCultivationOpen();
-            break;
           case HomeMenuAction::Bookmarks:
             onSavedItemsOpen();
             break;
@@ -1734,9 +1713,6 @@ void HomeActivity::loop() {
         break;
       case HomeMenuAction::ReadingStats:
         onReadingStatsOpen();
-        break;
-      case HomeMenuAction::Cultivation:
-        onCultivationOpen();
         break;
       case HomeMenuAction::Bookmarks:
         onSavedItemsOpen();
@@ -2406,15 +2382,6 @@ void HomeActivity::onReadingStatsOpen() {
                              requestUpdate();
                            });
   }
-}
-
-void HomeActivity::onCultivationOpen() {
-  if (!SETTINGS.shouldTrackReadingStats()) return;
-  startActivityForResult(std::make_unique<CultivationActivity>(renderer, mappedInput),
-                         [this](const ActivityResult&) {
-                           mappedInput.suppressNextConfirmRelease();
-                           requestUpdate();
-                         });
 }
 
 void HomeActivity::onSavedItemsOpen() {
