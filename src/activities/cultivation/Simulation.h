@@ -71,6 +71,30 @@ void suggestName(uint32_t worldSeed, uint8_t index, Gender gender, char* buf, si
 uint32_t qiMultiplierPermille(const GameState& state);
 uint16_t purityPermille(uint8_t purity);  // 850..1150
 
+// --- Origins ------------------------------------------------------------------
+
+// Starting gifts per origin (agreed in session 2). No origin changes the Qi
+// rate. Stones and max HP are granted now; the other fields are recorded for
+// the systems that will read them (grades, events, sects, alchemy).
+struct OriginBonus {
+  uint16_t stones;               // starting Spirit Stones
+  uint8_t extraHp;               // added to HP and max HP
+  uint8_t foundationGradeScore;  // added to the Foundation grade score (milestone 5)
+  uint8_t eventLuck;             // added to luck checks (milestone 8)
+  uint8_t sectGateRealm;         // realm that opens the sect gate (default 2, milestone 8)
+  bool knowsQiPillRecipe;        // starts with one Qi pill recipe (milestone 8)
+  uint8_t brewQualityPercent;    // added to brew quality (milestone 8)
+};
+const OriginBonus& originBonus(Origin origin);
+
+struct OriginGift {
+  uint32_t stones = 0;
+  uint8_t hp = 0;
+};
+// Grants the origin's stones and HP once per life (CharacterBlock::kOriginGiftsGiven).
+// Returns what was granted: zeros if it had been granted already.
+OriginGift grantOriginGifts(GameState& state);
+
 // --- Character creation ---------------------------------------------------------
 
 struct CharacterDraft {
@@ -84,7 +108,7 @@ struct CharacterDraft {
 };
 
 // Starts a new life at Body Tempering Layer 1 with zero Qi, however much was
-// read before: takes the baseline snapshot of `now`.
+// read before: takes the baseline snapshot of `now`. Grants the origin gifts.
 void createCharacter(GameState& state, const CharacterDraft& draft, const StatsSample& now);
 
 uint32_t worldSeedOf(const GameState& state);

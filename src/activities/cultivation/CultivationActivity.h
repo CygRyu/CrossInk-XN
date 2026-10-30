@@ -67,6 +67,7 @@ class CultivationActivity final : public Activity {
 
   // What the last visit produced, for the Cultivator screen.
   cultivation::AbsorbResult visit_;
+  cultivation::OriginGift originGift_;  // shown once: at creation, or on an older character's next visit
   uint32_t visitSeconds_ = 0;
   bool visitReset_ = false;
   bool justCreated_ = false;

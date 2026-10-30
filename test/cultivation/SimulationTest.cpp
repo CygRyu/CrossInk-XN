@@ -22,6 +22,9 @@ VisitGains minutes(const uint32_t m, const uint32_t pages = 0) {
   return g;
 }
 
+// newCharacter() is a Farmer's child, who starts with 30 Spirit Stones.
+constexpr uint32_t kStartStones = 30;
+
 GameState newCharacter(const uint8_t talent = 2, const uint8_t purity = 50) {
   CharacterDraft d;
   strcpy(d.name, "Lin Yue");
@@ -106,7 +109,7 @@ TEST(Simulation, StonesAreOnePerMinutePlusOnePerTwoPages) {
   GameState s = newCharacter();
   AbsorbResult r = absorb(s, minutes(10, 7));
   EXPECT_EQ(r.stonesGained, 13u);
-  EXPECT_EQ(s.progress.stones, 13u);
+  EXPECT_EQ(s.progress.stones, kStartStones + 13u);
   EXPECT_NE(s.progress.progressFlags & ProgressBlock::kOddPageCarry, 0);
   r = absorb(s, minutes(10, 1));  // the carried page completes a pair
   EXPECT_EQ(r.stonesGained, 11u);
@@ -127,8 +130,8 @@ TEST(Simulation, FastAndSlowReadersEarnSimilarStones) {
     absorb(slow, minutes(30, 21));  // 0.7 pages/min
     absorb(fast, minutes(30, 42));  // 1.4 pages/min
   }
-  EXPECT_EQ(slow.progress.stones, 30u * (30 + 10) + 15u);  // 15 carried odd pages paired up
-  EXPECT_EQ(fast.progress.stones, 30u * 45);
+  EXPECT_EQ(slow.progress.stones, kStartStones + 30u * (30 + 10) + 15u);  // 15 carried odd pages paired up
+  EXPECT_EQ(fast.progress.stones, kStartStones + 30u * 45);
 }
 
 TEST(Simulation, StoneMinutesCarryAcrossShortVisits) {
@@ -198,7 +201,7 @@ TEST(Simulation, ResetGainsChangeNothing) {
   g.resetDetected = true;
   absorb(s, g);
   EXPECT_TRUE(s.progress.qi.isZero());
-  EXPECT_EQ(s.progress.stones, 0u);
+  EXPECT_EQ(s.progress.stones, kStartStones);
   EXPECT_EQ(s.progress.stamina, 0);
   EXPECT_EQ(s.progress.daoHeart, 0);
   EXPECT_EQ(ageYears(s), 16);
@@ -305,4 +308,49 @@ TEST(Simulation, SaveRoundTripKeepsTheWorldSeed) {
   // The world block bytes used by createCharacter survive save/load.
   GameState s = newCharacter();
   EXPECT_EQ(worldSeedOf(s), 1234u);
+}
+
+TEST(Simulation, OriginGiftsAreGrantedAtCreation) {
+  const uint32_t stones[] = {30, 100, 10, 50, 40};
+  for (int o = 0; o < static_cast<int>(Origin::Count); ++o) {
+    CharacterDraft d;
+    strcpy(d.name, "Lin Yue");
+    d.origin = static_cast<Origin>(o);
+    GameState s;
+    createCharacter(s, d, StatsSample{});
+    EXPECT_EQ(s.progress.stones, stones[o]) << o;
+    EXPECT_EQ(s.progress.hpMax, o == 0 ? 120 : 100) << o;
+    EXPECT_EQ(s.progress.hp, s.progress.hpMax) << o;
+    EXPECT_NE(s.character.flags & CharacterBlock::kOriginGiftsGiven, 0) << o;
+    EXPECT_EQ(grantOriginGifts(s).stones, 0u) << "only once";
+    EXPECT_EQ(s.progress.stones, stones[o]) << o;
+  }
+}
+
+TEST(Simulation, OlderCharactersReceiveOriginGiftsOnce) {
+  GameState s = newCharacter();
+  s.character.origin = Origin::FallenClanHeir;
+  s.character.flags = CharacterBlock::kCharacterCreated;  // as saved before origin gifts existed
+  s.progress.stones = 34;
+  OriginGift g = grantOriginGifts(s);
+  EXPECT_EQ(g.stones, 100u);
+  EXPECT_EQ(g.hp, 0);
+  EXPECT_EQ(s.progress.stones, 134u);
+  g = grantOriginGifts(s);
+  EXPECT_EQ(g.stones, 0u);
+  EXPECT_EQ(s.progress.stones, 134u);
+}
+
+TEST(Simulation, NoOriginChangesTheQiRate) {
+  for (int o = 0; o < static_cast<int>(Origin::Count); ++o) {
+    GameState s = newCharacter(2, 50);
+    s.character.origin = static_cast<Origin>(o);
+    EXPECT_EQ(qiMultiplierPermille(s), 998u) << o;
+  }
+}
+
+TEST(Simulation, NoGiftsWithoutACharacter) {
+  GameState s;
+  EXPECT_EQ(grantOriginGifts(s).stones, 0u);
+  EXPECT_EQ(s.progress.stones, 0u);
 }

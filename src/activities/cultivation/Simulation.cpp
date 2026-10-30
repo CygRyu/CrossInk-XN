@@ -27,6 +27,13 @@ static const RealmInfo kRealms[kMortalRealmCount] = {
 // x1.5 (4%). The doc names only the two ends.
 static const TalentInfo kTalents[kTalentCount] = {{600, 35}, {800, 30}, {1000, 20}, {1200, 11}, {1500, 4}};
 
+// Origins in Origin order: Farmer's child, Fallen clan heir, Street orphan,
+// Sect servant, Herbalist's apprentice.
+static const OriginBonus kOriginBonuses[static_cast<int>(Origin::Count)] = {
+    {30, 20, 0, 0, 2, false, 0}, {100, 0, 5, 0, 2, false, 0}, {10, 0, 0, 5, 2, false, 0},
+    {50, 0, 0, 0, 1, false, 0},  {40, 0, 0, 0, 2, true, 10},
+};
+
 constexpr uint32_t kKindDestiny = 1;
 constexpr uint32_t kKindHiddenTrait = 2;
 constexpr uint32_t kKindName = 3;
@@ -82,6 +89,26 @@ const TalentInfo& talentInfo(const uint8_t talent) { return kTalents[talent < kT
 uint16_t purityPermille(const uint8_t purity) {
   const uint8_t p = purity < 1 ? 1 : (purity > 100 ? 100 : purity);
   return static_cast<uint16_t>(850u + 300u * (p - 1u) / 99u);
+}
+
+const OriginBonus& originBonus(const Origin origin) {
+  const int i = static_cast<int>(origin);
+  return kOriginBonuses[i < static_cast<int>(Origin::Count) ? i : 0];
+}
+
+OriginGift grantOriginGifts(GameState& state) {
+  OriginGift gift;
+  CharacterBlock& c = state.character;
+  if (!state.isCreated() || (c.flags & CharacterBlock::kOriginGiftsGiven) != 0) return gift;
+  const OriginBonus& bonus = originBonus(c.origin);
+  ProgressBlock& p = state.progress;
+  gift.stones = bonus.stones;
+  gift.hp = bonus.extraHp;
+  p.stones = satAdd(p.stones, gift.stones);
+  p.hpMax = static_cast<uint16_t>(p.hpMax + gift.hp);
+  p.hp = static_cast<uint16_t>(p.hp + gift.hp);
+  c.flags |= CharacterBlock::kOriginGiftsGiven;
+  return gift;
 }
 
 uint32_t worldSeed(const uint8_t mac[6], const uint32_t creationDay, const uint16_t lifeNumber) {
@@ -168,6 +195,7 @@ void createCharacter(GameState& state, const CharacterDraft& draft, const StatsS
   c.rerollsUsed = draft.rerollsUsed;
   c.creationDay = now.today;
   c.flags = CharacterBlock::kCharacterCreated;
+  grantOriginGifts(state);
 
   writeLe32(state.world.data() + kWorldSeedOffset, draft.worldSeed);
   state.world[kLifeNumberOffset] = 1;  // first life

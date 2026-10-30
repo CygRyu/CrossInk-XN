@@ -59,6 +59,9 @@ struct CharacterBlock {
 
   static constexpr uint8_t kCharacterCreated = 0x01;
   static constexpr uint8_t kHiddenTraitRevealed = 0x02;
+  // The origin's starting gifts were granted. Characters made before origin
+  // gifts existed have it clear and receive them once on their next visit.
+  static constexpr uint8_t kOriginGiftsGiven = 0x04;
 };
 
 struct ProgressBlock {

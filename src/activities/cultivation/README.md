@@ -64,16 +64,25 @@ Differences from the design document's budget: the stats snapshot is 68 bytes in
 - **Spirit Stones** (decision 5B): 1 per minute read plus 1 per 2 pages; the page part of one visit is at most half that visit's minutes. One leftover page carries to the next visit (flag bit `kOddPageCarry`); pages over the limit are dropped, so auto page-turns gain nothing. A 0.7 and a 1.4 pages-per-minute reader earn 40 and 45 stones per 30 minutes.
 - **Stamina** (decision 4A): +1 per 15 minutes read, nothing per session, bank cap 12. Nothing spends it yet (exploration, milestone 8).
 - **Dao Heart** (decision 2B): `100 × reading seconds / 15 h`, capped at 100, never decays. The reading streak becomes flavor and the Dao of Time unlock only.
+- **Origin gifts** (agreed in session 2): starting stones and max HP are granted at creation; a character made before gifts existed gets them once on its next visit (character flag `kOriginGiftsGiven`, bit 0x04 of a byte that already exists, so no format change). No origin changes the Qi rate. The other gifts are recorded in `kOriginBonuses` for the systems that will use them.
+
+  | Origin | Stones | Now | Later |
+  | --- | --- | --- | --- |
+  | Farmer's child | 30 | +20 max HP (120) | |
+  | Fallen clan heir | 100 | | +5 Foundation grade score (milestone 5); rival known from day one |
+  | Street orphan | 10 | | +5 luck on event checks (milestone 8) |
+  | Sect servant | 50 | | Sect gate open from Qi Condensation instead of Foundation (milestone 8) |
+  | Herbalist's apprentice | 40 | | Knows one Qi pill recipe; +10% brew quality (milestone 8) |
 - Minutes for stones, steps for stamina and Dao Heart all come from `gameReadingSeconds` (this character's total reading time), so none of them needs its own carry field.
 
 ## Screens (milestone 3)
 
 1. **Name:** type it with the CrossInk keyboard, or Suggest (generated from the world seed). Names are trimmed and must be 1–20 characters the UI font can draw.
 2. **Gender:** Male, Female, Non-binary, Prefer not to say. Flavor only.
-3. **Origin:** five origins with their birth line.
+3. **Origin:** five origins with their birth line; the selected origin's gifts are shown under the list.
 4. **Awakening Test:** one destiny per screen. Previous and Next move between destinies seen so far, Next past the last one spends a reroll (3 per life), and Keep takes the destiny on screen. Destinies are a pure function of the world seed (MAC, creation day, life number), so leaving and re-entering shows the same ones.
-5. **Cultivator:** name, realm and stage, Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, and what the visit brought (minutes, Qi, stones).
+5. **Cultivator:** name, realm and stage, Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, and what the visit brought (minutes, Qi, stones, and origin gifts the one time they are granted).
 
 Nothing is saved until a destiny is kept. If a damaged save is found, the new character's first save first moves it to `save.damaged.bin`.
 
-Not yet (later milestones): breakthroughs (the Peak bar stays full and reading there does not carry over yet), the return summary and life log, renaming from the Cultivator screen, origin start bonuses, and anything that spends stamina.
+Not yet (later milestones): breakthroughs (the Peak bar stays full and reading there does not carry over yet), the return summary and life log, renaming from the Cultivator screen, origin gifts other than stones and HP, and anything that spends stamina.

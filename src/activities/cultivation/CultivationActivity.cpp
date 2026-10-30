@@ -52,6 +52,9 @@ static const StrId kOriginNames[static_cast<int>(Origin::Count)] = {
 static const StrId kBirthLines[static_cast<int>(Origin::Count)] = {
     StrId::STR_CULT_BIRTH_FARMER, StrId::STR_CULT_BIRTH_CLAN_HEIR, StrId::STR_CULT_BIRTH_ORPHAN,
     StrId::STR_CULT_BIRTH_SECT_SERVANT, StrId::STR_CULT_BIRTH_HERBALIST};
+static const StrId kOriginGifts[static_cast<int>(Origin::Count)] = {
+    StrId::STR_CULT_GIFT_FARMER, StrId::STR_CULT_GIFT_CLAN_HEIR, StrId::STR_CULT_GIFT_ORPHAN,
+    StrId::STR_CULT_GIFT_SECT_SERVANT, StrId::STR_CULT_GIFT_HERBALIST};
 static const StrId kElementNames[static_cast<int>(Element::Count)] = {
     StrId::STR_CULT_ELEMENT_WOOD, StrId::STR_CULT_ELEMENT_FIRE, StrId::STR_CULT_ELEMENT_EARTH,
     StrId::STR_CULT_ELEMENT_METAL, StrId::STR_CULT_ELEMENT_WATER};
@@ -172,6 +175,7 @@ bool CultivationActivity::persist() {
 void CultivationActivity::startVisit() {
   const StatsSample now = readLocalStats();
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
+  originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
   visit_ = absorb(*state_, gains);
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
@@ -215,6 +219,9 @@ void CultivationActivity::finishCreation() {
   persist();
   justCreated_ = true;
   visit_ = AbsorbResult{};
+  const OriginBonus& bonus = originBonus(state_->character.origin);
+  originGift_.stones = bonus.stones;
+  originGift_.hp = bonus.extraHp;
   screen_ = Screen::Cultivator;
 }
 
@@ -481,10 +488,16 @@ void CultivationActivity::renderGender(const int top, const int bottom) {
 }
 
 void CultivationActivity::renderOrigin(const int top, const int bottom) {
+  // The selected origin's gifts go under the list, in three lines at most.
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int noteHeight = renderer.getLineHeight(UI_10_FONT_ID) * 3 + metrics.verticalSpacing;
   GUI.drawList(
-      renderer, Rect{0, top, renderer.getScreenWidth(), bottom - top}, static_cast<int>(Origin::Count), selected_,
-      [](const int i) -> std::string { return text(kOriginNames[i]); },
+      renderer, Rect{0, top, renderer.getScreenWidth(), bottom - top - noteHeight}, static_cast<int>(Origin::Count),
+      selected_, [](const int i) -> std::string { return text(kOriginNames[i]); },
       [](const int i) -> std::string { return text(kBirthLines[i]); });
+  const int index = selected_ >= 0 && selected_ < static_cast<int>(Origin::Count) ? selected_ : 0;
+  drawWrapped(UI_10_FONT_ID, metrics.contentSidePadding, bottom - noteHeight + metrics.verticalSpacing,
+              renderer.getScreenWidth() - metrics.contentSidePadding * 2, text(kOriginGifts[index]), 3);
 }
 
 void CultivationActivity::renderAwakening(const int x, int y, const int width) {
@@ -615,6 +628,15 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
     snprintf(line, sizeof(line), tr(STR_CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained,
              static_cast<unsigned long>(visit_.stonesGained));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
+  }
+  if (originGift_.stones > 0 || originGift_.hp > 0) {
+    if (originGift_.hp > 0) {
+      snprintf(line, sizeof(line), tr(STR_CULT_ORIGIN_GIFT_HP_FORMAT), static_cast<unsigned long>(originGift_.stones),
+               static_cast<unsigned>(originGift_.hp));
+    } else {
+      snprintf(line, sizeof(line), tr(STR_CULT_ORIGIN_GIFT_FORMAT), static_cast<unsigned long>(originGift_.stones));
+    }
+    y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   }
   if (visit_.stagesGained > 0) {
     snprintf(line, sizeof(line), tr(STR_CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
