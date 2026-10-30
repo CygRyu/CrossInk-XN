@@ -15,6 +15,7 @@
 #include <cstring>
 #include <string>
 
+#include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "GameValues.h"
 #include "MappedInputManager.h"
@@ -160,6 +161,8 @@ void CultivationActivity::onEnter() {
 }
 
 void CultivationActivity::onExit() {
+  chronicle_.reset();
+  lifeLog_.reset();
   grammar_.reset();  // the engine reads through packs_, so it goes first
   packs_.reset();
   state_.reset();  // frees the ~1 KB GameState
@@ -216,7 +219,13 @@ void CultivationActivity::startVisit() {
   const StatsSample now = readLocalStats();
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
   originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
+  lifelog::VisitChange change;
+  change.ageMonthsBefore = state_->progress.ageMonths;
+  const bool bottleneckBefore = atBottleneck(*state_);
   visit_ = absorb(*state_, gains);
+  change.ageMonthsAfter = state_->progress.ageMonths;
+  change.stagesGained = visit_.stagesGained;
+  change.reachedBottleneck = !bottleneckBefore && atBottleneck(*state_);
   updateRumor();
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
@@ -225,8 +234,64 @@ void CultivationActivity::startVisit() {
           static_cast<unsigned long>(gains.pages), gains.resetDetected ? 1 : 0,
           static_cast<unsigned>(visit_.stagesGained), static_cast<unsigned long>(visit_.stonesGained),
           static_cast<unsigned>(visit_.staminaGained));
+  // The Chronicle is written before the save: if the save fails, the next
+  // visit rebuilds the same lines and chronicle::appendVisit() skips them.
+  const bool summary = visitSeconds_ > 0 && !visitReset_;
+  if (summary) writeLifeLog(change);
   persist();
-  screen_ = Screen::Cultivator;
+  chronicleExists_ = chronicle::exists();
+  summaryPage_ = 0;
+  summaryPages_[0] = 0;
+  screen_ = summary ? Screen::Summary : Screen::Cultivator;
+}
+
+// Builds the visit's life log for the Return summary and appends it to the
+// Chronicle. A character made before the Chronicle existed gets its opening
+// chapter first. Without memory for the log, the summary shows the numbers only.
+void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
+  lifeLog_ = makeUniqueNoThrow<lifelog::LifeLog>();
+  if (!lifeLog_) {
+    LOG_ERR("CULT", "Out of memory for the life log (%u bytes)", static_cast<unsigned>(sizeof(lifelog::LifeLog)));
+    return;
+  }
+  lifelog::build(*lifeLog_, change, visit_.monthsPassed, *state_, grammar_.get());
+  if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
+  chronicle::appendVisit(*lifeLog_);
+  if (packs_) packs_->closeFile();
+}
+
+// The render task may be drawing the summary or the Chronicle from these
+// blocks, so they are swapped and freed under the render lock.
+void CultivationActivity::leaveSummary() {
+  {
+    RenderLock lock(*this);
+    lifeLog_.reset();
+    screen_ = Screen::Cultivator;
+  }
+  requestUpdate();
+}
+
+void CultivationActivity::openChronicle() {
+  auto view = makeUniqueNoThrow<ChronicleView>();
+  if (!view) {
+    LOG_ERR("CULT", "Out of memory for the Chronicle viewer (%u bytes)", static_cast<unsigned>(sizeof(ChronicleView)));
+    return;
+  }
+  {
+    RenderLock lock(*this);
+    chronicle_ = std::move(view);
+    screen_ = Screen::Chronicle;
+  }
+  requestUpdate();
+}
+
+void CultivationActivity::closeChronicle() {
+  {
+    RenderLock lock(*this);
+    chronicle_.reset();
+    screen_ = Screen::Cultivator;
+  }
+  requestUpdate();
 }
 
 void CultivationActivity::startCreation() {
@@ -257,6 +322,9 @@ void CultivationActivity::finishCreation() {
       LOG_ERR("CULT", "Could not keep the damaged save aside");
     }
   }
+  chronicle::writeOpening(*state_, grammar_.get());  // a new chapter; the book's title too if it is new
+  if (packs_) packs_->closeFile();
+  chronicleExists_ = chronicle::exists();
   persist();
   justCreated_ = true;
   visit_ = AbsorbResult{};
@@ -291,9 +359,60 @@ void CultivationActivity::loop() {
 
   switch (screen_) {
     case Screen::Error:
-    case Screen::Cultivator:
       if (back || confirm) finish();
       return;
+
+    case Screen::Cultivator:
+      if (back) {
+        finish();
+      } else if (confirm) {
+        if (chronicleExists_) {
+          openChronicle();
+        } else {
+          finish();
+        }
+      }
+      return;
+
+    case Screen::Summary:
+      if (back || confirm) {
+        leaveSummary();
+      } else if (down && summaryNext_ > summaryPages_[summaryPage_] && lifeLog_ && summaryNext_ < lifeLog_->count &&
+                 summaryPage_ + 1 < static_cast<int>(sizeof(summaryPages_))) {
+        summaryPages_[++summaryPage_] = summaryNext_;
+        requestUpdate();
+      } else if (up && summaryPage_ > 0) {
+        --summaryPage_;
+        requestUpdate();
+      }
+      return;
+
+    case Screen::Chronicle: {
+      if (!chronicle_) {
+        closeChronicle();
+        return;
+      }
+      ChronicleView& v = *chronicle_;
+      if (back) {
+        closeChronicle();
+      } else if ((down || confirm) && v.more) {
+        RenderLock lock(*this);
+        if (v.depth + 1 < ChronicleView::kHistory) {
+          ++v.depth;
+        } else {  // forget the oldest page
+          memmove(v.starts, v.starts + 1, sizeof(v.starts) - sizeof(v.starts[0]));
+        }
+        v.starts[v.depth] = v.next;
+        ++v.pageNumber;
+        requestUpdate();
+      } else if (up && v.depth > 0) {
+        RenderLock lock(*this);
+        --v.depth;
+        --v.pageNumber;
+        requestUpdate();
+      }
+      return;
+    }
 
     case Screen::Name:
       if (back) {
@@ -444,6 +563,12 @@ void CultivationActivity::render(RenderLock&&) {
   const char* title = tr(STR_CULT_TITLE);
   if (screen_ == Screen::Name || screen_ == Screen::Gender || screen_ == Screen::Origin) title = tr(STR_CULT_NEW_LIFE);
   if (screen_ == Screen::Awakening) title = tr(STR_CULT_AWAKENING);
+  char chronicleTitle[48];
+  if (screen_ == Screen::Chronicle && chronicle_) {
+    snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_TITLE_FORMAT),
+             static_cast<unsigned long>(chronicle_->pageNumber));
+    title = chronicleTitle;
+  }
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, title);
   } else {
@@ -476,11 +601,23 @@ void CultivationActivity::render(RenderLock&&) {
       downLabel = rollView_ + 1 < rollCount_ ? tr(STR_CULT_NEXT) : (canReroll ? tr(STR_CULT_REROLL) : "");
       break;
     }
+    case Screen::Summary:
+      renderSummary(x, top, width, bottom);
+      confirmLabel = tr(STR_CULT_CONTINUE);
+      upLabel = summaryPage_ > 0 ? tr(STR_CULT_PREVIOUS) : "";
+      downLabel = lifeLog_ && summaryNext_ < lifeLog_->count ? tr(STR_CULT_NEXT) : "";
+      break;
     case Screen::Cultivator:
       renderCultivator(x, top, width);
-      confirmLabel = "";
+      confirmLabel = chronicleExists_ ? tr(STR_CULT_CHRONICLE) : "";
       upLabel = "";
       downLabel = "";
+      break;
+    case Screen::Chronicle:
+      renderChronicle(x, top, width, bottom);
+      confirmLabel = "";
+      upLabel = chronicle_ && chronicle_->depth > 0 ? tr(STR_CULT_PREVIOUS) : "";
+      downLabel = chronicle_ && chronicle_->more ? tr(STR_CULT_NEXT) : "";
       break;
     case Screen::Error:
       drawWrapped(UI_10_FONT_ID, x, top, width, tr(STR_CULT_OUT_OF_MEMORY), 4);
@@ -664,13 +801,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
     y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_RESET), 3);
   } else if (visitSeconds_ == 0) {
     y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_NONE), 3);
-  } else {
-    char gained[24];
-    visit_.qiGained.format(gained, sizeof(gained));
-    snprintf(line, sizeof(line), tr(STR_CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained,
-             static_cast<unsigned long>(visit_.stonesGained));
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
-  }
+  }  // otherwise the Return summary already showed what this visit brought
   if (originGift_.stones > 0 || originGift_.hp > 0) {
     if (originGift_.hp > 0) {
       snprintf(line, sizeof(line), tr(STR_CULT_ORIGIN_GIFT_HP_FORMAT), static_cast<unsigned long>(originGift_.stones),
@@ -678,10 +809,6 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
     } else {
       snprintf(line, sizeof(line), tr(STR_CULT_ORIGIN_GIFT_FORMAT), static_cast<unsigned long>(originGift_.stones));
     }
-    y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
-  }
-  if (visit_.stagesGained > 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   }
   if (atBottleneck(s)) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_BOTTLENECK), 3);
@@ -693,6 +820,150 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
     y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_PACK_PROBLEMS), 3);
   if (damagedSave_ && justCreated_) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_DAMAGED), 3);
   if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_FAILED), 2);
+}
+
+// Return summary (DOC: "Months passed, resources gained, 3-6 life-log
+// lines"). The first page carries the time and the numbers; long logs carry
+// over to further pages.
+void CultivationActivity::renderSummary(const int x, int y, const int width, const int bottom) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const GameState& s = *state_;
+  const ProgressBlock& p = s.progress;
+  const uint32_t seasons = lifeLog_ ? lifeLog_->seasonsPassed : visit_.monthsPassed / 3;
+  const uint32_t months = visit_.monthsPassed;
+  const uint8_t first = summaryPages_[summaryPage_];
+  char line[224];
+
+  if (summaryPage_ == 0) {
+    if (seasons >= 2) {
+      snprintf(line, sizeof(line), tr(STR_CULT_SEASONS_PASSED_FORMAT), static_cast<unsigned long>(seasons));
+    } else if (seasons == 1) {
+      snprintf(line, sizeof(line), "%s", tr(STR_CULT_SEASON_PASSED));
+    } else if (months >= 2) {
+      snprintf(line, sizeof(line), tr(STR_CULT_MONTHS_PASSED_FORMAT), static_cast<unsigned long>(months));
+    } else if (months == 1) {
+      snprintf(line, sizeof(line), "%s", tr(STR_CULT_MONTH_PASSED));
+    } else {
+      snprintf(line, sizeof(line), "%s", tr(STR_CULT_MOMENT_PASSED));
+    }
+    const auto header = renderer.wrappedText(UI_12_FONT_ID, line, width, 3, EpdFontFamily::BOLD);
+    for (const auto& h : header) {
+      renderer.drawText(UI_12_FONT_ID, x, y, h.c_str(), true, EpdFontFamily::BOLD);
+      y += renderer.getLineHeight(UI_12_FONT_ID);
+    }
+    y += metrics.verticalSpacing;
+
+    // Realm and stage on the left, age on the right, as on the Cultivator screen.
+    const RealmInfo& realm = realmInfo(p.realm);
+    char stage[32];
+    if (realm.layered) {
+      snprintf(stage, sizeof(stage), tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
+    } else {
+      snprintf(stage, sizeof(stage), "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
+    }
+    snprintf(line, sizeof(line), "%s, %s", text(kRealmNames[p.realm < kMortalRealmCount ? p.realm : 0]), stage);
+    renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
+    snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
+             static_cast<unsigned>(realm.lifespanYears));
+    renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, line), y, line);
+    y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+
+    char gained[24];
+    visit_.qiGained.format(gained, sizeof(gained));
+    snprintf(line, sizeof(line), tr(STR_CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained,
+             static_cast<unsigned long>(visit_.stonesGained));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
+
+    // The stage line normally comes from the life log; without generated
+    // text (out of memory) the plain notice stands in for it.
+    bool stageLine = false;
+    for (uint8_t i = 0; lifeLog_ && i < lifeLog_->count; ++i) {
+      if (lifeLog_->lines[i].kind == lifelog::LineKind::Stage) stageLine = true;
+    }
+    if (visit_.stagesGained > 0 && !stageLine) {
+      snprintf(line, sizeof(line), tr(STR_CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
+    }
+    y += metrics.verticalSpacing * 2;
+  }
+
+  summaryNext_ = first;
+  if (!lifeLog_) return;
+  const int lineHeight = renderer.getLineHeight(UI_10_FONT_ID);
+  for (uint8_t i = first; i < lifeLog_->count; ++i) {
+    const auto wrapped = renderer.wrappedText(UI_10_FONT_ID, lifeLog_->lines[i].text, width, 6);
+    const int height = static_cast<int>(wrapped.size()) * lineHeight;
+    if (y + height > bottom && i != first) break;  // the rest goes on the next page
+    for (const auto& w : wrapped) {
+      renderer.drawText(UI_10_FONT_ID, x, y, w.c_str());
+      y += lineHeight;
+    }
+    y += metrics.verticalSpacing;
+    summaryNext_ = static_cast<uint8_t>(i + 1);
+  }
+}
+
+// The Chronicle, one page at a time, read straight from the card: each
+// paragraph is read into a 256-byte stack buffer, wrapped and drawn. Headings
+// ("Age 17", "Life 1: ...") are bold. Reading it records no reading stats:
+// it is the game's own screen, not CrossInk's reader.
+void CultivationActivity::renderChronicle(const int x, int y, const int width, const int bottom) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  if (!chronicle_) return;
+  ChronicleView& v = *chronicle_;
+  v.more = false;
+  v.next = v.starts[v.depth];
+
+  FsFile f;
+  if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+    drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
+    return;
+  }
+  const size_t size = f.fileSize();
+  size_t offset = v.starts[v.depth];
+  bool drewAny = false;
+  char buf[256];
+  while (offset < size) {
+    if (!f.seek(offset)) break;
+    const int got = f.read(buf, sizeof(buf) - 1);
+    if (got <= 0) break;
+    size_t len = static_cast<size_t>(got);
+    const auto* newline = static_cast<const char*>(memchr(buf, '\n', len));
+    size_t consumed = len;
+    if (newline != nullptr) {
+      len = static_cast<size_t>(newline - buf);
+      consumed = len + 1;
+    }
+    if (len > 0 && buf[len - 1] == '\r') --len;
+    buf[len] = '\0';
+
+    if (len == 0) {  // a blank line: a little space, but never at the top of a page
+      if (drewAny) y += metrics.verticalSpacing;
+      offset += consumed;
+      continue;
+    }
+    const bool heading =
+        strncmp(buf, "Age ", 4) == 0 || strncmp(buf, "Life ", 5) == 0 || strncmp(buf, "The Chronicle of ", 17) == 0;
+    const int font = heading ? UI_12_FONT_ID : UI_10_FONT_ID;
+    const EpdFontFamily::Style style = heading ? EpdFontFamily::BOLD : EpdFontFamily::REGULAR;
+    const int lineHeight = renderer.getLineHeight(font);
+    const auto wrapped = renderer.wrappedText(font, buf, width, 8, style);
+    const int height = static_cast<int>(wrapped.size()) * lineHeight;
+    // Keep a heading with at least one line of what follows it.
+    const int needed = heading ? height + renderer.getLineHeight(UI_10_FONT_ID) : height;
+    if (drewAny && y + needed > bottom) break;
+    for (const auto& w : wrapped) {
+      renderer.drawText(font, x, y, w.c_str(), true, style);
+      y += lineHeight;
+    }
+    y += 4;
+    drewAny = true;
+    offset += consumed;
+  }
+  f.close();
+  v.next = static_cast<uint32_t>(offset);
+  v.more = offset < size;
+  if (!drewAny) drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
 }
 
 #endif  // CROSSINK_CULTIVATION

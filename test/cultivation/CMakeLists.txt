@@ -40,6 +40,7 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/GameValues.cpp
   ${CULTIVATION_SRC}/PackCheck.cpp
   ${CULTIVATION_SRC}/BuiltinPack.cpp
+  ${CULTIVATION_SRC}/LifeLog.cpp
 )
 
 add_executable(CultivationCoreTest
@@ -49,8 +50,10 @@ add_executable(CultivationCoreTest
   SimulationTest.cpp
   GrammarTest.cpp
   PackStoreTest.cpp
+  LifeLogTest.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
+  ${CULTIVATION_SRC}/Chronicle.cpp
 )
 
 target_include_directories(CultivationCoreTest PRIVATE

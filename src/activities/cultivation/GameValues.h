@@ -13,6 +13,11 @@
 //   player.stage    "Layer 3" or "Early" ... "Peak"
 //   player.age      age in years
 //   player.element  root element ("Wood")
+//   season          the in-game season ("spring"); the life log sets it per line
+//   root.glow / root.color   the Awakening Test stone ("murky", "green")
+//   past.pages / past.books / past.hours   reading recorded before this life
+//                   began (the baseline), with their noun: "48,210 pages",
+//                   "1 book", "no hours"
 //   pro.they / pro.them / pro.their / pro.theirs / pro.themself
 //   pro.is / pro.was / pro.has     verb forms that agree ("they are", "she is")
 //   title.senior / title.sect / title.god   gendered titles from the doc's table

@@ -17,6 +17,9 @@ static const char* const kRealmProse[kMortalRealmCount] = {
     "Mahayana",       "Tribulation Transcendence"};
 static const char* const kStageProse[4] = {"Early", "Middle", "Late", "Peak"};
 static const char* const kElementProse[static_cast<int>(Element::Count)] = {"Wood", "Fire", "Earth", "Metal", "Water"};
+static const char* const kElementColorProse[static_cast<int>(Element::Count)] = {"green", "red", "ochre", "silver",
+                                                                                 "blue"};
+static const char* const kSeasonProse[4] = {"spring", "summer", "autumn", "winter"};
 
 // Rows: Male, Female, Non-binary, Prefer not to say (DOC table).
 struct GenderWords {
@@ -49,10 +52,34 @@ bool put(char* out, const size_t outLen, const char* value) {
   return true;
 }
 
-static const char* const kValueNames[] = {"player.name",    "player.realm", "realm",    "player.stage", "player.age",
-                                          "player.element", "pro.they",     "pro.them", "pro.their",    "pro.theirs",
-                                          "pro.themself",   "pro.is",       "pro.was",  "pro.has",      "title.senior",
-                                          "title.sect",     "title.god"};
+static const char* const kValueNames[] = {"player.name",    "player.realm", "realm",     "player.stage", "player.age",
+                                          "player.element", "pro.they",     "pro.them",  "pro.their",    "pro.theirs",
+                                          "pro.themself",   "pro.is",       "pro.was",   "pro.has",      "title.senior",
+                                          "title.sect",     "title.god",    "season",    "root.glow",    "root.color",
+                                          "past.pages",     "past.books",   "past.hours"};
+
+// "48,210 pages", "1 page", "no pages": the Past Life Memories numbers.
+bool putCount(char* out, const size_t outLen, const uint32_t n, const char* one, const char* many) {
+  if (n == 0) {
+    snprintf(out, outLen, "no %s", many);
+    return true;
+  }
+  if (n == 1) {
+    snprintf(out, outLen, "1 %s", one);
+    return true;
+  }
+  char digits[12];
+  const int len = snprintf(digits, sizeof(digits), "%lu", static_cast<unsigned long>(n));
+  char grouped[16];
+  size_t o = 0;
+  for (int i = 0; i < len; ++i) {
+    if (i > 0 && (len - i) % 3 == 0) grouped[o++] = ',';
+    grouped[o++] = digits[i];
+  }
+  grouped[o] = '\0';
+  snprintf(out, outLen, "%s %s", grouped, many);
+  return true;
+}
 
 }  // namespace
 
@@ -96,6 +123,18 @@ bool lookupGameValue(const GameState& state, const char* name, const size_t len,
     const int e = static_cast<int>(state.character.rootElement);
     return put(out, outLen, kElementProse[e < static_cast<int>(Element::Count) ? e : 0]);
   }
+  if (is(name, len, "season")) return put(out, outLen, kSeasonProse[(p.ageMonths / 3) % 4]);
+  if (is(name, len, "root.glow")) {
+    const uint8_t purity = state.character.rootPurity;  // same bands as the Awakening Test screen
+    return put(out, outLen, purity < 34 ? "murky" : purity < 67 ? "steady" : "brilliant");
+  }
+  if (is(name, len, "root.color")) {
+    const int e = static_cast<int>(state.character.rootElement);
+    return put(out, outLen, kElementColorProse[e < static_cast<int>(Element::Count) ? e : 0]);
+  }
+  if (is(name, len, "past.pages")) return putCount(out, outLen, state.baseline.pages, "page", "pages");
+  if (is(name, len, "past.books")) return putCount(out, outLen, state.baseline.completedBooks, "book", "books");
+  if (is(name, len, "past.hours")) return putCount(out, outLen, state.baseline.seconds / 3600u, "hour", "hours");
   if (is(name, len, "pro.they")) return put(out, outLen, w.they);
   if (is(name, len, "pro.them")) return put(out, outLen, w.them);
   if (is(name, len, "pro.their")) return put(out, outLen, w.their);

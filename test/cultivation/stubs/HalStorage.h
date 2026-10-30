@@ -1,8 +1,10 @@
 // Copy of test/book_reading_stats_atomic/stubs/HalStorage.h plus mkdir() and bytesOf(),
-// and (for PackStore) folders, seek(), file names and modification times.
+// and (for PackStore) folders, seek(), file names and modification times,
+// and (for the Chronicle) open() with O_CREAT / O_APPEND.
 #pragma once
 
 #include <Print.h>
+#include <fcntl.h>
 
 #include <algorithm>
 #include <cstddef>
@@ -137,6 +139,21 @@ class HalStorage {
     }
     if (entries.empty()) return HalFile{};
     return HalFile::folder(std::move(entries));
+  }
+
+  // Opening with flags, as the device's SdFat open() does: O_CREAT makes a
+  // missing file, O_TRUNC empties it, O_APPEND starts writing at its end.
+  HalFile open(const char* path, const int oflag) {
+    const std::string p = path;
+    auto found = files_.find(p);
+    if (found == files_.end()) {
+      if ((oflag & O_CREAT) == 0) return HalFile{};
+      found = files_.emplace(p, std::make_shared<HostFileData>()).first;
+    }
+    if ((oflag & O_TRUNC) != 0) found->second->bytes.clear();
+    HalFile f = HalFile::file(found->second, p.substr(p.rfind('/') + 1));
+    if ((oflag & O_APPEND) != 0) f.seek(found->second->bytes.size());
+    return f;
   }
 
   // Test helper: write a whole file with a modification time.

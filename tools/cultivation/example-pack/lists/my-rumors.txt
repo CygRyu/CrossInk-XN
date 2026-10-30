@@ -3,8 +3,8 @@
 # It adds rumors to the built-in ones and a new place, without replacing anything.
 
 [rumor.body]
-a reader in {place.town} turned the last page of a book and a lantern lit itself
-the {sect.name} pays a Spirit Stone for every story a traveller can finish telling
+the lantern maker of Inkstone Village owes the {sect.name} a year of free lanterns after his apprentice broke one of its spirit lamps
+the {sect.name} pays a Spirit Stone to any traveller who brings word of bandits on the road to {place.town}
 
 [place.town]
 Inkstone Village

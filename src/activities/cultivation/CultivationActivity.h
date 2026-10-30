@@ -10,16 +10,20 @@
 
 #include "GameState.h"
 #include "Grammar.h"
+#include "LifeLog.h"
 #include "PackStore.h"
 #include "Simulation.h"
 #include "activities/Activity.h"
 
-// Path of Immortal Reading: character creation and the Cultivator screen.
+// Path of Immortal Reading: character creation, the Return summary, the
+// Cultivator screen and the Chronicle viewer.
 //
 // Memory: the ~1 KB GameState is allocated in onEnter() with
 // makeUniqueNoThrow and freed in onExit(), so the game costs nothing while it
 // is closed. It is too large for the stack, and a static would hold DRAM for
-// the whole session. Everything else is a few dozen bytes of members.
+// the whole session. Two more blocks live only while their screen is open:
+// the visit's life log (~1.6 KB, Return summary) and the Chronicle viewer's
+// page history (~2 KB). Everything else is a few dozen bytes of members.
 class CultivationActivity final : public Activity {
  public:
   CultivationActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -31,13 +35,17 @@ class CultivationActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
-  enum class Screen : uint8_t { Name, Gender, Origin, Awakening, Cultivator, Error };
+  enum class Screen : uint8_t { Name, Gender, Origin, Awakening, Summary, Cultivator, Chronicle, Error };
 
   // Visit
   void startVisit();
   void startCreation();
   void finishCreation();
   bool persist();
+  void writeLifeLog(const cultivation::lifelog::VisitChange& change);
+  void leaveSummary();
+  void openChronicle();
+  void closeChronicle();
 
   // Input per screen
   void handleList(int count, bool up, bool down);
@@ -54,7 +62,9 @@ class CultivationActivity final : public Activity {
   void renderGender(int top, int bottom);
   void renderOrigin(int top, int bottom);
   void renderAwakening(int x, int y, int width);
+  void renderSummary(int x, int y, int width, int bottom);
   void renderCultivator(int x, int y, int width);
+  void renderChronicle(int x, int y, int width, int bottom);
 
   Screen screen_ = Screen::Error;
   int selected_ = 0;
@@ -80,6 +90,26 @@ class CultivationActivity final : public Activity {
   cultivation::OriginGift originGift_;  // shown once: at creation, or on an older character's next visit
   uint32_t visitSeconds_ = 0;
   bool visitReset_ = false;
+
+  // Return summary: the visit's life log, freed when the summary is left.
+  // Pages are runs of log lines; summaryPages_ holds where each page starts.
+  std::unique_ptr<cultivation::lifelog::LifeLog> lifeLog_;
+  uint8_t summaryPages_[cultivation::lifelog::kMaxLines + 1] = {};
+  uint8_t summaryPage_ = 0;
+  uint8_t summaryNext_ = 0;  // first line of the next page, set while drawing
+
+  // Chronicle viewer: byte offsets of the pages read so far, so Previous can
+  // go back. 512 pages of history; beyond that the oldest are forgotten.
+  struct ChronicleView {
+    static constexpr uint16_t kHistory = 512;
+    uint32_t starts[kHistory] = {};
+    uint16_t depth = 0;       // starts[depth] is the page on screen
+    uint32_t pageNumber = 1;  // 1-based, for the title
+    uint32_t next = 0;        // where the next page starts, set while drawing
+    bool more = false;        // the file goes on past this page
+  };
+  std::unique_ptr<ChronicleView> chronicle_;
+  bool chronicleExists_ = false;
   bool justCreated_ = false;
   bool saveFailed_ = false;
 

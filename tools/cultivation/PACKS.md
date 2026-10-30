@@ -18,8 +18,8 @@ The game notices added, removed or edited files the next time it opens: it re-re
 ```
 # A comment. Blank lines are fine.
 [rumor.body]
-a star fell over {place.region} and left a sword standing in its crater
-the ink in an old library moves when no one is watching
+the ferry at {place.town} stopped running after the boatman was found with a sword wound in his back
+{beast.a} took [two|three|four] mules off the road near {place.town}, and the magistrate has posted a reward
 ```
 
 - A `[header]` starts a list. Keys use lowercase `a-z`, digits and `. _ - @ ~`, up to 47 characters.
@@ -40,7 +40,7 @@ the ink in an old library moves when no one is watching
 | `{name.[m\|f]}` | a key built from parts: here `name.m` or `name.f` |
 | `\{`, `\[`, `\|` | the character itself |
 
-Game values: `$player.name`, `$player.realm` (or `$realm`), `$player.stage`, `$player.age`, `$player.element`; pronouns `$pro.they`, `$pro.them`, `$pro.their`, `$pro.theirs`, `$pro.themself` with matching verbs `$pro.is`, `$pro.was`, `$pro.has` ("{$pro.they.cap} {$pro.is} ready" gives "She is ready" or "They are ready"); titles `$title.senior` (Senior Brother / Sister / Sibling / Senior), `$title.sect` (Sect Master / Mistress / Head) and `$title.god` (Godking / Godqueen / Godsovereign).
+Game values: `$player.name`, `$player.realm` (or `$realm`), `$player.stage`, `$player.age`, `$player.element`, `$season` ("spring"), `$root.glow` and `$root.color` (the Awakening Test stone: "murky", "green"), `$past.pages`, `$past.books` and `$past.hours` (reading from before this life, with the noun: "48,210 pages", "1 book"); pronouns `$pro.they`, `$pro.them`, `$pro.their`, `$pro.theirs`, `$pro.themself` with matching verbs `$pro.is`, `$pro.was`, `$pro.has` ("{$pro.they.cap} {$pro.is} ready" gives "She is ready" or "They are ready"); titles `$title.senior` (Senior Brother / Sister / Sibling / Senior), `$title.sect` (Sect Master / Mistress / Head) and `$title.god` (Godking / Godqueen / Godsovereign).
 
 After expanding, the engine tidies spacing ("word ," becomes "word,") and doubled articles ("the the river" becomes "the river"). Lists remember their recent picks (60% of the list, at most 16) and avoid repeating them.
 
@@ -48,6 +48,27 @@ After expanding, the engine tidies spacing ("word ," becomes "word,") and double
 
 - `[key@1]` is used instead of `key` on plane 1 (the Immortal Plane), `@2` on the Divine Plane. Without such a list, plain `key` is used.
 - `[key~theme]` is used instead of `key` inside an event with that theme (for example `weather~demonic`).
+
+## The life log and the Chronicle
+
+The Return summary shows one line per in-game season (15 reading minutes) that passed since the last visit, up to 6, and every line is also added to the bottom of `/.crosspoint/cultivation/chronicle.txt`. The game puts "Spring, age 17." in front of each line, so write one full sentence in the second person ("You ..."), starting with a capital and ending with a full stop, under 170 bytes. In these lines `{$season}` and `{$player.age}` are the season the line describes. Lines never grant anything.
+
+| List | Used for |
+| --- | --- |
+| `log.body` | Body Tempering, any origin |
+| `log.body.farmer`, `log.body.clan`, `log.body.orphan`, `log.body.servant`, `log.body.herbalist` | Body Tempering, that origin only |
+| `log.qi` | Qi Condensation |
+| `log.any` | every realm; the only list after Qi Condensation for now |
+| `log.stage` | the visit gained stages; use `{$player.realm}, {$player.stage}` ("Body Tempering, Layer 4") |
+| `log.bottleneck` | the Peak bar just filled |
+| `chronicle.birth.farmer` ... `chronicle.birth.herbalist` | first paragraph of each life in the Chronicle |
+| `chronicle.awakening` | the Awakening Test, with `$root.glow`, `$root.color` and `$player.element` |
+| `chronicle.past` | only when there was reading before the character: `$past.pages`, `$past.books`, `$past.hours` |
+
+```
+[log.body.farmer]
+You dig an irrigation ditch for the village headman, and he pays you in rice.
+```
 
 ## Events
 
@@ -62,8 +83,8 @@ While crossing {place.region>where}, you find {ruin.desc}.
   @check luck 40
   @win stones+[20-60] text={ruin.loot}
   @lose hp-10 text={ruin.trap}
-> Leave an offering and move on
-  @effect karma+3 text=You bow to whoever once lived in {$where}.
+> Burn incense for the dead and move on
+  @effect karma+3 text=You burn a stick of incense for the dead of {$where} and go on your way.
 ```
 
 - `@weight N`: relative chance among events that qualify.
