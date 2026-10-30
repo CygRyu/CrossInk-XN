@@ -32,7 +32,7 @@ constexpr uint8_t kDaoHeartMax = 100;
 struct RealmInfo {
   uint8_t stages;           // minor stages before Great Perfection
   bool layered;             // "Layer n" (realms 0-1) or Early/Middle/Late/Peak
-  bool hasGreatPerfection;  // optional stage after Peak (milestone 5)
+  bool hasGreatPerfection;  // optional stage after Peak (see Breakthrough.h)
   uint16_t lifespanYears;
   uint32_t totalQi;  // Q_r = 600 * H_r * 1.6^r, from tools/cultivation/balance_sim.py
 };
@@ -67,7 +67,7 @@ uint8_t rollHiddenTrait(uint32_t worldSeed);  // 1..kHiddenTraitCount
 // Writes a generated name ("Lin Xueyan") into buf; always NUL-terminated.
 void suggestName(uint32_t worldSeed, uint8_t index, Gender gender, char* buf, size_t len);
 
-// Qi multiplier in permille: talent x root purity (more sources join later).
+// Qi multiplier in permille: talent x root purity x grades (more sources join later).
 uint32_t qiMultiplierPermille(const GameState& state);
 uint16_t purityPermille(uint8_t purity);  // 850..1150
 
@@ -121,8 +121,9 @@ struct AbsorbResult {
   uint32_t monthsPassed = 0;
   uint8_t stagesGained = 0;
   uint32_t stonesGained = 0;
-  uint8_t staminaGained = 0;  // after the bank cap
-  bool atBottleneck = false;  // full Peak bar: needs a breakthrough (milestone 5)
+  uint8_t staminaGained = 0;        // after the bank cap
+  uint8_t consolidationGained = 0;  // in Great Perfection only
+  bool atBottleneck = false;        // full Peak bar: needs a breakthrough
 };
 
 // Converts one visit's gains: Qi from qualifying (weekly-allowance) seconds;

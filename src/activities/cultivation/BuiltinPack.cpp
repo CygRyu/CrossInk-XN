@@ -190,13 +190,35 @@ Your master makes you taste spirit grass and goat weed until you can tell them a
 
 [log.qi]
 You sit through the {$season} in a cave on {name.mountain} and run your Qi around the small circuit [nine|twelve|thirty] times a day.
-An outer elder of the {sect.name} fines you two Spirit Stones for practising on the roof of the scripture hall.
-You guard a salt caravan for a month and come back with a pouch of Spirit Stones and a scar on your forearm.
+An outer elder of the {sect.name} fines you two taels for practising on the roof of the scripture hall.
+You guard a salt caravan for a month and come back with a purse of silver and a scar on your forearm.
 A senior disciple challenges you in the training yard, and you last [ten|twenty|thirty] exchanges before he knocks you down.
 You buy a Qi-gathering pill in {place.town} that turns out to be rolled flour, and the seller has already left town.
 Your Qi runs the wrong way during a night of meditation, and you cough blood for three days.
 You guard a herb field for the {sect.name} and chase off {beast.a} with a burning branch.
 You copy sutras for a scholar in {place.town} by day and meditate in his woodshed by night.
+You sell a month of firewood to the kitchens of the {sect.name} for three taels and spend them all on a bowl of ginseng broth.
+A rogue cultivator robs you on the road below {name.mountain} and leaves you your boots.
+You learn to push Qi into your fists, and the first time you try it on a tree you break your wrist.
+A disciple of the {sect.name} pays you to take his turn at night watch, and you meditate on the wall until dawn.
+You lose a game of weiqi to an old man in {place.town} and owe him a month of chopping wood.
+The {sect.name} offers ten taels for the hide of {beast.a}, and you bring back two.
+You trade your only good robe for a cracked jade slip that holds half of a breathing method.
+A healer in {place.town} charges you five taels to set a rib you cracked sparring and tells you to stop sparring.
+Two outer disciples fight over a silver seam on {name.mountain}, and you are paid to carry the wounded down.
+You spend the {$season} in a rented room above a noodle shop in {place.town}, meditating through the noise of the kitchen.
+Your first try at storing Qi in your dantian leaves you dizzy for two days and owing the innkeeper for three.
+A caravan master hires you to stand behind him during a deal and pays you not to say a word.
+You find {herb} growing in a crack on {name.mountain} and sell it to a pill shop for half its worth because you need the money that day.
+An outer elder catches you reading the posted manuals without paying the copying fee and fines you a month's stipend.
+You lose a sparring match to a girl two years younger and spend the {$season} practising the step she beat you with.
+Bandits take over your inn in {place.town}, and you hide in the cellar until the magistrate's men arrive.
+You escort a tax wagon to {place.town} and are paid in copper so heavy you have to hire a mule to carry it home.
+A scholar in {place.town} pays you to sit in his courtyard every night after his neighbour's house is robbed.
+You open a new meridian in your left arm and can lift a full water cask with one hand.
+The quartermaster of the {sect.name} charges you double for a sleeping mat because you are not a disciple.
+A wandering swordsman shows you three moves of a sword form for the price of your dinner and leaves before the fourth.
+You catch a thief at the market in {place.town} and find out he is the son of the man who hired you.
 
 [log.any]
 A peddler from {place.town} sells you a map of {place.region} that turns out to be [mostly|about half] right.
@@ -209,6 +231,94 @@ You witness a land dispute at the magistrate's court in {place.town}, and both f
 You win [ten|twenty] taels at dice in {place.town} and lose them again before morning.
 Soldiers press you into hauling grain for the county garrison for a month without pay.
 You hear that {cultivator.name} is asking after you over an old debt, and you take the long road around {place.town}.
+A tea-house owner in {place.town} lets you sleep on his benches in exchange for carrying water up from the well.
+You help a widow in {place.town} drag her husband's boat out of the river and stay for the funeral.
+A stranger in {place.town} takes you for the cousin of a man who owes him money, and it takes you a week to prove him wrong.
+You lose your purse in the crowd at the lantern festival in {place.town} and win back half of it at an archery stall.
+An early frost kills the crops near {place.town}, and the price of rice doubles before the end of the {$season}.
+You carry a sick traveller to a doctor in {place.town} and end up paying for his medicine.
+Two families in {place.town} hire you on the same day to settle the same quarrel, and you take money from both.
+A blacksmith in {place.town} sharpens your knife for free because you once helped his brother.
+Heavy rain washes out the bridge at {place.town}, and you spend three weeks hauling timber to rebuild it.
+You are accused of stealing a chicken in {place.town} and spend a night in the cells before the real thief is caught.
+A travelling opera troupe pays you to guard their costume chests on the road to {place.town}.
+You share a fire with a salt smuggler in {place.region}, and he tells you which checkpoints to avoid.
+An old woman in {place.town} pays you a basket of eggs to drive {beast.a} away from her chicken run.
+A merchant in {place.town} tries to pay you with a forged silver ingot, and you make him buy it back in front of the whole market.
+You drink from a bad well in {place.region} and lose a week to fever.
+A gambler in {place.town} bets everything on you in a wrestling match and gives you a tenth of his winnings.
+Soldiers close the road through {place.region} for a month to hunt deserters, and you wait it out in {place.town}.
+You help a scholar carry his books to {place.town}, and he pays you with a book of maps.
+You spend the {$season} mending roofs in {place.town} after a storm and come away with a full purse and a twisted knee.
+A man you beat in a fight years ago turns up in {place.town} as the magistrate's new constable.
+
+[log.foundation]
+The {sect.name} makes you an inner disciple and gives you a room with a door that locks.
+You lead [five|eight|ten] outer disciples to clear {beast.a} out of a mine on {name.mountain} and bring all of them back.
+An elder of the {sect.name} asks you to tutor his grandson, who falls asleep in every lesson.
+You fly on a sword for the first time, crash into a pine tree and walk the rest of the way.
+A rival inner disciple accuses you of stealing a pill from the alchemy hall, and the steward's ledger clears your name.
+You spend the {$season} sealed in a cave on {name.mountain}, coming out only to buy rice.
+The {sect.name} sends you to collect a debt from a merchant in {place.town}, and he pays the moment he sees your robe.
+You win a sparring tournament between inner disciples and take home [twenty|thirty|fifty] taels and a bruised jaw.
+A demonic cultivator kills two disciples on the road to {place.town}, and you are sent to bury them.
+You buy a plot of spirit fields below {name.mountain} and lose the first harvest to locusts.
+An old enemy from your mortal days comes to the sect gate asking for work, and you give it to him.
+You settle a border quarrel between the {sect.name} and a family of rogue cultivators by beating their eldest son.
+The sect treasury pays your stipend late for the third month running, and you stop asking.
+You escort an envoy of the {sect.name} to {place.town} and stand behind him through six hours of tea.
+A junior disciple you trained breaks his leg on a mission you planned, and you pay for his medicine.
+You forge a flying sword from black iron bought in {place.town}, and it bends the first time you use it.
+A matchmaker from {place.town} brings a proposal from a salt merchant's family, and you send her away with tea.
+You hold the pass through {place.region} for three days against bandits until the sect sends help.
+An elder offers to take you as his personal disciple if you marry his niece, and you ask for time to think.
+You lose [a hundred|two hundred] taels in the sect's gambling den and win them back by morning.
+You judge a tournament of outer disciples, and the losers' families send you gifts all {$season}.
+You trade blows with a disciple of a rival sect at the market in {place.town}, and both sects agree to forget it.
+A wounded beast tamer begs for shelter at your cave, and you hide him from the men hunting him.
+You copy a manual for the sect library and are allowed to keep a copy for yourself.
+Your first teacher from your mortal days dies in {place.town}, and you pay for the funeral.
+
+[log.gp]
+You spend the {$season} sitting in a cold spring on {name.mountain}, letting your Qi settle.
+You go over the same breathing method every morning until you can run it without thinking.
+You turn down a paid escort job to stay in seclusion, and your purse runs thin by the end of the {$season}.
+A senior who broke through too early shows you the cracks in his foundation, and you decide to wait longer.
+You practise holding your Qi at its limit for a full day without letting any of it leak.
+You test your control by carving characters into stone with a fingertip until the strokes come out even.
+You fast for ten days in your cave, and your Qi runs smoother for it.
+A storm cuts you off on {name.mountain} for a month, and you spend it refining what you have.
+You patch the small leaks in your meridians one by one, the way a fisherman mends a net.
+Your seclusion is broken by a messenger with a bill from your landlord in {place.town}.
+
+[log.halfstep]
+The meridians you tore in your failed breakthrough ache whenever it rains.
+You spend the {$season} going over what went wrong in your last breakthrough, one meridian at a time.
+A physician in {place.town} charges you ten taels to tell you to rest.
+Word of your failed breakthrough reaches {place.town}, and the innkeeper stops giving you credit.
+You cough blood every morning for a month after the failed breakthrough, and then it stops.
+An old cultivator in {place.town} tells you he failed four times before he broke through, and buys you a drink.
+You rebuild your Qi slowly, a little every night, careful with the damaged meridians.
+People in the market at {place.town} start calling you Half-step, and you stop correcting them.
+
+[log.breakthrough]
+Your Qi breaks through the barrier, and you step into {$player.realm}.
+You come out of seclusion in {$player.realm}, and the first thing you do is eat three bowls of rice.
+The barrier gives way after a night of sweating through your robes, and you wake in {$player.realm}.
+You break through to {$player.realm}, and your old injuries stop aching for the first time in years.
+You reach {$player.realm} with a crack like a snapping branch inside your chest, and then nothing hurts.
+
+[log.failure]
+Your Qi hits the barrier of {$player.realm}, turns back on you, and you spit blood onto the floor of your room.
+The breakthrough fails halfway, and you lose a quarter of your Qi trying to hold it together.
+You push too hard against the limit of {$player.realm}, and two of your meridians tear.
+You faint in the middle of the breakthrough and wake two days later with nothing gained.
+The barrier holds, and you come out of your room thinner and no stronger.
+
+[log.gp.enter]
+You decide to stay at the peak of {$player.realm} a while longer and build your foundation slowly.
+You turn away from the breakthrough for now and settle in to consolidate what you have.
+You tell no one you are ready to break through and keep working on what you already have.
 
 [log.stage]
 Your Qi fills out, and you reach {$player.realm}, {$player.stage}.

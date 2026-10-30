@@ -155,14 +155,18 @@ bool writeOpening(const GameState& state, Grammar* grammar) {
     }
   }
   const bool ok = out.close();
-  if (!ok) LOG_ERR("CULT", "Writing the Chronicle opening failed");
+  if (!ok) {
+    LOG_ERR("CULT", "Writing the Chronicle opening failed");
+  }
   return ok;
 }
 
-bool appendVisit(const lifelog::LifeLog& log) {
-  if (log.count == 0) return true;
+bool appendVisit(const lifelog::LifeLog& log) { return appendLines(log.lines, log.count); }
+
+bool appendLines(const lifelog::Line* lines, const uint8_t count) {
+  if (lines == nullptr || count == 0) return true;
   const Tail tail = readTail();
-  const char* last = log.lines[log.count - 1].text;
+  const char* last = lines[count - 1].text;
   if (strcmp(tail.lastLine, last) == 0) {
     LOG_INF("CULT", "Chronicle already has this visit's lines");
     return true;
@@ -177,8 +181,8 @@ bool appendVisit(const lifelog::LifeLog& log) {
   if (!tail.empty && !tail.endsWithNewline) out.text("\n");
   int32_t age = ageInLine(tail.lastLine);
   char heading[24];
-  for (uint8_t i = 0; i < log.count; ++i) {
-    const lifelog::Line& line = log.lines[i];
+  for (uint8_t i = 0; i < count; ++i) {
+    const lifelog::Line& line = lines[i];
     const auto lineAge = static_cast<int32_t>(lifelog::ageOfSeason(line.season));
     if (lineAge != age) {
       snprintf(heading, sizeof(heading), "\nAge %ld", static_cast<long>(lineAge));
@@ -188,7 +192,9 @@ bool appendVisit(const lifelog::LifeLog& log) {
     out.line(line.text);
   }
   const bool ok = out.close();
-  if (!ok) LOG_ERR("CULT", "Appending to the Chronicle failed");
+  if (!ok) {
+    LOG_ERR("CULT", "Appending to the Chronicle failed");
+  }
   return ok;
 }
 

@@ -1,0 +1,171 @@
+#include "CultivationConfig.h"
+
+#if CROSSINK_CULTIVATION
+
+#include "Breakthrough.h"
+#include "Rng.h"
+#include "Simulation.h"
+
+namespace cultivation {
+namespace breakthrough {
+namespace {
+
+constexpr uint32_t kKindBreakthroughRoll = 55;  // contentSeed kind (50-54: rumor, life log, Chronicle)
+
+// Base chance INTO realm r (DOC: 90/70/45/35, then -5 per realm, floor 20).
+static const uint8_t kBaseChance[kMortalRealmCount] = {0, 90, 70, 45, 35, 30, 25, 20, 20, 20};
+
+// DOC grade effects on the Qi rate, permille.
+static const uint16_t kFoundationQi[6] = {1000, 800, 950, 1000, 1250, 1500};  // index = grade (0 = none)
+
+uint8_t clampPercent(const uint32_t v) { return static_cast<uint8_t>(v > 100 ? 100 : v); }
+
+}  // namespace
+
+bool inGreatPerfection(const GameState& state) {
+  return (state.progress.progressFlags & ProgressBlock::kInGreatPerfection) != 0;
+}
+
+bool isHalfStep(const GameState& state) { return (state.progress.progressFlags & ProgressBlock::kHalfStep) != 0; }
+
+Chance chanceFor(const GameState& state) {
+  Chance c;
+  const ProgressBlock& p = state.progress;
+  const uint8_t from = p.realm < kMortalRealmCount ? p.realm : kMortalRealmCount - 1;
+  c.target = static_cast<uint8_t>(from + 1);
+  if (c.target >= kMortalRealmCount) return c;  // ascension is a later milestone
+
+  c.base = kBaseChance[c.target];
+  c.daoHeart = static_cast<uint8_t>(static_cast<uint32_t>(p.daoHeart) * kDaoHeartChanceMax / 100u);
+  const uint8_t consolidation = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
+  c.consolidation =
+      static_cast<uint8_t>(static_cast<uint32_t>(consolidation) * kConsolidationChanceMax / kConsolidationMax);
+  uint32_t total = c.base + c.daoHeart + c.consolidation;
+  if (total > kChanceCap) total = kChanceCap;
+  // balance_sim.py: pity raises the chance by 15 per failure, but never past 90.
+  if (p.failures > 0) {
+    uint32_t withPity = total + static_cast<uint32_t>(kPityPerFailure) * p.failures;
+    if (withPity > kPityCap) withPity = kPityCap;
+    if (withPity > total) {
+      c.pity = static_cast<uint8_t>(withPity - total);
+      total = withPity;
+    }
+  }
+  c.total = static_cast<uint8_t>(total);
+  c.needsKey = c.target >= 2;  // the small bottleneck into Qi Condensation needs none
+  c.hasKey = false;            // Technique Scrolls, Daos and pills arrive in later milestones
+  return c;
+}
+
+bool canAttempt(const GameState& state) {
+  if (!atBottleneck(state)) return false;
+  const Chance c = chanceFor(state);
+  return c.target < kMortalRealmCount && (!c.needsKey || c.hasKey);
+}
+
+bool canEnterGreatPerfection(const GameState& state) {
+  return atBottleneck(state) && !inGreatPerfection(state) && realmInfo(state.progress.realm).hasGreatPerfection;
+}
+
+void enterGreatPerfection(GameState& state) {
+  if (canEnterGreatPerfection(state)) state.progress.progressFlags |= ProgressBlock::kInGreatPerfection;
+}
+
+uint8_t consolidationGained(const GameState& state, const uint32_t before, const uint32_t after) {
+  if (!inGreatPerfection(state) || after <= before) return 0;
+  const uint32_t steps = after / kSecondsPerConsolidation - before / kSecondsPerConsolidation;
+  const uint8_t have = state.progress.consolidation;
+  const uint8_t room = have < kConsolidationMax ? static_cast<uint8_t>(kConsolidationMax - have) : 0;
+  return static_cast<uint8_t>(steps < room ? steps : room);
+}
+
+uint8_t gradeScore(const GameState& state, const uint8_t targetRealm) {
+  const ProgressBlock& p = state.progress;
+  uint32_t score = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
+  score += static_cast<uint32_t>(p.daoHeart) * kDaoHeartGradeMax / 100u;
+  // Pills used (0-20) and a technique element matching the root (0-15) join
+  // with alchemy and Technique Scrolls.
+  if (targetRealm == 2) score += originBonus(state.character.origin).foundationGradeScore;
+  return clampPercent(score);
+}
+
+uint8_t foundationGradeFor(const uint8_t score) {
+  if (score >= 90) return 5;  // Heavenly Dao
+  if (score >= 70) return 4;  // Perfect
+  if (score >= 40) return 3;  // Standard
+  if (score >= 20) return 2;  // Flawed
+  return 1;                   // Cracked
+}
+
+uint8_t coreGradeFor(const uint8_t score) {
+  if (score >= 95) return 10;  // Flawless
+  const uint8_t g = score / 10 < 8 ? static_cast<uint8_t>(score / 10) : 8;
+  return static_cast<uint8_t>(g + 1);  // 1 = 9th grade ... 9 = 1st grade
+}
+
+uint8_t soulClarityFor(const uint8_t score) {
+  if (score >= 90) return 4;  // Dao-Imprinted
+  if (score >= 70) return 3;  // Radiant
+  if (score >= 40) return 2;  // Clear
+  return 1;                   // Hazy
+}
+
+uint32_t gradeQiPermille(const GameState& state) {
+  const ProgressBlock& p = state.progress;
+  uint32_t permille = kFoundationQi[p.foundationGrade <= 5 ? p.foundationGrade : 0];
+  if (p.coreGrade >= 1 && p.coreGrade <= 10) {
+    // DOC: 9th grade +0% ... 1st grade +30%, Flawless +40%.
+    const uint32_t core = p.coreGrade == 10 ? 1400u : 1000u + 300u * (p.coreGrade - 1u) / 8u;
+    permille = permille * core / 1000u;
+  }
+  return permille;
+}
+
+Result attempt(GameState& state) {
+  Result r;
+  if (!canAttempt(state)) return r;
+  ProgressBlock& p = state.progress;
+  const Chance c = chanceFor(state);
+  r.attempted = true;
+  r.chance = c.total;
+  r.fromRealm = p.realm;
+  r.toRealm = c.target;
+  Rng rng(contentSeed(worldSeedOf(state), kKindBreakthroughRoll,
+                      (static_cast<uint32_t>(p.realm) << 8) | static_cast<uint32_t>(p.failures)));
+  r.roll = static_cast<uint8_t>(rng.below(100));
+  r.success = r.roll < c.total;
+
+  if (!r.success) {
+    // DOC: "costs 25% of the Qi bar, never a stage"; pity grows.
+    QiNumber left = stageCost(p.realm, p.stage);
+    left.mulRatio(3, 4);
+    p.qi = left;
+    if (p.failures < 255) ++p.failures;
+    p.progressFlags |= ProgressBlock::kHalfStep;
+    return r;
+  }
+
+  r.gradeScore = gradeScore(state, c.target);
+  if (c.target == 2) {
+    r.gradeKind = GradeKind::Foundation;
+    r.grade = p.foundationGrade = foundationGradeFor(r.gradeScore);
+  } else if (c.target == 3) {
+    r.gradeKind = GradeKind::Core;
+    r.grade = p.coreGrade = coreGradeFor(r.gradeScore);
+  } else if (c.target == 4) {
+    r.gradeKind = GradeKind::Soul;
+    r.grade = p.soulClarity = soulClarityFor(r.gradeScore);
+  }
+  p.realm = c.target;
+  p.stage = 0;
+  p.qi = QiNumber{};
+  p.failures = 0;
+  p.consolidation = 0;  // spent on this grade and this attempt
+  p.progressFlags &= static_cast<uint8_t>(~(ProgressBlock::kInGreatPerfection | ProgressBlock::kHalfStep));
+  return r;
+}
+
+}  // namespace breakthrough
+}  // namespace cultivation
+
+#endif  // CROSSINK_CULTIVATION

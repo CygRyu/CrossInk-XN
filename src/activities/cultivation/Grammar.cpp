@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include <cstdio>
 #include <cstring>
 
 #include "Grammar.h"
@@ -97,6 +98,32 @@ const char* Grammar::expand(const char* text, const uint32_t seed, const Grammar
   tidy();
   ctx_ = nullptr;
   return out_;
+}
+
+uint32_t Grammar::entryCount(const char* key, const GrammarContext& ctx) const {
+  const GrammarContext* saved = ctx_;
+  const_cast<Grammar*>(this)->ctx_ = &ctx;
+  const uint32_t h = resolveKey(key, strlen(key));
+  const_cast<Grammar*>(this)->ctx_ = saved;
+  return h != 0 ? index_.entryCount(h) : 0;
+}
+
+const char* Grammar::expandEntry(const char* key, const uint32_t entry, const uint32_t seed,
+                                 const GrammarContext& ctx) {
+  char tmpl[kPackKeyMax + 3];  // "{" key "}" NUL
+  const int n = snprintf(tmpl, sizeof(tmpl), "{%s}", key);
+  if (n <= 0 || static_cast<size_t>(n) >= sizeof(tmpl)) {
+    out_[0] = '\0';
+    missing_ = 1;
+    return out_;
+  }
+  ctx_ = &ctx;
+  forcedHash_ = resolveKey(key, strlen(key));
+  ctx_ = nullptr;
+  forcedEntry_ = entry;
+  const char* result = expand(tmpl, seed, ctx);
+  forcedHash_ = 0;
+  return result;
 }
 
 bool Grammar::hasKey(const char* key, const GrammarContext& ctx) const {
@@ -334,7 +361,14 @@ bool Grammar::expandKey(const char* key, const size_t len, const uint8_t depth) 
   if (h == 0) return false;
   const uint32_t total = index_.entryCount(h);
   uint16_t indexInSection = 0;
-  const PackSection* section = index_.locate(h, pick(h, total), indexInSection);
+  uint32_t n = 0;
+  if (forcedHash_ != 0 && h == forcedHash_) {
+    n = forcedEntry_ < total ? forcedEntry_ : 0;
+    forcedHash_ = 0;  // only the top-level pick is forced
+  } else {
+    n = pick(h, total);
+  }
+  const PackSection* section = index_.locate(h, n, indexInSection);
   if (section == nullptr) return false;
   if ((section->flags & PackSection::kEvent) != 0) return false;  // events are not lists
 

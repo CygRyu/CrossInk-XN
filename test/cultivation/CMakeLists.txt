@@ -41,6 +41,7 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/PackCheck.cpp
   ${CULTIVATION_SRC}/BuiltinPack.cpp
   ${CULTIVATION_SRC}/LifeLog.cpp
+  ${CULTIVATION_SRC}/Breakthrough.cpp
 )
 
 add_executable(CultivationCoreTest
@@ -51,6 +52,7 @@ add_executable(CultivationCoreTest
   GrammarTest.cpp
   PackStoreTest.cpp
   LifeLogTest.cpp
+  BreakthroughTest.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp

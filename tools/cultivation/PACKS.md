@@ -51,16 +51,26 @@ After expanding, the engine tidies spacing ("word ," becomes "word,") and double
 
 ## The life log and the Chronicle
 
-The Return summary shows one line per in-game season (15 reading minutes) that passed since the last visit, up to 6, and every line is also added to the bottom of `/.crosspoint/cultivation/chronicle.txt`. The game puts "Spring, age 17." in front of each line, so write one full sentence in the second person ("You ..."), starting with a capital and ending with a full stop, under 170 bytes. In these lines `{$season}` and `{$player.age}` are the season the line describes. Lines never grant anything.
+The Return summary shows one line per in-game season (15 reading minutes) that passed since the last visit, up to 6, and every line is also added to the bottom of `/.crosspoint/cultivation/chronicle.txt`. The game puts "Spring, age 17." in front of each line, so write one full sentence in the second person ("You ..."), starting with a capital and ending with a full stop, under 170 bytes. In these lines `{$season}` and `{$player.age}` are the season the line describes.
+
+Lines never grant anything, so they never mention Spirit Stones, which are a real resource the player counts: use mortal money (taels, silver, copper cash). The host tests check this for the built-in pack.
+
+Within a realm, each list's sentences are used once each, in an order shuffled per world, before any comes back, even across visits. Adding sentences to a list makes the cycle longer.
 
 | List | Used for |
 | --- | --- |
 | `log.body` | Body Tempering, any origin |
 | `log.body.farmer`, `log.body.clan`, `log.body.orphan`, `log.body.servant`, `log.body.herbalist` | Body Tempering, that origin only |
 | `log.qi` | Qi Condensation |
-| `log.any` | every realm; the only list after Qi Condensation for now |
+| `log.foundation` | Foundation Establishment |
+| `log.any` | every realm; the only list after Foundation Establishment for now |
+| `log.gp` | seasons spent in Great Perfection (mixed with the realm's lists) |
+| `log.halfstep` | seasons after a failed breakthrough, until the next success |
 | `log.stage` | the visit gained stages; use `{$player.realm}, {$player.stage}` ("Body Tempering, Layer 4") |
 | `log.bottleneck` | the Peak bar just filled |
+| `log.breakthrough` | a breakthrough succeeded; `{$player.realm}` is the new realm |
+| `log.failure` | a breakthrough failed; `{$player.realm}` is the realm still held |
+| `log.gp.enter` | the player chose Great Perfection |
 | `chronicle.birth.farmer` ... `chronicle.birth.herbalist` | first paragraph of each life in the Chronicle |
 | `chronicle.awakening` | the Awakening Test, with `$root.glow`, `$root.color` and `$player.element` |
 | `chronicle.past` | only when there was reading before the character: `$past.pages`, `$past.books`, `$past.hours` |

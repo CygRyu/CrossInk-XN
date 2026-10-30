@@ -48,7 +48,7 @@ inline uint32_t seasonsPassed(const VisitChange& v) {
 // the first and last are always included (n = min(count, 6)).
 uint32_t shownSeason(uint32_t firstSeason, uint32_t count, uint8_t i, uint8_t n);
 
-enum class LineKind : uint8_t { Season, Stage, Bottleneck };
+enum class LineKind : uint8_t { Season, Stage, Bottleneck, Event };
 
 struct Line {
   LineKind kind = LineKind::Season;
@@ -69,11 +69,23 @@ struct LifeLog {
 // Without a grammar engine (out of memory) the log has the counts but no lines.
 void build(LifeLog& log, const VisitChange& change, uint32_t monthsPassed, const GameState& state, Grammar* grammar);
 
-// The list a season line is drawn from, by realm and origin; exposed for tests.
-// Picks among candidates that have entries: realm 0 mixes the origin's own
-// list, "log.body" and "log.any"; realm 1 mixes "log.qi" and "log.any"; later
-// realms use "log.any" until their own lists are written.
-const char* seasonListFor(const GameState& state, uint32_t seed, const Grammar& grammar, const GrammarContext& ctx);
+// Where a season's line comes from (exposed for tests). The list is a
+// weighted pick: realm 0 mixes the origin's own list (3), "log.body" (4) and
+// "log.any" (3); realm 1 "log.qi" (6) and "log.any"; realm 2
+// "log.foundation" (6) and "log.any"; later realms "log.any" only. In Great
+// Perfection "log.gp" (4) joins, after a failed breakthrough "log.halfstep"
+// (3). The entry is the list's next one in a shuffled order seeded by the
+// world, so a list's entries are all used before any repeats.
+struct SeasonPick {
+  const char* key = nullptr;
+  uint32_t entry = 0;
+};
+SeasonPick seasonPick(const GameState& state, uint32_t season, const Grammar& grammar, const GrammarContext& ctx);
+
+// One line outside the seasons (a breakthrough, entering Great Perfection),
+// labelled with the character's current season. False if the list is empty
+// or the line could not be expanded.
+bool eventLine(Line& line, LineKind kind, const char* key, uint32_t seed, const GameState& state, Grammar& grammar);
 
 // "Spring, age 17. " into out.
 void formatLabel(uint32_t season, char* out, size_t outLen);

@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstring>
 
+#include "Breakthrough.h"
 #include "Rng.h"
 #include "Simulation.h"
 
@@ -173,7 +174,8 @@ void suggestName(const uint32_t seed, const uint8_t index, const Gender gender, 
 
 uint32_t qiMultiplierPermille(const GameState& state) {
   const uint32_t talent = talentInfo(state.character.talent).qiPermille;
-  return talent * purityPermille(state.character.rootPurity) / 1000u;
+  const uint32_t root = talent * purityPermille(state.character.rootPurity) / 1000u;
+  return root * breakthrough::gradeQiPermille(state) / 1000u;  // Foundation and Golden Core grades
 }
 
 void createCharacter(GameState& state, const CharacterDraft& draft, const StatsSample& now) {
@@ -276,6 +278,10 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
 
   p.daoHeart = daoHeartFor(after);
 
+  // Great Perfection: 2 consolidation points per reading hour, up to 40.
+  r.consolidationGained = breakthrough::consolidationGained(state, before, after);
+  p.consolidation = static_cast<uint8_t>(p.consolidation + r.consolidationGained);
+
   // Fill the bar; minor stages advance on their own, Peak waits for a breakthrough.
   if (p.realm >= kMortalRealmCount) p.realm = kMortalRealmCount - 1;
   p.qi.add(r.qiGained);
@@ -288,8 +294,8 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
       ++p.stage;
       ++r.stagesGained;
     } else {
-      // Bottleneck. Breakthroughs and Great Perfection (milestone 5) give
-      // reading done here a use; until then the bar simply stays full.
+      // Bottleneck: the bar stays full until a breakthrough. Qi beyond it is
+      // not kept; in Great Perfection the reading turns into consolidation.
       p.qi = cost;
       break;
     }

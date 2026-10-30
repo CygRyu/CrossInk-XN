@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "Breakthrough.h"
 #include "GameState.h"
 #include "Grammar.h"
 #include "LifeLog.h"
@@ -16,7 +17,8 @@
 #include "activities/Activity.h"
 
 // Path of Immortal Reading: character creation, the Return summary, the
-// Cultivator screen and the Chronicle viewer.
+// Cultivator screen with its actions (breakthrough, Great Perfection,
+// Chronicle), the breakthrough screens and the Chronicle viewer.
 //
 // Memory: the ~1 KB GameState is allocated in onEnter() with
 // makeUniqueNoThrow and freed in onExit(), so the game costs nothing while it
@@ -35,7 +37,22 @@ class CultivationActivity final : public Activity {
   void render(RenderLock&&) override;
 
  private:
-  enum class Screen : uint8_t { Name, Gender, Origin, Awakening, Summary, Cultivator, Chronicle, Error };
+  enum class Screen : uint8_t {
+    Name,
+    Gender,
+    Origin,
+    Awakening,
+    Summary,
+    Cultivator,
+    Breakthrough,     // the chance and its parts; Confirm attempts
+    GreatPerfection,  // what staying at the peak does; Confirm enters it
+    Outcome,          // the result of either, with its Chronicle line
+    Chronicle,
+    Error
+  };
+  // What the Cultivator screen's list offers right now.
+  enum class Action : uint8_t { Breakthrough, GreatPerfection, Chronicle };
+  enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection };
 
   // Visit
   void startVisit();
@@ -46,6 +63,11 @@ class CultivationActivity final : public Activity {
   void leaveSummary();
   void openChronicle();
   void closeChronicle();
+  void refreshActions();
+  void runAction();
+  void attemptBreakthrough();
+  void enterGreatPerfection();
+  void recordOutcome(const char* listKey, uint32_t seed);
 
   // Input per screen
   void handleList(int count, bool up, bool down);
@@ -63,7 +85,11 @@ class CultivationActivity final : public Activity {
   void renderOrigin(int top, int bottom);
   void renderAwakening(int x, int y, int width);
   void renderSummary(int x, int y, int width, int bottom);
-  void renderCultivator(int x, int y, int width);
+  void renderCultivator(int x, int y, int width, int bottom);
+  void renderBreakthrough(int x, int y, int width);
+  void renderGreatPerfection(int x, int y, int width);
+  void renderOutcome(int x, int y, int width);
+  void stageText(char* out, size_t len) const;
   void renderChronicle(int x, int y, int width, int bottom);
 
   Screen screen_ = Screen::Error;
@@ -110,6 +136,13 @@ class CultivationActivity final : public Activity {
   };
   std::unique_ptr<ChronicleView> chronicle_;
   bool chronicleExists_ = false;
+
+  // Cultivator actions and the last breakthrough or Great Perfection outcome.
+  Action actions_[3] = {};
+  uint8_t actionCount_ = 0;
+  OutcomeKind outcomeKind_ = OutcomeKind::BreakthroughSuccess;
+  cultivation::breakthrough::Result outcome_;
+  cultivation::lifelog::Line outcomeLine_;  // also written to the Chronicle; ~200 B
   bool justCreated_ = false;
   bool saveFailed_ = false;
 

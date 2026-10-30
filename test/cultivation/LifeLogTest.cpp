@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <cstring>
+#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -182,15 +183,84 @@ TEST(LifeLog, OriginsGetTheirOwnLinesInBodyTempering) {
   for (int o = 0; o < static_cast<int>(Origin::Count); ++o) {
     GameState s = makeCharacter(static_cast<Origin>(o));
     std::set<std::string> lists;
-    for (uint32_t seed = 1; seed < 400; ++seed) lists.insert(seasonListFor(s, seed, *packs.grammar, ctx));
+    for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
     EXPECT_EQ(lists.size(), 3u) << o;  // origin list, log.body, log.any
     EXPECT_EQ(lists.count("log.body"), 1u);
   }
   GameState qi = makeCharacter();
   qi.progress.realm = 1;
   std::set<std::string> lists;
-  for (uint32_t seed = 1; seed < 400; ++seed) lists.insert(seasonListFor(qi, seed, *packs.grammar, ctx));
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(qi, season, *packs.grammar, ctx).key);
   EXPECT_EQ(lists, (std::set<std::string>{"log.qi", "log.any"}));
+}
+
+TEST(LifeLog, GreatPerfectionAndHalfStepHaveTheirOwnLines) {
+  BuiltinPacks packs;
+  GrammarContext ctx;
+  GameState s = makeCharacter();
+  s.progress.realm = 1;
+  s.progress.progressFlags |= ProgressBlock::kInGreatPerfection;
+  std::set<std::string> lists;
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
+  EXPECT_EQ(lists, (std::set<std::string>{"log.qi", "log.gp", "log.any"}));
+  s.progress.progressFlags = ProgressBlock::kHalfStep;
+  lists.clear();
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
+  EXPECT_EQ(lists, (std::set<std::string>{"log.qi", "log.halfstep", "log.any"}));
+  s.progress.realm = 2;
+  s.progress.progressFlags = 0;
+  lists.clear();
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
+  EXPECT_EQ(lists, (std::set<std::string>{"log.foundation", "log.any"}));
+}
+
+// Within a realm, each list is used up before any of its entries repeats,
+// across visits too (the order depends only on the world and the season).
+TEST(LifeLog, NoEntryRepeatsBeforeItsListIsUsedUp) {
+  BuiltinPacks packs;
+  GrammarContext ctx;
+  for (uint8_t realm = 0; realm < 4; ++realm) {
+    GameState s = makeCharacter(Origin::StreetOrphan);
+    s.progress.realm = realm;
+    // From season 0, so that runs line up with the lists' own counts.
+    std::map<std::string, std::vector<uint32_t>> used;
+    for (uint32_t season = 0; season < 600; ++season) {
+      const SeasonPick p = seasonPick(s, season, *packs.grammar, ctx);
+      used[p.key].push_back(p.entry);
+    }
+    for (const auto& [key, entries] : used) {
+      const uint32_t size = packs.grammar->entryCount(key.c_str(), ctx);
+      ASSERT_GT(size, 1u) << key;
+      for (size_t start = 0; start + size <= entries.size(); start += size) {
+        const std::set<uint32_t> run(entries.begin() + static_cast<std::ptrdiff_t>(start),
+                                     entries.begin() + static_cast<std::ptrdiff_t>(start + size));
+        EXPECT_EQ(run.size(), size) << key << " run at use " << start;
+      }
+    }
+  }
+}
+
+TEST(LifeLog, LongRunsUseEveryEntry) {
+  BuiltinPacks packs;
+  GrammarContext ctx;
+  GameState s = makeCharacter();
+  s.progress.realm = 5;  // log.any only
+  const uint32_t size = packs.grammar->entryCount("log.any", ctx);
+  std::set<uint32_t> seen;
+  for (uint32_t season = 64; season < 64 + 2 * size; ++season)
+    seen.insert(seasonPick(s, season, *packs.grammar, ctx).entry);
+  EXPECT_EQ(seen.size(), size);
+}
+
+TEST(LifeLog, EventLinesUseTheCurrentSeason) {
+  BuiltinPacks packs;
+  GameState s = makeCharacter();
+  s.progress.ageMonths = 18 * 12 + 7;  // autumn, age 18
+  s.progress.realm = 1;
+  Line line;
+  ASSERT_TRUE(eventLine(line, LineKind::Event, "log.breakthrough", 9, s, *packs.grammar));
+  EXPECT_EQ(std::string(line.text).rfind("Autumn, age 18. ", 0), 0u) << line.text;
+  EXPECT_NE(std::string(line.text).find("Qi Condensation"), std::string::npos) << line.text;
 }
 
 // Every list the life log and the Chronicle use: complete sentences, short
@@ -199,9 +269,11 @@ TEST(LifeLog, BuiltinLinesExpandCleanly) {
   BuiltinPacks packs;
   std::set<std::string> distinct;
   for (int o = 0; o < static_cast<int>(Origin::Count); ++o) {
-    for (uint8_t realm = 0; realm < 3; ++realm) {
+    for (uint8_t variant = 0; variant < 9; ++variant) {
       GameState s = makeCharacter(static_cast<Origin>(o), 48210);
-      s.progress.realm = realm;
+      s.progress.realm = variant % 3;  // Body Tempering, Qi Condensation, Foundation
+      if (variant / 3 == 1) s.progress.progressFlags = ProgressBlock::kInGreatPerfection;
+      if (variant / 3 == 2) s.progress.progressFlags = ProgressBlock::kHalfStep;
       for (uint32_t start = 192; start < 192 + 120; start += 3) {
         VisitChange v = seasons(start, start + 18);
         v.stagesGained = 1;
@@ -214,12 +286,37 @@ TEST(LifeLog, BuiltinLinesExpandCleanly) {
           EXPECT_EQ(line.find_first_of("{}[]|$\\"), std::string::npos) << line;
           EXPECT_EQ(line.back(), '.') << line;
           EXPECT_LT(line.size(), kLineSize - 1) << line;
+          // Lines grant nothing, so they never talk about the real resource.
+          EXPECT_EQ(line.find("Spirit Stone"), std::string::npos) << line;
           distinct.insert(line.substr(line.find(". ") + 2));
         }
       }
     }
   }
-  EXPECT_GT(distinct.size(), 60u);
+  EXPECT_GT(distinct.size(), 150u);
+}
+
+// Every entry of the one-off lists, one by one.
+TEST(LifeLog, EventListsExpandCleanly) {
+  BuiltinPacks packs;
+  GrammarContext ctx;
+  GameState s = makeCharacter();
+  s.progress.realm = 1;
+  ctx.values = gameValues(s);
+  for (const char* key : {"log.breakthrough", "log.failure", "log.gp.enter", "log.stage", "log.bottleneck"}) {
+    const uint32_t n = packs.grammar->entryCount(key, ctx);
+    EXPECT_GT(n, 1u) << key;
+    for (uint32_t i = 0; i < n; ++i) {
+      packs.grammar->beginScene();
+      const std::string line = packs.grammar->expandEntry(key, i, 7, ctx);
+      EXPECT_EQ(packs.grammar->missing(), 0) << key << " " << i;
+      EXPECT_EQ(line.find_first_of("{}[]|$\\"), std::string::npos) << line;
+      EXPECT_EQ(line.back(), '.') << line;
+      EXPECT_TRUE(line.front() >= 'A' && line.front() <= 'Z') << line;
+      EXPECT_LT(line.size(), 180u) << line;
+      EXPECT_EQ(line.find("Spirit Stone"), std::string::npos) << line;
+    }
+  }
 }
 
 // --- The Chronicle ------------------------------------------------------------------

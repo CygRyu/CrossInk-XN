@@ -65,6 +65,13 @@ class Grammar {
 
   // True if `key` has entries for this context (any layer).
   bool hasKey(const char* key, const GrammarContext& ctx) const;
+  // Entries of `key` in this context (the layer that would be used), 0 if none.
+  uint32_t entryCount(const char* key, const GrammarContext& ctx) const;
+
+  // Like expand("{key}"), but the top-level pick is entry `entry` of the list
+  // instead of a random one (the life log uses this to go through a list
+  // without repeats). Lists inside that entry are still picked from `seed`.
+  const char* expandEntry(const char* key, uint32_t entry, uint32_t seed, const GrammarContext& ctx);
 
   // Problems in the last expand(): keys or values that were not found.
   uint16_t missing() const { return missing_; }
@@ -118,6 +125,8 @@ class Grammar {
   uint8_t nextVar_ = 0;
   Recent recent_[kRecentLists];
   uint16_t useClock_ = 0;
+  uint32_t forcedHash_ = 0;  // expandEntry(): the first expansion of this key takes forcedEntry_
+  uint32_t forcedEntry_ = 0;
   uint16_t missing_ = 0;
   bool truncated_ = false;
 };

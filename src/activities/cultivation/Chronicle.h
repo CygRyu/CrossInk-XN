@@ -45,6 +45,9 @@ bool writeOpening(const GameState& state, Grammar* grammar);
 // Appends one visit's life-log lines, with an "Age N" heading whenever the
 // age changes. Does nothing for an empty log or one already written.
 bool appendVisit(const lifelog::LifeLog& log);
+// The same for any lines, such as one breakthrough line: written once, with
+// an "Age N" heading when the age changes.
+bool appendLines(const lifelog::Line* lines, uint8_t count);
 
 // The age in a season line ("Spring, age 17. ..."), or -1 if `line` is not one.
 int32_t ageInLine(const char* line);

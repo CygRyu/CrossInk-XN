@@ -15,6 +15,7 @@
 #include <cstring>
 #include <string>
 
+#include "Breakthrough.h"
 #include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "GameValues.h"
@@ -64,6 +65,12 @@ static const StrId kElementNames[static_cast<int>(Element::Count)] = {
 static const StrId kElementColors[static_cast<int>(Element::Count)] = {
     StrId::STR_CULT_COLOR_WOOD, StrId::STR_CULT_COLOR_FIRE, StrId::STR_CULT_COLOR_EARTH, StrId::STR_CULT_COLOR_METAL,
     StrId::STR_CULT_COLOR_WATER};
+static const StrId kFoundationGrades[5] = {StrId::STR_CULT_FOUNDATION_1, StrId::STR_CULT_FOUNDATION_2,
+                                           StrId::STR_CULT_FOUNDATION_3, StrId::STR_CULT_FOUNDATION_4,
+                                           StrId::STR_CULT_FOUNDATION_5};
+constexpr uint32_t kKindOutcomeLine = 56;  // contentSeed kinds: 55 is the breakthrough roll
+constexpr uint32_t kKindGreatPerfectionLine = 57;
+
 static const StrId kTalentNames[kTalentCount] = {StrId::STR_CULT_TALENT_CHOKED, StrId::STR_CULT_TALENT_DULL,
                                                  StrId::STR_CULT_TALENT_ORDINARY, StrId::STR_CULT_TALENT_KEEN,
                                                  StrId::STR_CULT_TALENT_HEAVEN_BLESSED};
@@ -240,6 +247,7 @@ void CultivationActivity::startVisit() {
   if (summary) writeLifeLog(change);
   persist();
   chronicleExists_ = chronicle::exists();
+  refreshActions();
   summaryPage_ = 0;
   summaryPages_[0] = 0;
   screen_ = summary ? Screen::Summary : Screen::Cultivator;
@@ -266,6 +274,7 @@ void CultivationActivity::leaveSummary() {
   {
     RenderLock lock(*this);
     lifeLog_.reset();
+    selected_ = 0;
     screen_ = Screen::Cultivator;
   }
   requestUpdate();
@@ -283,6 +292,84 @@ void CultivationActivity::openChronicle() {
     screen_ = Screen::Chronicle;
   }
   requestUpdate();
+}
+
+// The Cultivator screen's list: what can be done right now.
+void CultivationActivity::refreshActions() {
+  actionCount_ = 0;
+  if (state_ && state_->isCreated()) {
+    // Shown even when a key is missing: the Breakthrough screen says which.
+    if (atBottleneck(*state_)) actions_[actionCount_++] = Action::Breakthrough;
+    if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
+  }
+  if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
+  if (selected_ >= actionCount_) selected_ = 0;
+}
+
+void CultivationActivity::runAction() {
+  if (selected_ < 0 || selected_ >= actionCount_) return;
+  switch (actions_[selected_]) {
+    case Action::Breakthrough:
+      screen_ = Screen::Breakthrough;
+      requestUpdate();
+      return;
+    case Action::GreatPerfection:
+      screen_ = Screen::GreatPerfection;
+      requestUpdate();
+      return;
+    case Action::Chronicle:
+      openChronicle();
+      return;
+  }
+}
+
+// One breakthrough attempt: roll, write its line to the Chronicle, then save.
+// The roll is seeded by the failure count, so if the save fails the retry
+// rolls the same and appendLines() skips the line already written.
+void CultivationActivity::attemptBreakthrough() {
+  if (!breakthrough::canAttempt(*state_)) return;
+  {
+    RenderLock lock(*this);
+    const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindOutcomeLine,
+                                      (static_cast<uint32_t>(state_->progress.realm) << 8) | state_->progress.failures);
+    outcome_ = breakthrough::attempt(*state_);
+    outcomeKind_ = outcome_.success ? OutcomeKind::BreakthroughSuccess : OutcomeKind::BreakthroughFailure;
+    recordOutcome(outcome_.success ? "log.breakthrough" : "log.failure", seed);
+    LOG_INF("CULT", "Breakthrough into realm %u: roll %u, chance %u, %s", static_cast<unsigned>(outcome_.toRealm),
+            static_cast<unsigned>(outcome_.roll), static_cast<unsigned>(outcome_.chance),
+            outcome_.success ? "success" : "failure");
+    persist();
+    refreshActions();
+    screen_ = Screen::Outcome;
+  }
+  requestUpdate();
+}
+
+void CultivationActivity::enterGreatPerfection() {
+  if (!breakthrough::canEnterGreatPerfection(*state_)) return;
+  {
+    RenderLock lock(*this);
+    breakthrough::enterGreatPerfection(*state_);
+    outcomeKind_ = OutcomeKind::EnteredGreatPerfection;
+    recordOutcome("log.gp.enter", contentSeed(worldSeedOf(*state_), kKindGreatPerfectionLine, state_->progress.realm));
+    persist();
+    refreshActions();
+    screen_ = Screen::Outcome;
+  }
+  requestUpdate();
+}
+
+// The outcome's line from the packs, shown on the Outcome screen and added
+// to the bottom of the Chronicle.
+void CultivationActivity::recordOutcome(const char* listKey, const uint32_t seed) {
+  outcomeLine_.text[0] = '\0';
+  if (!grammar_) return;
+  if (lifelog::eventLine(outcomeLine_, lifelog::LineKind::Event, listKey, seed, *state_, *grammar_)) {
+    if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
+    chronicle::appendLines(&outcomeLine_, 1);
+    chronicleExists_ = chronicle::exists();
+  }
+  if (packs_) packs_->closeFile();
 }
 
 void CultivationActivity::closeChronicle() {
@@ -326,6 +413,7 @@ void CultivationActivity::finishCreation() {
   if (packs_) packs_->closeFile();
   chronicleExists_ = chronicle::exists();
   persist();
+  refreshActions();
   justCreated_ = true;
   visit_ = AbsorbResult{};
   const OriginBonus& bonus = originBonus(state_->character.origin);
@@ -366,11 +454,39 @@ void CultivationActivity::loop() {
       if (back) {
         finish();
       } else if (confirm) {
-        if (chronicleExists_) {
-          openChronicle();
+        if (actionCount_ > 0) {
+          runAction();
         } else {
           finish();
         }
+      } else {
+        handleList(actionCount_, up, down);
+      }
+      return;
+
+    case Screen::Breakthrough:
+      if (back) {
+        screen_ = Screen::Cultivator;
+        requestUpdate();
+      } else if (confirm) {
+        attemptBreakthrough();
+      }
+      return;
+
+    case Screen::GreatPerfection:
+      if (back) {
+        screen_ = Screen::Cultivator;
+        requestUpdate();
+      } else if (confirm) {
+        enterGreatPerfection();
+      }
+      return;
+
+    case Screen::Outcome:
+      if (back || confirm) {
+        selected_ = 0;
+        screen_ = Screen::Cultivator;
+        requestUpdate();
       }
       return;
 
@@ -563,6 +679,12 @@ void CultivationActivity::render(RenderLock&&) {
   const char* title = tr(STR_CULT_TITLE);
   if (screen_ == Screen::Name || screen_ == Screen::Gender || screen_ == Screen::Origin) title = tr(STR_CULT_NEW_LIFE);
   if (screen_ == Screen::Awakening) title = tr(STR_CULT_AWAKENING);
+  if (screen_ == Screen::Breakthrough) title = tr(STR_CULT_BREAKTHROUGH);
+  if (screen_ == Screen::GreatPerfection) title = tr(STR_CULT_GREAT_PERFECTION);
+  if (screen_ == Screen::Outcome) {
+    title =
+        outcomeKind_ == OutcomeKind::EnteredGreatPerfection ? tr(STR_CULT_GREAT_PERFECTION) : tr(STR_CULT_BREAKTHROUGH);
+  }
   char chronicleTitle[48];
   if (screen_ == Screen::Chronicle && chronicle_) {
     snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_TITLE_FORMAT),
@@ -608,8 +730,26 @@ void CultivationActivity::render(RenderLock&&) {
       downLabel = lifeLog_ && summaryNext_ < lifeLog_->count ? tr(STR_CULT_NEXT) : "";
       break;
     case Screen::Cultivator:
-      renderCultivator(x, top, width);
-      confirmLabel = chronicleExists_ ? tr(STR_CULT_CHRONICLE) : "";
+      renderCultivator(x, top, width, bottom);
+      confirmLabel = actionCount_ > 0 ? tr(STR_SELECT) : "";
+      upLabel = actionCount_ > 1 ? tr(STR_DIR_UP) : "";
+      downLabel = actionCount_ > 1 ? tr(STR_DIR_DOWN) : "";
+      break;
+    case Screen::Breakthrough:
+      renderBreakthrough(x, top, width);
+      confirmLabel = breakthrough::canAttempt(*state_) ? tr(STR_CULT_ATTEMPT) : "";
+      upLabel = "";
+      downLabel = "";
+      break;
+    case Screen::GreatPerfection:
+      renderGreatPerfection(x, top, width);
+      confirmLabel = tr(STR_CULT_ENTER);
+      upLabel = "";
+      downLabel = "";
+      break;
+    case Screen::Outcome:
+      renderOutcome(x, top, width);
+      confirmLabel = tr(STR_CULT_CONTINUE);
       upLabel = "";
       downLabel = "";
       break;
@@ -718,7 +858,19 @@ void CultivationActivity::renderAwakening(const int x, int y, const int width) {
   drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_AWAKENING_HINT), 3);
 }
 
-void CultivationActivity::renderCultivator(const int x, int y, const int width) {
+// "Layer 4", "Peak" or "Great Perfection".
+void CultivationActivity::stageText(char* out, const size_t len) const {
+  const ProgressBlock& p = state_->progress;
+  if (breakthrough::inGreatPerfection(*state_)) {
+    snprintf(out, len, "%s", tr(STR_CULT_GREAT_PERFECTION));
+  } else if (realmInfo(p.realm).layered) {
+    snprintf(out, len, tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
+  } else {
+    snprintf(out, len, "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
+  }
+}
+
+void CultivationActivity::renderCultivator(const int x, int y, const int width, const int bottom) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const GameState& s = *state_;
   const ProgressBlock& p = s.progress;
@@ -730,14 +882,27 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
   renderer.drawText(UI_12_FONT_ID, x, y, name, true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_12_FONT_ID) + 4;
 
+  // Titles: the Foundation grade once formed, and "Half-step <next realm>"
+  // after a failed breakthrough (DOC: grades are shown as titles).
+  char titles[96] = {};
+  if (p.foundationGrade >= 1 && p.foundationGrade <= 5) {
+    snprintf(titles, sizeof(titles), "%s", text(kFoundationGrades[p.foundationGrade - 1]));
+  }
+  if (breakthrough::isHalfStep(s) && p.realm + 1 < kMortalRealmCount) {
+    char halfStep[64];
+    snprintf(halfStep, sizeof(halfStep), tr(STR_CULT_HALF_STEP_FORMAT), text(kRealmNames[p.realm + 1]));
+    const size_t used = strlen(titles);
+    snprintf(titles + used, sizeof(titles) - used, "%s%s", used > 0 ? ", " : "", halfStep);
+  }
+  if (titles[0] != '\0') {
+    renderer.drawText(SMALL_FONT_ID, x, y, titles);
+    y += renderer.getLineHeight(SMALL_FONT_ID) + 4;
+  }
+
   // Realm on the left, stage on the right.
   renderer.drawText(UI_10_FONT_ID, x, y, text(kRealmNames[p.realm < kMortalRealmCount ? p.realm : 0]), true,
                     EpdFontFamily::BOLD);
-  if (realm.layered) {
-    snprintf(line, sizeof(line), tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
-  } else {
-    snprintf(line, sizeof(line), "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
-  }
+  stageText(line, sizeof(line));
   renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, line), y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
 
@@ -792,7 +957,25 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
 
   snprintf(line, sizeof(line), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
   renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing * 2;
+  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+
+  if (breakthrough::inGreatPerfection(s)) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
+             static_cast<unsigned>(breakthrough::kConsolidationMax));
+    renderer.drawText(UI_10_FONT_ID, x, y, line);
+    y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  }
+  y += metrics.verticalSpacing * 2 - 4;
+
+  // The action list sits at the bottom; text above it is cut to fit.
+  const int rowHeight = metrics.listRowHeight;
+  const int listTop = bottom - rowHeight * actionCount_;
+  const int smallLine = renderer.getLineHeight(SMALL_FONT_ID);
+  const int textLine = renderer.getLineHeight(UI_10_FONT_ID);
+  auto fits = [&](const int lineHeight, const int wanted) {
+    const int room = (listTop - y) / lineHeight;
+    return room < wanted ? (room > 0 ? room : 0) : wanted;
+  };
 
   // What this visit brought.
   if (justCreated_) {
@@ -811,15 +994,137 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
     }
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   }
-  if (atBottleneck(s)) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_BOTTLENECK), 3);
+  if (atBottleneck(s)) {
+    const breakthrough::Chance c = breakthrough::chanceFor(s);
+    if (c.needsKey && !c.hasKey && c.target < kMortalRealmCount) {
+      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_FORMAT), text(kRealmNames[c.target]));
+      y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, line, fits(smallLine, 4));
+    } else {
+      y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_BOTTLENECK), fits(smallLine, 2));
+    }
+  }
   if (rumor_[0] != '\0') {
     snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
-    y = drawWrapped(UI_10_FONT_ID, x, y + metrics.verticalSpacing * 2, width, line, 4);
+    y += metrics.verticalSpacing * 2;
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, fits(textLine, 4));
   }
   if (packs_ && packs_->sdProblems() > 0)
     y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_PACK_PROBLEMS), 3);
   if (damagedSave_ && justCreated_) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_DAMAGED), 3);
   if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_FAILED), 2);
+
+  if (actionCount_ > 0) {
+    GUI.drawList(renderer, Rect{0, listTop, renderer.getScreenWidth(), rowHeight * actionCount_}, actionCount_,
+                 selected_, [this](const int i) -> std::string {
+                   switch (actions_[i]) {
+                     case Action::Breakthrough:
+                       return tr(STR_CULT_ACTION_BREAKTHROUGH);
+                     case Action::GreatPerfection:
+                       return tr(STR_CULT_ACTION_GREAT_PERFECTION);
+                     case Action::Chronicle:
+                       return tr(STR_CULT_ACTION_CHRONICLE);
+                   }
+                   return {};
+                 });
+  }
+}
+
+// The next attempt's chance, part by part (DOC: base, Dao Heart,
+// consolidation, pity), and what a failure costs.
+void CultivationActivity::renderBreakthrough(const int x, int y, const int width) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const GameState& s = *state_;
+  const breakthrough::Chance c = breakthrough::chanceFor(s);
+  char line[224];
+  if (c.target >= kMortalRealmCount) return;  // ascension is a later milestone
+
+  snprintf(line, sizeof(line), tr(STR_CULT_INTO_FORMAT), text(kRealmNames[c.target]));
+  renderer.drawText(UI_12_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
+  y += renderer.getLineHeight(UI_12_FONT_ID) + metrics.verticalSpacing;
+
+  snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_FORMAT), static_cast<unsigned>(c.total));
+  renderer.drawText(UI_12_FONT_ID, x, y, line);
+  y += renderer.getLineHeight(UI_12_FONT_ID) + 4;
+
+  auto part = [&](const char* textLine) {
+    renderer.drawText(UI_10_FONT_ID, x + 16, y, textLine);
+    y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
+  };
+  snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_BASE_FORMAT), static_cast<unsigned>(c.base));
+  part(line);
+  snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_DAO_HEART_FORMAT), static_cast<unsigned>(c.daoHeart));
+  part(line);
+  if (breakthrough::inGreatPerfection(s) || c.consolidation > 0) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_CONSOLIDATION_FORMAT), static_cast<unsigned>(c.consolidation));
+    part(line);
+  }
+  if (c.pity > 0) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_PITY_FORMAT), static_cast<unsigned>(s.progress.failures),
+             static_cast<unsigned>(c.pity));
+    part(line);
+  }
+  y += metrics.verticalSpacing;
+
+  if (c.needsKey && !c.hasKey) {
+    snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_FORMAT), text(kRealmNames[c.target]));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5);
+  } else {
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_BREAKTHROUGH_RISK), 4);
+  }
+  if (breakthrough::canEnterGreatPerfection(s)) {
+    drawWrapped(SMALL_FONT_ID, x, y + metrics.verticalSpacing, width, tr(STR_CULT_GP_HINT), 3);
+  }
+}
+
+void CultivationActivity::renderGreatPerfection(const int x, const int y, const int width) {
+  char line[400];
+  snprintf(line, sizeof(line), tr(STR_CULT_GP_EXPLAIN_FORMAT),
+           text(kRealmNames[state_->progress.realm < kMortalRealmCount ? state_->progress.realm : 0]));
+  drawWrapped(UI_10_FONT_ID, x, y, width, line, 12);
+}
+
+void CultivationActivity::renderOutcome(const int x, int y, const int width) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const GameState& s = *state_;
+  char line[224];
+  switch (outcomeKind_) {
+    case OutcomeKind::BreakthroughSuccess:
+      snprintf(line, sizeof(line), tr(STR_CULT_BREAKTHROUGH_SUCCESS_FORMAT),
+               text(kRealmNames[outcome_.toRealm < kMortalRealmCount ? outcome_.toRealm : 0]));
+      break;
+    case OutcomeKind::BreakthroughFailure:
+      snprintf(line, sizeof(line), "%s", tr(STR_CULT_BREAKTHROUGH_FAILED));
+      break;
+    case OutcomeKind::EnteredGreatPerfection:
+      snprintf(line, sizeof(line), "%s", tr(STR_CULT_GP_ENTERED));
+      break;
+  }
+  const auto header = renderer.wrappedText(UI_12_FONT_ID, line, width, 2, EpdFontFamily::BOLD);
+  for (const auto& h : header) {
+    renderer.drawText(UI_12_FONT_ID, x, y, h.c_str(), true, EpdFontFamily::BOLD);
+    y += renderer.getLineHeight(UI_12_FONT_ID);
+  }
+  y += metrics.verticalSpacing;
+
+  if (outcomeKind_ != OutcomeKind::EnteredGreatPerfection) {
+    snprintf(line, sizeof(line), tr(STR_CULT_BT_ROLL_FORMAT), static_cast<unsigned>(outcome_.roll),
+             static_cast<unsigned>(outcome_.chance));
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
+  }
+  if (outcomeLine_.text[0] != '\0') {
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, outcomeLine_.text, 6) + metrics.verticalSpacing;
+  }
+  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.gradeKind == breakthrough::GradeKind::Foundation &&
+      outcome_.grade >= 1 && outcome_.grade <= 5) {
+    snprintf(line, sizeof(line), tr(STR_CULT_FOUNDATION_FORMED_FORMAT), text(kFoundationGrades[outcome_.grade - 1]),
+             static_cast<unsigned>(outcome_.gradeScore));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
+  }
+  if (outcomeKind_ == OutcomeKind::BreakthroughFailure) {
+    snprintf(line, sizeof(line), tr(STR_CULT_NEXT_CHANCE_FORMAT),
+             static_cast<unsigned>(breakthrough::chanceFor(s).total));
+    drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
+  }
 }
 
 // Return summary (DOC: "Months passed, resources gained, 3-6 life-log
@@ -856,11 +1161,7 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
     // Realm and stage on the left, age on the right, as on the Cultivator screen.
     const RealmInfo& realm = realmInfo(p.realm);
     char stage[32];
-    if (realm.layered) {
-      snprintf(stage, sizeof(stage), tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
-    } else {
-      snprintf(stage, sizeof(stage), "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
-    }
+    stageText(stage, sizeof(stage));
     snprintf(line, sizeof(line), "%s, %s", text(kRealmNames[p.realm < kMortalRealmCount ? p.realm : 0]), stage);
     renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
     snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),

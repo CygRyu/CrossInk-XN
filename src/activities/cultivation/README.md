@@ -18,6 +18,7 @@ Personal-fork game built to `CrossInk_Cultivation_Game___Design_Document.md`. Ev
 | `BuiltinPack.{h,cpp}` | The built-in content pack, in flash (~4.3 KB) |
 | `PackStore.{h,cpp}` | Device: SD packs, the `index.bin` cache, rebuild + check + `pack_report.txt` |
 | `LifeLog.{h,cpp}` | Pure: seasons passed in a visit, which seasons get a line, and the lines themselves (DOC: Time passage) |
+| `Breakthrough.{h,cpp}` | Pure: breakthrough chance and its parts, keys, the seeded roll, success and failure, Great Perfection and consolidation, grades and their Qi effect |
 | `Chronicle.{h,cpp}` | `chronicle.txt`: each life's opening chapter, and each visit's life-log lines appended once |
 | `CultivationActivity.{h,cpp}` | The screens: name, gender, origin, Awakening Test, Return summary, Cultivator, Chronicle |
 
@@ -55,6 +56,7 @@ Differences from the design document's budget: the stats snapshot is 68 bytes in
 - A pack rebuild (only after pack files change) borrows ~4.3 KB more for its duration: a 256-byte line buffer, the findings, the first 20 report messages (3.2 KB) and the checker (~0.7 KB). It happens before `Grammar` is allocated, so the freed space is reused right away.
 - Return summary: the visit's `LifeLog` (~1.6 KB: 8 lines of 200 bytes) is allocated when a visit with reading starts and freed when the summary is left (or in `onExit()`). If it cannot be allocated, the summary shows the numbers without lines and nothing is added to the Chronicle.
 - Chronicle viewer: `ChronicleView` (~2 KB: the byte offsets of the last 512 pages, for Previous) is allocated when the Chronicle is opened and freed when it is closed. Each page is read straight from the card, one paragraph at a time, through a 256-byte stack buffer.
+- Breakthrough and Great Perfection outcomes keep their Chronicle line (~200 B) and result in members of the activity; no new heap blocks. The no-repeat count walks every season since season 0 (a few thousand cheap steps at most, no memory).
 - Writing the Chronicle uses a 256-byte stack buffer for the file's tail; lines are appended, never rewritten.
 - Saving streams the payload twice, once to compute the CRC and once to the file, so there is no 945-byte buffer.
 - Largest stack users: `readLocalStats()` holds a `GlobalReadingStats` (~160 B) for one call; `save::store`/`load` use two 64-byte path buffers and a 32-byte scratch.
@@ -103,10 +105,24 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 
 - **Seasons:** a season is 3 in-game months, 15 reading minutes. Seasons are counted from `ageMonths` (season k = months 3k..3k+2), so short visits add up without a save field.
 - **Lines:** one per completed season, at most 6 per visit; more than 6 are spread evenly, first and last included. Plus one line when stages were gained (`log.stage`) and one when the Peak bar fills (`log.bottleneck`). Each line starts "Spring, age 17." and is seeded by `contentSeed(world seed, 51, season)` (52 stage, 53 bottleneck), so the same season always gives the same line.
-- **Lists:** Body Tempering mixes the origin's own list (`log.body.farmer` ... `log.body.herbalist`, weight 3), `log.body` (4) and `log.any` (3); Qi Condensation mixes `log.qi` (6) and `log.any` (3); later realms use `log.any` until they get lists of their own. Lines never grant anything.
+- **Lists:** a weighted pick per season. Body Tempering: the origin's own list (`log.body.farmer` ... `log.body.herbalist`, weight 3), `log.body` (4), `log.any` (3). Qi Condensation: `log.qi` (6), `log.any` (3). Foundation Establishment: `log.foundation` (6), `log.any` (3). Later realms: `log.any`. In Great Perfection `log.gp` (4) joins; after a failed breakthrough, until the next success, `log.halfstep` (3). Lines never grant anything and never mention Spirit Stones (a host test checks).
+- **No early repeats** (milestone 6): the list a season draws from is counted (how many seasons since season 0 would have drawn from it, recomputed, never stored), and that count walks the list in an order shuffled per world and cycle (`(a * i + b) mod n`, `a` coprime to `n`). Every entry is used once before any repeats, across visits, with no save field. `Grammar::expandEntry` forces the top-level pick.
 - **Chronicle file:** `/.crosspoint/cultivation/chronicle.txt`. A new character (or the first visit of one made before this update) appends an opening chapter: the book's title if the file is new, "Life N: name", then `chronicle.birth.<origin>`, `chronicle.awakening` and, if there was earlier reading, `chronicle.past`. Each visit appends its lines at the bottom, with an "Age N" heading when the age changes.
 - **No double lines:** the Chronicle is written before the save. If the save fails, the next visit re-counts the same reading, builds the same lines, finds the file already ends with them, and skips them. A line cut short by a power loss is closed with a newline before anything new is written.
 - **Reading it:** the Cultivator's Confirm button opens the game's own page viewer. It is not CrossInk's TXT reader, which would record the file as the current book (sleep screen, resume on boot) and return Home on Back. No reading stats are recorded by the viewer. (CrossInk's TXT reader records none either; if a future CrossInk update changes that, `.txt` reading would start earning Qi, which would also matter for the Chronicle only if it were opened there.)
+
+## Breakthroughs, Great Perfection and grades (milestone 6, the doc's build step 5)
+
+- **When:** a full Peak bar. The Cultivator screen then lists "Break through", and from Qi Condensation on "Enter Great Perfection".
+- **Keys:** the doc's small bottleneck (Body Tempering -> Qi Condensation) needs none. Every later one needs a Technique Scroll, Dao points or a breakthrough pill; none exists yet, so the screen says so (decided with the user in session 3, matching `balance_sim.py`'s `has_key`).
+- **Chance:** base 90/70/45/35, then -5 per realm, floor 20; + Dao Heart x 15 / 100; + consolidation x 15 / 40; capped at 99. Pity: +15 per failure, never past 90 (`balance_sim.py`'s formula). Parts are rounded down separately, so the total can be a point below the simulator's.
+- **Roll:** `contentSeed(world, 55, realm << 8 | failures)`, so reopening the game never changes an outcome, and each failure makes the next roll a new one.
+- **Success:** next realm at stage 0, Qi zero, failures and consolidation reset, Half-step and Great Perfection cleared, grade set when entering Foundation (score: consolidation + Dao Heart x 25 / 100 + Fallen clan heir 5), Core and Nascent Soul (soul clarity). Grades change the Qi rate (`gradeQiPermille`).
+- **Failure:** 75% of the Peak bar kept, failures + 1, Half-step title; Great Perfection and consolidation are kept.
+- **Great Perfection:** a flag on the Peak stage. Consolidation is +1 per whole half-hour of this character's reading time while it is set, up to 40, so no carry field is needed.
+- **Chronicle:** each attempt or entering Great Perfection appends one line (`log.breakthrough`, `log.failure`, `log.gp.enter`), seeded by realm and failures, written before the save and skipped if already there.
+- **Save:** no format change; the fields (failures, grades, consolidation, `kInGreatPerfection`, `kHalfStep`) were reserved in milestone 2.
+- **Not yet:** Tribulations (Core Formation) and Heart Demons (Nascent Soul), keys, pills and techniques in the grade score, lifespan running out (rebirth).
 
 ## Screens (milestone 3)
 
@@ -115,9 +131,12 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 3. **Origin:** five origins with their birth line; the selected origin's gifts are shown under the list.
 4. **Awakening Test:** one destiny per screen. Previous and Next move between destinies seen so far, Next past the last one spends a reroll (3 per life), and Keep takes the destiny on screen. Destinies are a pure function of the world seed (MAC, creation day, life number), so leaving and re-entering shows the same ones.
 5. **Return summary** (milestone 5, after any visit with reading): how many seasons or months passed, realm, stage and age, the minutes, Qi and stones the visit brought, and the life-log lines. Next and Previous page through long logs; Continue or Back goes to the Cultivator screen.
-6. **Cultivator:** name, realm and stage, Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, origin gifts the one time they are granted, the rumor of the day, and a notice when an SD pack has problems. Confirm opens the Chronicle.
-7. **Chronicle:** the Chronicle one page at a time, from the beginning; Next and Previous turn pages, Back returns.
+6. **Cultivator:** name, titles (Foundation grade, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, and at the bottom a list of actions: Break through, Enter Great Perfection, Read the Chronicle. Text above the list is cut to fit.
+7. **Breakthrough:** the target realm, the chance and its parts, what a failure costs or which key is missing. Attempt rolls.
+8. **Great Perfection:** what staying at the peak does. Enter enters it.
+9. **Outcome:** success or failure, the roll and the chance, the Chronicle line, the Foundation grade when one is formed, or the next attempt's chance.
+10. **Chronicle:** the Chronicle one page at a time, from the beginning; Next and Previous turn pages, Back returns.
 
 Nothing is saved until a destiny is kept. If a damaged save is found, the new character's first save first moves it to `save.damaged.bin`.
 
-Not yet (later milestones): breakthroughs (the Peak bar stays full and reading there does not carry over yet), renaming from the Cultivator screen, origin gifts other than stones and HP, and anything that spends stamina.
+Not yet (later milestones): Qi beyond a full Peak bar is still not kept, renaming from the Cultivator screen, origin gifts other than stones and HP, and anything that spends stamina.
