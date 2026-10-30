@@ -1,3 +1,10 @@
+## [Unreleased]
+
+### Added
+
+- Path of Immortal Reading (personal fork): a desktop balance simulator in `tools/cultivation/` that shows how many days each cultivation realm takes for 15, 30, 60 and 90 minutes of reading a day, night-only reading and weekend-only reading, and flags where reading habits change a character's power.
+- Path of Immortal Reading (personal fork): a separate `cultivation` X3/X4 firmware build with the game switched on, and a "Cultivation firmware" GitHub Actions workflow that builds it, plus the unchanged standard firmware, as downloadable `.bin` files.
+
 ## [v1.6.1] - 2026-10-03
 
 ### Added
