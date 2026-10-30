@@ -11,6 +11,12 @@ Personal-fork game built to `CrossInk_Cultivation_Game___Design_Document.md`. Ev
 | `StatsSource.{h,cpp}` | Device-only adapter: reads `GlobalReadingStats::load()` and today's date. Read-only |
 | `Rng.h` | Seed mixing and xorshift32 (DOC: deterministic generation) |
 | `Simulation.{h,cpp}` | Pure rules: realm table, stage costs, talents, Awakening rolls, name suggestions, character creation, converting a visit into Qi, age, stones, stamina and Dao Heart |
+| `GrammarPack.{h,cpp}` | Pure: pack format, parser, the 12-byte-per-section index, extend/replace layering, in-memory reader |
+| `Grammar.{h,cpp}` | Pure: the grammar engine (`{key}`, `[a\|b]`, modifiers, variables, plane/theme layers, anti-repetition, depth 14, tidying) |
+| `GameValues.{h,cpp}` | Pure: `{$player.name}`, pronouns, verb forms and gendered titles for the grammar |
+| `PackCheck.{h,cpp}` | Pure: the pack checker (missing keys, brackets, values, event syntax, line length) |
+| `BuiltinPack.{h,cpp}` | The built-in content pack, in flash (~4.3 KB) |
+| `PackStore.{h,cpp}` | Device: SD packs, the `index.bin` cache, rebuild + check + `pack_report.txt` |
 | `CultivationActivity.{h,cpp}` | The screens: name, gender, origin, Awakening Test, Cultivator |
 
 Hooks outside this folder (all inside `#if CROSSINK_CULTIVATION`):
@@ -43,6 +49,8 @@ Differences from the design document's budget: the stats snapshot is 68 bytes in
 - The keyboard child activity is allocated by the same pattern and owned by `ActivityManager` (existing CrossInk code).
 - `renderer.wrappedText` returns a few short strings per render for wrapped notes (render-time only, as CrossInk's other screens do).
 - The creation draft (name, up to 9 destiny rolls) is ~60 bytes of members, gone once the activity closes.
+- Content packs and the grammar engine, allocated in `onEnter()` after the save loads and freed in `onExit()`: `PackStore` (~1.3 KB: file table, read buffer), its index (384 × 12 B = 4.6 KB, one allocation sized once) and `Grammar` (~3.4 KB: 1 KB output, 1 KB line arena, ~1 KB anti-repeat memory, ~0.4 KB variables). Heap rather than members of the activity so the game still runs (without generated text) if they cannot be allocated. With the ~1 KB save that is about 10.5 KB, inside the design document's 12 KB.
+- A pack rebuild (only after pack files change) borrows ~4.3 KB more for its duration: a 256-byte line buffer, the findings, the first 20 report messages (3.2 KB) and the checker (~0.7 KB). It happens before `Grammar` is allocated, so the freed space is reused right away.
 - Saving streams the payload twice, once to compute the CRC and once to the file, so there is no 945-byte buffer.
 - Largest stack users: `readLocalStats()` holds a `GlobalReadingStats` (~160 B) for one call; `save::store`/`load` use two 64-byte path buffers and a 32-byte scratch.
 
@@ -75,13 +83,24 @@ Differences from the design document's budget: the stats snapshot is 68 bytes in
   | Herbalist's apprentice | 40 | | Knows one Qi pill recipe; +10% brew quality (milestone 8) |
 - Minutes for stones, steps for stamina and Dao Heart all come from `gameReadingSeconds` (this character's total reading time), so none of them needs its own carry field.
 
+## Content packs and the grammar engine (milestone 4, the doc's build step 3)
+
+Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
+
+- **Sources:** the built-in pack (source 0, flash) and up to 15 SD files from `/.crosspoint/cultivation/lists/*.txt` and `events/*.txt` (sources 1..15, in name order). An SD list with an existing key adds entries; `[!key]` replaces earlier ones.
+- **Index:** one `PackSection` (12 B: key hash, byte offset, entry count, source, flags) per `[section]`, not per line. Reading entry i walks the section's lines from its start; lists are short, and reading forward continues from the last entry, so the checker never rewinds.
+- **`index.bin`:** the SD sections, plus each file's name, size and modification time and a hash of the built-in pack, with a CRC. Any difference (file added, removed, edited, new firmware pack, damaged cache) triggers a rescan on the device. The built-in pack is re-parsed from flash on every open (a few ms).
+- **Checking:** a rescan runs `PackChecker` over the SD packs (built-in lists count as known keys) and writes `pack_report.txt`, or deletes it when all is well. The count is kept in `index.bin`, so the Cultivator's notice survives later opens. The host tests run the same checker on the built-in pack in CI, and `test/cultivation` also builds `cultivation_pack_check` for checking packs on a computer.
+- **Engine determinism:** output is a pure function of seed, packs and the anti-repeat history of the open session. Seeds are mixed before use, so consecutive days give unrelated picks.
+- **Rumor of the day:** `{rumor}` seeded by `contentSeed(world seed, 50, day index)`; without a clock, by reading hour. Shown under the visit summary.
+
 ## Screens (milestone 3)
 
 1. **Name:** type it with the CrossInk keyboard, or Suggest (generated from the world seed). Names are trimmed and must be 1–20 characters the UI font can draw.
 2. **Gender:** Male, Female, Non-binary, Prefer not to say. Flavor only.
 3. **Origin:** five origins with their birth line; the selected origin's gifts are shown under the list.
 4. **Awakening Test:** one destiny per screen. Previous and Next move between destinies seen so far, Next past the last one spends a reroll (3 per life), and Keep takes the destiny on screen. Destinies are a pure function of the world seed (MAC, creation day, life number), so leaving and re-entering shows the same ones.
-5. **Cultivator:** name, realm and stage, Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, and what the visit brought (minutes, Qi, stones, and origin gifts the one time they are granted).
+5. **Cultivator:** name, realm and stage, Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, and what the visit brought (minutes, Qi, stones, and origin gifts the one time they are granted), the rumor of the day, and a notice when an SD pack has problems.
 
 Nothing is saved until a destiny is kept. If a damaged save is found, the new character's first save first moves it to `save.damaged.bin`.
 

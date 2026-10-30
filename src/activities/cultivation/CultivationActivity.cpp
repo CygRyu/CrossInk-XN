@@ -16,7 +16,9 @@
 #include <string>
 
 #include "CultivationActivity.h"
+#include "GameValues.h"
 #include "MappedInputManager.h"
+#include "Rng.h"
 #include "StatsBridge.h"
 #include "StatsSource.h"
 #include "activities/util/KeyboardEntryActivity.h"
@@ -135,6 +137,8 @@ void CultivationActivity::onEnter() {
     return;
   }
 
+  loadPacks();
+
   switch (save::load(*state_)) {
     case save::LoadResult::Loaded:
       if (state_->isCreated()) {
@@ -156,9 +160,45 @@ void CultivationActivity::onEnter() {
 }
 
 void CultivationActivity::onExit() {
+  grammar_.reset();  // the engine reads through packs_, so it goes first
+  packs_.reset();
   state_.reset();  // frees the ~1 KB GameState
   renderer.setOrientation(previousOrientation_);
   Activity::onExit();
+}
+
+void CultivationActivity::loadPacks() {
+  packs_ = makeUniqueNoThrow<PackStore>();
+  if (!packs_ || !packs_->begin()) {
+    LOG_ERR("CULT", "Content packs unavailable (out of memory); continuing without generated text");
+    packs_.reset();
+    return;
+  }
+  grammar_ = makeUniqueNoThrow<Grammar>(packs_->index(), *packs_);
+  if (!grammar_) {
+    LOG_ERR("CULT", "Out of memory for the grammar engine (%u bytes)", static_cast<unsigned>(sizeof(Grammar)));
+  }
+}
+
+// One rumor per day (DOC: "Rumor of the day"): seeded by the world and the
+// date, so it stays the same all day and differs between worlds. Without a
+// clock it changes with each reading hour instead.
+void CultivationActivity::updateRumor() {
+  rumor_[0] = '\0';
+  if (!grammar_ || !state_ || !state_->isCreated()) return;
+  constexpr uint32_t kKindRumor = 50;
+  const uint32_t day = state_->snapshot.lastVisitDay;
+  const uint32_t when = day != StatsSnapshot::kNoDay ? day : 0x80000000u + state_->progress.gameReadingSeconds / 3600u;
+  GrammarContext ctx;
+  ctx.plane = 0;  // the Mortal Plane until ascension exists
+  ctx.values = gameValues(*state_);
+  grammar_->beginScene();
+  const char* text = grammar_->expand("{rumor}", contentSeed(worldSeedOf(*state_), kKindRumor, when), ctx);
+  snprintf(rumor_, sizeof(rumor_), "%s", text);
+  packs_->closeFile();
+  if (grammar_->missing() > 0) {
+    LOG_ERR("CULT", "Rumor had %u missing key(s)", grammar_->missing());
+  }
 }
 
 bool CultivationActivity::persist() {
@@ -177,6 +217,7 @@ void CultivationActivity::startVisit() {
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
   originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
   visit_ = absorb(*state_, gains);
+  updateRumor();
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
   LOG_INF("CULT", "Visit: %lu s read, %lu qualifying, %lu pages, reset=%d, stages+%u, stones+%lu, stamina+%u",
@@ -222,6 +263,7 @@ void CultivationActivity::finishCreation() {
   const OriginBonus& bonus = originBonus(state_->character.origin);
   originGift_.stones = bonus.stones;
   originGift_.hp = bonus.extraHp;
+  updateRumor();
   screen_ = Screen::Cultivator;
 }
 
@@ -544,7 +586,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
   const GameState& s = *state_;
   const ProgressBlock& p = s.progress;
   const RealmInfo& realm = realmInfo(p.realm);
-  char line[160];
+  char line[224];  // fits "Rumor of the day: " plus a rumor (under 200 bytes)
 
   char name[kNameMaxBytes + 1];
   nameOf(s, name);
@@ -643,6 +685,12 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width) 
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   }
   if (atBottleneck(s)) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_BOTTLENECK), 3);
+  if (rumor_[0] != '\0') {
+    snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
+    y = drawWrapped(UI_10_FONT_ID, x, y + metrics.verticalSpacing * 2, width, line, 4);
+  }
+  if (packs_ && packs_->sdProblems() > 0)
+    y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_PACK_PROBLEMS), 3);
   if (damagedSave_ && justCreated_) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_DAMAGED), 3);
   if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_FAILED), 2);
 }

@@ -1,0 +1,10 @@
+# Example SD pack for Path of Immortal Reading.
+# Copy this file to /.crosspoint/cultivation/lists/ on the SD card.
+# It adds rumors to the built-in ones and a new place, without replacing anything.
+
+[rumor.body]
+a reader in {place.town} turned the last page of a book and a lantern lit itself
+the {sect.name} pays a Spirit Stone for every story a traveller can finish telling
+
+[place.town]
+Inkstone Village

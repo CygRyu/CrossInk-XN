@@ -9,6 +9,8 @@
 #include <memory>
 
 #include "GameState.h"
+#include "Grammar.h"
+#include "PackStore.h"
 #include "Simulation.h"
 #include "activities/Activity.h"
 
@@ -43,6 +45,8 @@ class CultivationActivity final : public Activity {
   void openKeyboard();
   void showAwakening(uint8_t view);
   void rerollOrNext();
+  void loadPacks();
+  void updateRumor();
 
   // Drawing
   int drawWrapped(int fontId, int x, int y, int width, const char* text, int maxLines) const;
@@ -55,6 +59,12 @@ class CultivationActivity final : public Activity {
   Screen screen_ = Screen::Error;
   int selected_ = 0;
   std::unique_ptr<cultivation::GameState> state_;
+  // Content packs and the grammar engine (~4.6 KB index + ~3.4 KB engine),
+  // allocated in onEnter() and freed in onExit(). If either allocation fails
+  // the game still runs, without generated text.
+  std::unique_ptr<cultivation::PackStore> packs_;
+  std::unique_ptr<cultivation::Grammar> grammar_;
+  char rumor_[200] = {};  // rumor of the day, expanded once per visit
 
   // Creation draft (RAM only until the player keeps a destiny).
   cultivation::CharacterDraft draft_;

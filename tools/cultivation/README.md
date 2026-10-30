@@ -2,6 +2,10 @@
 
 Host-side tools for the cultivation game. Nothing in this folder is compiled into the firmware.
 
+- `balance_sim.py`: the balance simulator (below).
+- `PACKS.md`: how to write content packs for the grammar engine, and how to check them.
+- `example-pack/`: an SD pack to copy to `/.crosspoint/cultivation/` for trying out packs.
+
 ## Balance simulator
 
 ```sh

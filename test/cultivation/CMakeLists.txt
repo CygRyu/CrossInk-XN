@@ -30,20 +30,33 @@ endif()
 
 set(CULTIVATION_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../src/activities/cultivation)
 
+set(CULTIVATION_CORE_SOURCES
+  ${CULTIVATION_SRC}/QiNumber.cpp
+  ${CULTIVATION_SRC}/GameState.cpp
+  ${CULTIVATION_SRC}/StatsBridge.cpp
+  ${CULTIVATION_SRC}/Simulation.cpp
+  ${CULTIVATION_SRC}/GrammarPack.cpp
+  ${CULTIVATION_SRC}/Grammar.cpp
+  ${CULTIVATION_SRC}/GameValues.cpp
+  ${CULTIVATION_SRC}/PackCheck.cpp
+  ${CULTIVATION_SRC}/BuiltinPack.cpp
+)
+
 add_executable(CultivationCoreTest
   QiNumberTest.cpp
   GameStateTest.cpp
   StatsBridgeTest.cpp
   SimulationTest.cpp
-  ${CULTIVATION_SRC}/QiNumber.cpp
-  ${CULTIVATION_SRC}/GameState.cpp
-  ${CULTIVATION_SRC}/StatsBridge.cpp
-  ${CULTIVATION_SRC}/Simulation.cpp
+  GrammarTest.cpp
+  PackStoreTest.cpp
+  ${CULTIVATION_CORE_SOURCES}
+  ${CULTIVATION_SRC}/PackStore.cpp
 )
 
 target_include_directories(CultivationCoreTest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/stubs
   ${CULTIVATION_SRC}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/Memory
 )
 
 target_compile_definitions(CultivationCoreTest PRIVATE CROSSINK_CULTIVATION=1)
@@ -51,3 +64,12 @@ target_compile_options(CultivationCoreTest PRIVATE -Wall -Wextra -pedantic -Werr
 target_link_libraries(CultivationCoreTest PRIVATE GTest::gtest_main)
 
 gtest_discover_tests(CultivationCoreTest)
+
+# Desktop pack checker: the device's own parser, checker and engine.
+#   build/cultivation-tests/cultivation_pack_check my-pack.txt
+#   build/cultivation-tests/cultivation_pack_check --expand rumor --count 20
+add_executable(cultivation_pack_check PackCheckTool.cpp ${CULTIVATION_CORE_SOURCES})
+target_include_directories(cultivation_pack_check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/stubs ${CULTIVATION_SRC})
+target_compile_definitions(cultivation_pack_check PRIVATE CROSSINK_CULTIVATION=1)
+target_compile_options(cultivation_pack_check PRIVATE -Wall -Wextra -pedantic -Werror)
+add_test(NAME BuiltinPackChecksClean COMMAND cultivation_pack_check --expand rumor --count 3)
