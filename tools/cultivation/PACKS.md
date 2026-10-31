@@ -134,6 +134,9 @@ Region slots have a theme each, in order: `marsh`, `wastes`, `forest`, `gorge`, 
 | `explore.won` (beasts), `explore.won.bandit`, `explore.won.cultivator`, `explore.won.spirit`, `explore.lost`, `explore.slip`, `explore.paid`, `explore.drivenoff` | after a fight, on the map |
 | `alchemy.learned`, `alchemy.miss`, `alchemy.collect` | v0.2.0: the Alchemy screen's line after an experiment or taking pills out; `{$pill.name}` is set ("Core-Forming pill") |
 | `alchemy.line.learned`, `alchemy.line.slip` | v0.2.0: Chronicle lines for a recipe worked out and a recipe slip; `{$pill.name}` is set |
+| `alchemy.failed`, `alchemy.extra`, `alchemy.improved` | v0.2.1: taking out a failed batch, one with a pill more, one a band better; `{$pill.name}` is set |
+| `explore.fight.return`, `explore.line.return.won`, `explore.line.return.left` | v0.2.1: a returning foe's Fight line, and the Chronicle lines when it is beaten or gets away again |
+| `demon.history.guardian`, `demon.history.uncleared`, `demon.history.ran`, `demon.history.paid`, `demon.history.burned` | v0.2.1: Heart Demon scenes from the player's history; `{$region.name}`, `{$beast.name}` (the guardian or the foe) and `{$scroll.name}` (the last scroll burned) are set where they apply. Write them so they fit one enemy or a group |
 | `explore.line.guardian`, `explore.line.clear`, `explore.line.upheaval`, `explore.line.talisman` | Chronicle lines (the upheaval line also shows in the Return summary) |
 
 `{$region.name}` and `{$beast.name}` (the beast or guardian) are set in these lists only. Write beasts and guardians with their article and in lower case unless they are a name ("a white bear", "the Snow Bear of Frozen Bell"); use `{$beast.name.cap}` at the start of a sentence. Since v0.2.0 each enemy kind has its own lines; write bandit and cultivator lines so they fit one person or a group ("they"), and keep `explore.lost` and `explore.slip` neutral, since they follow every kind.

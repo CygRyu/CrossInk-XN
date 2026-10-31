@@ -193,9 +193,21 @@ bool brewing(const GameState& s) { return s.timers[0] != 0 && s.timers[0] <= kRe
 
 int brewingRecipe(const GameState& s) { return brewing(s) ? s.timers[0] - 1 : -1; }
 
+uint8_t brewingBatch(const GameState& s) {
+  const uint8_t b = s.timers[1];
+  return b == 0 ? 1 : (b > kMaxBatch ? kMaxBatch : b);
+}
+
+uint32_t batchMinutes(const Recipe& r, const uint8_t batch) {
+  const uint32_t n = batch == 0 ? 1u : (batch > kMaxBatch ? kMaxBatch : batch);
+  return static_cast<uint32_t>(r.brewMinutes) * (n + 1u) / 2u;  // x1, x1.5, x2
+}
+
 uint32_t brewMinutesLeft(const GameState& s) {
   if (!brewing(s)) return 0;
-  const uint32_t need = static_cast<uint32_t>(kSpecs[s.timers[0] - 1].brewMinutes) * 60u;
+  Recipe spec;
+  spec.brewMinutes = kSpecs[s.timers[0] - 1].brewMinutes;
+  const uint32_t need = batchMinutes(spec, brewingBatch(s)) * 60u;
   const uint32_t start = get32(s.timers.data() + 2);
   const uint32_t now = s.progress.gameReadingSeconds;
   const uint32_t done = now > start ? now - start : 0;
@@ -217,8 +229,9 @@ uint16_t batchesHeld(const GameState& s, const Recipe& r) {
 }
 
 namespace {
-void startBrew(GameState& s, const uint8_t recipe) {
+void startBrew(GameState& s, const uint8_t recipe, const uint8_t batch = 1) {
   s.timers[0] = static_cast<uint8_t>(recipe + 1);
+  s.timers[1] = batch;
   set32(s.timers.data() + 2, s.progress.gameReadingSeconds);
   const uint16_t brews = static_cast<uint16_t>(s.timers[6] | (s.timers[7] << 8));
   const uint16_t next = static_cast<uint16_t>(brews + 1);
@@ -248,11 +261,17 @@ bool canBrew(const GameState& s, const uint8_t recipe) {
   return holds(s, r.part, r.parts);
 }
 
-bool brew(GameState& s, const uint8_t recipe) {
-  if (!canBrew(s, recipe)) return false;
+uint8_t maxBatch(const GameState& s, const uint8_t recipe) {
+  if (recipe >= kRecipeCount) return 0;
+  const uint16_t held = batchesHeld(s, recipesOf(s).recipes[recipe]);
+  return static_cast<uint8_t>(held < kMaxBatch ? held : kMaxBatch);
+}
+
+bool brew(GameState& s, const uint8_t recipe, const uint8_t batch) {
+  if (!canBrew(s, recipe) || batch == 0 || batch > maxBatch(s, recipe)) return false;
   const Recipe r = recipesOf(s).recipes[recipe];
-  useUp(s, r.part, r.parts);
-  startBrew(s, recipe);
+  for (uint8_t b = 0; b < batch; ++b) useUp(s, r.part, r.parts);
+  startBrew(s, recipe, batch);
   return true;
 }
 
@@ -305,11 +324,30 @@ Collected collect(GameState& s) {
   c.ok = true;
   c.recipe = index;
   c.pill = r.pill;
-  c.item = pillItem(r.pill, c.quality);
-  const bool keepsQuality = inventory::isBreakthroughPill(c.item) || inventory::isGradePill(c.item);
-  c.count = keepsQuality ? 1 : static_cast<uint16_t>(static_cast<uint8_t>(c.quality) + 1);
-  inventory::add(s, c.item, c.count);
+  c.batch = brewingBatch(s);
+  // v0.2.1: the surprises, from the same seeded stream after the quality roll.
+  const uint8_t failPercent = isHerbalist(s) ? kFailPercent / 2 : kFailPercent;
+  c.failed = rng.below(100) < failPercent;
+  if (c.failed) {
+    // Dross sells for 5 a piece, so a failed batch is worth half its ingredients.
+    uint32_t value = 0;
+    for (uint8_t p = 0; p < r.parts; ++p) value += inventory::price(r.part[p]);
+    const uint32_t dross = value * c.batch / 10u;
+    c.dross = static_cast<uint16_t>(dross > 0 ? dross : 1u);
+    c.item = Item::Dross;
+    c.count = c.dross;
+  } else {
+    c.extra = rng.below(100) < kExtraPercent;
+    c.improved = rng.below(100) < kImprovePercent && c.quality != Quality::High;
+    if (c.improved) c.quality = static_cast<Quality>(static_cast<uint8_t>(c.quality) + 1);
+    c.item = pillItem(r.pill, c.quality);
+    const bool keepsQuality = inventory::isBreakthroughPill(c.item) || inventory::isGradePill(c.item);
+    const uint16_t each = keepsQuality ? 1 : static_cast<uint16_t>(static_cast<uint8_t>(c.quality) + 1);
+    c.count = static_cast<uint16_t>(each * c.batch + (c.extra ? 1 : 0));
+  }
+  c.added = inventory::addOrSell(s, c.item, c.count);
   s.timers[0] = 0;
+  s.timers[1] = 0;
   set32(s.timers.data() + 2, 0);
   return c;
 }

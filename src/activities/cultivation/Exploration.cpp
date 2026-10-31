@@ -96,6 +96,46 @@ void setCounter(GameState& s, const uint32_t v) {
 void setPending(GameState& s, const uint8_t region, const FightKind kind) {
   s.exploration[4] = kind == FightKind::None ? 0 : static_cast<uint8_t>(region + 1);
   s.exploration[5] = static_cast<uint8_t>(kind);
+  if (kind != FightKind::Beast) s.exploration[7] = 0;
+}
+
+// --- Returning foes (v0.2.1): memory bytes 0-23, 6 bytes each ---------------------
+uint8_t* foeBytes(GameState& s, const uint8_t i) { return s.memory.data() + 6 * i; }
+const uint8_t* foeBytes(const GameState& s, const uint8_t i) { return s.memory.data() + 6 * i; }
+
+void writeFoe(GameState& s, const uint8_t i, const Foe& f) {
+  uint8_t* b = foeBytes(s, i);
+  b[0] = static_cast<uint8_t>(f.region + 1);
+  b[1] = static_cast<uint8_t>((f.returns & 0x03) | (f.paid ? 0x10 : 0));
+  b[2] = static_cast<uint8_t>(f.seed);
+  b[3] = static_cast<uint8_t>(f.seed >> 8);
+  b[4] = static_cast<uint8_t>(f.seed >> 16);
+  b[5] = static_cast<uint8_t>(f.seed >> 24);
+}
+
+void forgetFoe(GameState& s, const uint8_t i) {
+  for (uint8_t k = i; k + 1 < kFoeRing; ++k) {
+    for (uint8_t j = 0; j < 6; ++j) foeBytes(s, k)[j] = foeBytes(s, static_cast<uint8_t>(k + 1))[j];
+  }
+  for (uint8_t j = 0; j < 6; ++j) foeBytes(s, kFoeRing - 1)[j] = 0;
+}
+
+// A new foe goes at the end; with the ring full the oldest is forgotten.
+void addFoe(GameState& s, const Foe& f) {
+  uint8_t i = 0;
+  while (i < kFoeRing && foeBytes(s, i)[0] != 0) ++i;
+  if (i == kFoeRing) {
+    forgetFoe(s, 0);
+    i = kFoeRing - 1;
+  }
+  writeFoe(s, i, f);
+}
+
+int waitingFoeIn(const GameState& s, const uint8_t region) {
+  for (uint8_t i = 0; i < kFoeRing; ++i) {
+    if (foeBytes(s, i)[0] == region + 1) return i;
+  }
+  return -1;
 }
 
 // Reading time in 10-minute units, + 1 so that 0 means "not set".
@@ -145,13 +185,18 @@ uint32_t halve(const uint32_t v, const bool half) { return half ? (v / 2 > 0 ? v
 
 void give(GameState& s, Reward& r, const inventory::Item item, const uint16_t n) {
   if (item == inventory::Item::None || n == 0) return;
-  inventory::add(s, item, n);
+  const inventory::AddResult a = inventory::addOrSell(s, item, n);
+  r.soldStones += a.soldStones;
+  r.lost = static_cast<uint16_t>(r.lost + a.lost);
   if (r.item == inventory::Item::None) {
     r.item = item;
     r.itemCount = n;
-  } else {
+  } else if (r.item2 == inventory::Item::None) {
     r.item2 = item;
     r.item2Count = n;
+  } else {
+    r.item3 = item;
+    r.item3Count = n;
   }
 }
 
@@ -515,7 +560,31 @@ uint8_t bodyCut(const GameState& s) { return trials::bodyCutPercent(s); }
 
 uint32_t stepCounter(const GameState& s) { return counter(s); }
 
-uint32_t beastSeed(const GameState& s) { return contentSeed(worldSeedOf(s), kKindBeastLevel, counter(s)); }
+uint32_t beastSeed(const GameState& s) {
+  Foe f;
+  const int ring = returningFoe(s);
+  if (ring >= 0 && foe(s, static_cast<uint8_t>(ring), f)) return f.seed;  // v0.2.1: the same enemy again
+  return contentSeed(worldSeedOf(s), kKindBeastLevel, counter(s));
+}
+
+bool foe(const GameState& s, const uint8_t index, Foe& out) {
+  if (index >= kFoeRing) return false;
+  const uint8_t* b = foeBytes(s, index);
+  if (b[0] == 0 || b[0] > kRegionCount) return false;
+  out.region = static_cast<uint8_t>(b[0] - 1);
+  out.returns = static_cast<uint8_t>(b[1] & 0x03);
+  out.paid = (b[1] & 0x10) != 0;
+  out.seed = static_cast<uint32_t>(b[2]) | (static_cast<uint32_t>(b[3]) << 8) | (static_cast<uint32_t>(b[4]) << 16) |
+             (static_cast<uint32_t>(b[5]) << 24);
+  return true;
+}
+
+int returningFoe(const GameState& s) {
+  if (s.exploration[5] != static_cast<uint8_t>(FightKind::Beast)) return -1;
+  const uint8_t i = s.exploration[7];
+  if (i == 0 || i > kFoeRing) return -1;
+  return foeBytes(s, static_cast<uint8_t>(i - 1))[0] == 0 ? -1 : i - 1;
+}
 
 uint32_t enemySeed(const GameState& s, const uint8_t region, const uint8_t tile) {
   return contentSeed(
@@ -523,8 +592,10 @@ uint32_t enemySeed(const GameState& s, const uint8_t region, const uint8_t tile)
       (static_cast<uint32_t>(region) << 16) | (static_cast<uint32_t>(reshapeCount(s, region)) << 8) | tile);
 }
 
-Enemy encounterEnemy(const GameState& s, const uint8_t region) {
-  Rng rng(mix32(beastSeed(s), 0x4B494E44u));  // its own stream: the beast's level roll stays as in v0.1.10
+Enemy encounterEnemy(const GameState& s, const uint8_t region) { return enemyFromSeed(region, beastSeed(s)); }
+
+Enemy enemyFromSeed(const uint8_t region, const uint32_t seed) {
+  Rng rng(mix32(seed, 0x4B494E44u));  // its own stream: the beast's level roll stays as in v0.1.10
   return pickEnemy(region, rng.below(100));
 }
 
@@ -560,6 +631,12 @@ Fight pendingFight(const GameState& s, const Layout& l) {
       Rng rng(beastSeed(s));
       const int extra = static_cast<int>(rng.below(5));
       f.level = regionBase(f.region) + (f.enemy == Enemy::Cultivator ? 2 * extra : extra);
+      Foe back;
+      const int ring = returningFoe(s);
+      if (ring >= 0 && foe(s, static_cast<uint8_t>(ring), back)) {
+        f.returns = back.returns;
+        f.level += kFoeLevelStep * back.returns;
+      }
       break;
     }
     case FightKind::Lair:
@@ -610,14 +687,21 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
   setCounter(s, c + 1);
 
   const Tile t = l.tiles[to];
+  const bool afterRandomFight = (s.exploration[6] & 0x01) != 0;
+  s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~0x01);
   if ((t == Tile::Lair || t == Tile::Guardian) && !used(s, region, to)) {
     setPending(s, region, t == Tile::Lair ? FightKind::Lair : FightKind::Guardian);
     r.fight = true;
     return r;
   }
   Rng encounter(contentSeed(worldSeedOf(s), kKindEncounter, c));
-  if (encounter.below(100) < l.encounterPercent) {
+  // v0.2.1 (user): never two random fights on consecutive steps.
+  if (encounter.below(100) < l.encounterPercent && !afterRandomFight) {
+    // A foe that got away from you here comes back one time in three.
+    const int waiting = waitingFoeIn(s, region);
+    s.exploration[7] = waiting >= 0 && encounter.below(3) == 0 ? static_cast<uint8_t>(waiting + 1) : 0;
     setPending(s, region, FightKind::Beast);
+    s.exploration[6] = static_cast<uint8_t>(s.exploration[6] | 0x01);
     r.fight = true;
     return r;
   }
@@ -644,10 +728,32 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     res.refused = true;
     return res;
   }
+  // v0.2.1: who this was, before the counter (which names new enemies) moves on.
+  const int ring = f.kind == FightKind::Beast ? returningFoe(s) : -1;
+  const uint32_t seed = beastSeed(s);
+  res.returning = ring >= 0;
   const uint32_t c = counter(s);
   setCounter(s, c + 1);
   setPending(s, f.region, FightKind::None);
+  s.exploration[7] = 0;
   Rng rng(contentSeed(worldSeedOf(s), kKindFightRoll, c));
+  // A beast or bandit that got away (slipped past or paid off) is remembered.
+  auto remember = [&](const bool paid) {
+    if (f.kind != FightKind::Beast || (f.enemy != Enemy::Beast && f.enemy != Enemy::Bandit)) return;
+    Foe back;
+    if (ring >= 0 && foe(s, static_cast<uint8_t>(ring), back)) {
+      if (back.returns < kFoeMaxReturns) ++back.returns;
+      back.paid = paid;
+      writeFoe(s, static_cast<uint8_t>(ring), back);
+    } else {
+      back.region = f.region;
+      back.returns = 1;
+      back.paid = paid;
+      back.seed = seed;
+      addFoe(s, back);
+    }
+    res.remembered = true;
+  };
   res.roll = static_cast<uint8_t>(rng.below(100));
   ProgressBlock& p = s.progress;
   const bool half = trivialYield(s, f.region);
@@ -659,6 +765,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
       p.stones -= f.payCost;
       res.paid = true;
       res.paidStones = f.payCost;
+      remember(true);
     } else {
       inventory::remove(s, inventory::Item::CalmIncense);
       res.drivenOff = true;
@@ -674,6 +781,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   if (choice == FightChoice::Slip) {
     if (res.roll < f.slipChance) {
       res.slipped = true;
+      remember(false);
       if (f.kind == FightKind::Beast) {
         resolveTile(s, l, f.region, res.tile);
         checkClear(s, l, f.region, res.tile);
@@ -688,6 +796,11 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     switch (f.kind) {
       case FightKind::Beast:
         res.reward.stones = halve(kindStones(f.enemy, rng.range(5, 10) * (f.region + 1u)), half);
+        if (ring >= 0) {  // v0.2.1: a returning foe pays half again, and is gone
+          res.reward.stones = res.reward.stones * 3u / 2u;
+          forgetFoe(s, static_cast<uint8_t>(ring));
+          res.foeBeaten = true;
+        }
         if (f.enemy == Enemy::Beast && rng.below(100) < 25) {  // only beasts carry herbs and ores
           give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(f.region) : inventory::oreFor(f.region), 1);
         }
@@ -718,6 +831,18 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
     if (f.enemy == Enemy::Cultivator && alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20) {
       res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
+    }
+    // v0.2.1: a hard fight sometimes pays with something better.
+    if (rng.below(100) < prizePercent(f.danger)) {
+      if (res.reward.recipe < 0 && alchemy::slipRecipe(s) >= 0) {
+        res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
+      } else {
+        const inventory::Grade g = inventory::gradeOfRegion(f.region);
+        const uint8_t from = g == inventory::Grade::Common   ? 3
+                             : g == inventory::Grade::Spirit ? 6
+                                                             : static_cast<uint8_t>(6 + rng.below(4));
+        give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(from) : inventory::oreFor(from), 2);
+      }
     }
     checkClear(s, l, f.region, res.tile);
     return res;
@@ -823,16 +948,40 @@ uint16_t stockPrice(const GameState& s, const inventory::Item item) {
   return inventory::price(item);
 }
 
-bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile, const uint8_t line) {
+uint8_t prizePercent(const Danger danger) {
+  switch (danger) {
+    case Danger::Hazardous:
+      return 15;
+    case Danger::Extreme:
+      return 25;
+    case Danger::Impossible:
+      return 35;
+    default:
+      return 0;
+  }
+}
+
+uint16_t affordable(const GameState& s, const inventory::Item item) {
+  const uint16_t price = inventory::price(item);
+  if (price == 0 || !inventory::isIngredient(item)) return 0;
+  const uint32_t byStones = s.progress.stones / price;
+  const uint16_t room = inventory::room(s, item);
+  return static_cast<uint16_t>(byStones < room ? byStones : room);
+}
+
+bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile, const uint8_t line,
+         const uint16_t count) {
   const Stock st = stockFor(s, l, region, tile);
-  if (line >= st.count || st.lines[line].soldOut) return false;
-  const uint16_t cost = stockPrice(s, st.lines[line].item);
+  if (line >= st.count || st.lines[line].soldOut || count == 0) return false;
+  if (st.lines[line].limited && count != 1) return false;
+  if (!st.lines[line].limited && count > affordable(s, st.lines[line].item)) return false;
+  const uint32_t cost = static_cast<uint32_t>(stockPrice(s, st.lines[line].item)) * count;
   if (cost == 0 || s.progress.stones < cost) return false;
   s.progress.stones -= cost;
   if (st.lines[line].item == inventory::Item::RecipeSlip) {
     alchemy::learnSlip(s);
   } else {
-    inventory::add(s, st.lines[line].item, 1);
+    inventory::add(s, st.lines[line].item, count);
   }
   if (st.lines[line].limited) {
     const uint8_t bitIndex = static_cast<uint8_t>(merchantOrdinal(l, tile) * 3 + line - 2);

@@ -733,6 +733,29 @@ You count the years you have left, and the number goes down while you count.
 Your face in the water bowl is old and grey, and it asks what all the sitting was for.
 The village where you were born is a field now, and nobody there knows your name.
 
+# v0.2.1: scenes from the cultivator's own history. {$region.name},
+# {$beast.name} and {$scroll.name} are set where they apply.
+[demon.history.guardian]
+Everyone in {$region.name} drank to you the night you beat {$beast.name}; now they sit in silence and will not meet your eye.
+You fight {$beast.name} in {$region.name} again, and this time your blows pass through like smoke.
+The herb pickers of {$region.name} bring you the bones of {$beast.name} and ask what you mean to do with them.
+
+[demon.history.uncleared]
+Every path in {$region.name} you never walked is here, and each one ends at your door.
+The herb pickers of {$region.name} ask why you went in halfway and left the rest of it to them.
+
+[demon.history.ran]
+Every path in {$region.name} ends at {$beast.name}, and every time you turn and run.
+You are back in {$region.name}, and {$beast.name} is waiting on the path, as on the day you ran.
+
+[demon.history.paid]
+You count stones into the hand of {$beast.name} in {$region.name}, and the counting never stops.
+In {$region.name} you pay {$beast.name} to let you pass, and the price doubles each time you look up.
+
+[demon.history.burned]
+The {$scroll.name} you burned to live through the lightning lies whole in your lap, and you cannot read a word of it.
+The ash of the {$scroll.name} blows back in through the window and settles on your hands.
+
 [demon.pass]
 You come out of seclusion after nine days, eat a bowl of noodles and sleep for two more.
 The faces fade one by one, and when the last is gone you open the door and ask for tea.
@@ -1152,6 +1175,26 @@ You pay. One of them bites a stone to check it, and then they let you pass.
 [explore.drivenoff]
 You light the Calm-Heart Incense. The smoke reaches it and it draws back into the dark.
 The incense burns down to the stick, and by then the thing is gone.
+
+[explore.fight.return]
+Back on the path ahead: {$beast.name}, and this time with friends.
+You know them at once: {$beast.name}. They have not forgotten you either.
+
+[explore.line.return.won]
+In {$region.name} you met {$beast.name} again, the one that got away from you before, and this time it ended there.
+
+[explore.line.return.left]
+{$beast.name.cap} found you again in {$region.name}, and again you were the one who left.
+
+[alchemy.failed]
+The cauldron cracks along an old seam and the batch turns to black slag. You scrape it out to sell.
+Halfway through, the fire runs too hot. What is left at the bottom is dross, good for nothing but the scrap dealer.
+
+[alchemy.extra]
+There is one more pill in the ash than the recipe should give. You do not ask why.
+
+[alchemy.improved]
+The pills come out with a sheen you have not seen before, rounder and heavier than usual.
 
 [alchemy.learned]
 The smoke goes from grey to white and you know you have it: the {$pill.name}. You write the recipe inside your sleeve.

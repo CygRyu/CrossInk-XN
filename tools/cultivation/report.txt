@@ -117,9 +117,10 @@ Fairness checks (DOC fairness rules, with decisions 1A 2B 4A 5B 6A):
     without merchant items (v0.1.9): 0.45 trials lost, 10.9 scrolls burned, 744 h
     with merchant items (v0.1.10):   0.22 trials lost, 3.4 scrolls burned, 751 h; 10.9 items used, 1,360 of 68,709 stones spent
   Keys (milestone 7: a scroll of the tier, from any realm, spent on success; v0.2.0: or a breakthrough pill):
+  Depth (v0.2.1), 30 min/day: without it 751 h; scrolls only with short books (4 h) without it: 214/300 finish
     30 min/day, with pill keys, typical books        751 h, 300/300 finish in 40 y
     30 min/day, with pill keys, short books (4 h)    849 h, 300/300 finish in 40 y
-    30 min/day, scrolls only, typical books (9 h)    772 h, 300/300 finish in 40 y
-    30 min/day, scrolls only, short books (4 h)     5148 h, 214/300 finish in 40 y, the rest stop in realm 7
+    30 min/day, scrolls only, typical books (9 h)    774 h, 300/300 finish in 40 y
+    30 min/day, scrolls only, short books (4 h)     5181 h, 209/300 finish in 40 y, the rest stop in realm 7
   Spirit Stones (1/min + 1 per 2 pages, page part <= half the minutes): at 30 min/day a slow reader (0.7 pages/min) earns 40/day, a fast one (1.4) 45/day -> 1.12x.
 

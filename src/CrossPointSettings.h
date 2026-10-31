@@ -39,7 +39,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     MINIMAL_STATS_SLEEP = 10,
     DASHBOARD_SLEEP = 11,
 #if CROSSINK_CULTIVATION
-    CULTIVATOR_SLEEP = 12,  // Path of Immortal Reading (personal fork)
+    CULTIVATOR_SLEEP = 12,        // Path of Immortal Reading (personal fork)
+    CULTIVATOR_LIGHT_SLEEP = 13,  // the same, black on white (v0.2.1)
 #endif
     SLEEP_SCREEN_MODE_COUNT
   };

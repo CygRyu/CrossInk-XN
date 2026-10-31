@@ -100,13 +100,13 @@ class GameStateTest : public testing::Test {
   void SetUp() override { Storage.reset(); }
 };
 
-TEST_F(GameStateTest, FileIsAboutOnePointThreeFiveKilobytes) {
+TEST_F(GameStateTest, FileIsAboutOnePointFourKilobytes) {
   ASSERT_TRUE(save::store(sampleState(1)));
   const auto* bytes = Storage.bytesOf(kPath);
   ASSERT_NE(bytes, nullptr);
   EXPECT_EQ(bytes->size(), save::kFileSize);
-  // v2: + 4 bytes techniqueMeta; v3: + 200 bytes exploration; v4: + 192 bytes bag
-  EXPECT_EQ(save::kFileSize, 1351u);
+  // v2: + 4 bytes techniqueMeta; v3: + 200 bytes exploration; v4: + 192 bytes bag; v5: + 48 bytes memory
+  EXPECT_EQ(save::kFileSize, 1399u);
   EXPECT_LT(save::kFileSize, 1400u);  // over the doc's 1 KB since v0.1.10 (told to the user)
 }
 
@@ -299,6 +299,31 @@ TEST_F(GameStateTest, LoadsVersionThreeSaveWithTheNewBagEmpty) {
   EXPECT_EQ(s.inventory, original.inventory);
   EXPECT_EQ(s.exploration, original.exploration);
   for (const uint8_t b : s.bag) EXPECT_EQ(b, 0u);
+  ASSERT_TRUE(save::store(s));
+  EXPECT_EQ(Storage.bytesOf(kPath)->size(), save::kFileSize);
+}
+
+TEST_F(GameStateTest, LoadsVersionFourSaveWithMemoryEmpty) {
+  // A v0.2.0 save: version 4, 1341-byte payload, no memory block.
+  GameState original = sampleState(80);
+  original.bag[0] = 13;
+  original.bag[1] = 4;
+  original.memory[0] = 9;  // must not survive: v4 has no memory block
+  ASSERT_TRUE(save::store(original));
+  auto& bytes = *Storage.bytesOf(kPath);
+  bytes.resize(save::kHeaderSize + save::kPayloadSizeV4);
+  bytes[2] = 4;
+  bytes[3] = 0;
+  bytes[4] = static_cast<uint8_t>(save::kPayloadSizeV4);
+  bytes[5] = static_cast<uint8_t>(save::kPayloadSizeV4 >> 8);
+  const uint32_t crc = save::crc32Update(0, bytes.data() + save::kHeaderSize, save::kPayloadSizeV4);
+  for (int i = 0; i < 4; ++i) bytes[6 + i] = static_cast<uint8_t>(crc >> (8 * i));
+
+  GameState s;
+  ASSERT_EQ(save::load(s), save::LoadResult::Loaded);
+  EXPECT_EQ(qiOf(s), 80u);
+  EXPECT_EQ(s.bag, original.bag);
+  for (const uint8_t b : s.memory) EXPECT_EQ(b, 0u);
   ASSERT_TRUE(save::store(s));
   EXPECT_EQ(Storage.bytesOf(kPath)->size(), save::kFileSize);
 }

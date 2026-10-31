@@ -14,4 +14,4 @@
 // exploration and alchemy land, 1.0 when the doc's whole Mortal Plane is
 // playable. Shown on the Cultivator screen and the sleep screen. Milestone 8
 // was v0.1.8.
-#define CULTIVATION_GAME_VERSION "0.2.0"
+#define CULTIVATION_GAME_VERSION "0.2.1"

@@ -126,6 +126,17 @@ The simulator always modelled breakthrough pills (a key after 3 reading hours in
 
 The Soul Transformation bottleneck no longer stalls short-book readers: a spirit breakthrough pill (region 4's ingredients, open from Nascent Soul) opens it. Nothing was re-tuned.
 
+### v0.2.1: Depth
+
+Depth (user, v0.2.1): reading at a full Peak bar outside Great Perfection adds 2 points an hour, up to 20; it counts half as much as consolidation toward the grade score and the breakthrough chance, within consolidation's caps. The model adds it while a character waits at a full bar (for a pill in pill mode, for a scroll in scrolls-only mode).
+
+| 30 min/day (300 characters) | without depth | with depth |
+| --- | --- | --- |
+| Mortal Plane, reading hours (median) | 751 h | 751 h |
+| Short books (4 h), scrolls only: finish within 40 years | 214/300 | 209/300 (run-to-run noise) |
+
+Depth changes almost nothing in the model: with breakthrough pills a character rarely sits at a full bar for long, and depth is no key, so readers stuck for a Heaven scroll stay stuck. What it changes is what waiting feels like on the device: Qi past the bar is no longer simply thrown away. Nothing was re-tuned.
+
 ### Earlier findings (doc rules, before the decisions)
 
 These came straight from the document's rules and led to the decisions above:

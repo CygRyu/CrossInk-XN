@@ -73,6 +73,13 @@ uint32_t strength(const Scroll& s);
 uint8_t count(const GameState& state);
 Scroll get(const GameState& state, uint8_t index);
 void put(GameState& state, uint8_t index, const Scroll& s);
+// The 8-byte slot format, also used by the v5 memory block (v0.2.1).
+Scroll decode(const uint8_t* bytes);
+void encode(const Scroll& s, uint8_t* bytes);
+// v0.2.1: the last scroll burned in a tribulation, for Heart Demon scenes
+// (memory bytes 24-31). False when none was burned this life.
+void rememberBurned(GameState& state, const Scroll& s);
+bool lastBurned(const GameState& state, Scroll& out);
 // Removes slot `index`, moving the later ones down. Returns the removed scroll.
 Scroll removeAt(GameState& state, uint8_t index);
 int find(const GameState& state, uint32_t titleHash);  // index or -1

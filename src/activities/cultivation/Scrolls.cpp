@@ -85,9 +85,12 @@ uint8_t count(const GameState& state) {
 }
 
 Scroll get(const GameState& state, const uint8_t index) {
+  if (index >= count(state)) return Scroll{};
+  return decode(slotBytes(state, index));
+}
+
+Scroll decode(const uint8_t* b) {
   Scroll s;
-  if (index >= count(state)) return s;
-  const uint8_t* b = slotBytes(state, index);
   s.titleHash = static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8) | (static_cast<uint32_t>(b[2]) << 16) |
                 (static_cast<uint32_t>(b[3]) << 24);
   s.hours = b[4];
@@ -102,7 +105,21 @@ Scroll get(const GameState& state, const uint8_t index) {
 
 void put(GameState& state, const uint8_t index, const Scroll& s) {
   if (index >= kCapacity) return;
-  uint8_t* b = slotBytes(state, index);
+  encode(s, slotBytes(state, index));
+}
+
+void rememberBurned(GameState& state, const Scroll& s) {
+  Scroll kept = s;
+  kept.flags = 0;
+  encode(kept, state.memory.data() + 24);
+}
+
+bool lastBurned(const GameState& state, Scroll& out) {
+  out = decode(state.memory.data() + 24);
+  return out.titleHash != 0;
+}
+
+void encode(const Scroll& s, uint8_t* b) {
   b[0] = static_cast<uint8_t>(s.titleHash);
   b[1] = static_cast<uint8_t>(s.titleHash >> 8);
   b[2] = static_cast<uint8_t>(s.titleHash >> 16);

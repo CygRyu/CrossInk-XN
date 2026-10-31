@@ -287,6 +287,9 @@ void itemName(const inventory::Item item, char* out, const size_t len) {
       case Item::RecipeSlip:
         name = tr(STR_CULT_ITEM_SLIP);
         break;
+      case Item::Dross:
+        name = tr(STR_CULT_ITEM_DROSS);
+        break;
       default:
         break;
     }
@@ -336,6 +339,9 @@ void itemDescription(const inventory::Item item, char* out, const size_t len) {
       return;
     case Item::QiPill:
       snprintf(out, len, "%s", tr(STR_CULT_ITEM_QI_DESC));
+      return;
+    case Item::Dross:
+      snprintf(out, len, "%s", tr(STR_CULT_ITEM_DROSS_DESC));
       return;
     default:
       return;
@@ -1065,7 +1071,8 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::SellConfirm) title = tr(STR_CULT_SELL);
   char exploreTitleBuf[ExploreView::kRegionNameSize];
   if (screen_ == Screen::Regions || screen_ == Screen::Map || screen_ == Screen::Fight || screen_ == Screen::Merchant ||
-      screen_ == Screen::MerchantSell || screen_ == Screen::Bag || screen_ == Screen::Talisman) {
+      screen_ == Screen::MerchantSell || screen_ == Screen::Bag || screen_ == Screen::Talisman ||
+      screen_ == Screen::MerchantQty) {
     title = exploreTitle(exploreTitleBuf, sizeof(exploreTitleBuf));
   }
   if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = tr(STR_CULT_ALCHEMY_TITLE);
@@ -1230,6 +1237,10 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Talisman:
       renderTalisman(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::MerchantQty:
+      renderMerchantQty(x, top, width, bottom);
       exploreLabels(confirmLabel, upLabel, downLabel);
       break;
     case Screen::Alchemy:
@@ -1476,9 +1487,11 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   snprintf(hpLine, sizeof(hpLine), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
 
   const bool gp = breakthrough::inGreatPerfection(s);
+  // v0.2.1: depth, from the first moment the Peak bar is full (it is kept after a failure too).
+  const bool showDepth = breakthrough::depth(s) > 0 || (atBottleneck(s) && !gp);
   const int fixedStats =
       rowStep * (pairRows(ageLine, daoLine) + pairRows(rateLine, stonesLine) + pairRows(staminaLine, hpLine)) +
-      (gp ? textLine + 4 : 0) + metrics.verticalSpacing * 2 - 4;
+      ((gp || showDepth) ? textLine + 4 : 0) + metrics.verticalSpacing * 2 - 4;
   bool showRoot = true;
   bool showTalent = true;
   if (y + fixedStats + 2 * rowStep + rumorReserve > listTop) showTalent = false;
@@ -1496,11 +1509,25 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   pair(rateLine, stonesLine);
   pair(staminaLine, hpLine);
 
-  if (gp) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
-             static_cast<unsigned>(breakthrough::kConsolidationMax));
-    renderer.drawText(UI_10_FONT_ID, x, y, line);
-    y += textLine + 4;
+  if (gp || showDepth) {
+    char depthLine[48] = {};
+    if (showDepth) {
+      snprintf(depthLine, sizeof(depthLine), tr(STR_CULT_DEPTH_FORMAT), static_cast<unsigned>(breakthrough::depth(s)),
+               static_cast<unsigned>(breakthrough::kDepthMax));
+    }
+    if (gp) {
+      snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
+               static_cast<unsigned>(breakthrough::kConsolidationMax));
+      if (showDepth) {
+        pair(line, depthLine);
+      } else {
+        renderer.drawText(UI_10_FONT_ID, x, y, line);
+        y += textLine + 4;
+      }
+    } else {
+      renderer.drawText(UI_10_FONT_ID, x, y, depthLine);
+      y += textLine + 4;
+    }
   }
   y += metrics.verticalSpacing * 2 - 4;
 
@@ -1623,6 +1650,11 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
   part(line);
   if (breakthrough::inGreatPerfection(s) || c.consolidation > 0) {
     snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_CONSOLIDATION_FORMAT), static_cast<unsigned>(c.consolidation));
+    part(line);
+  }
+  if (breakthrough::depth(s) > 0) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_DEPTH_FORMAT), static_cast<unsigned>(c.depth),
+             static_cast<unsigned>(breakthrough::depth(s)));
     part(line);
   }
   if (c.element > 0) {
@@ -1845,6 +1877,12 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
     if (visit_.stagesGained > 0 && !stageLine) {
       snprintf(line, sizeof(line), tr(STR_CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
+    }
+    // v0.2.1: depth.
+    if (visit_.depthGained > 0) {
+      snprintf(line, sizeof(line), tr(STR_CULT_DEPTH_GAINED_FORMAT), static_cast<unsigned>(visit_.depthGained),
+               static_cast<unsigned>(breakthrough::depth(s)), static_cast<unsigned>(breakthrough::kDepthMax));
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 3);
     }
     // v0.2.0: alchemy news.
     if (visit_.qiPillSeconds > 0) {

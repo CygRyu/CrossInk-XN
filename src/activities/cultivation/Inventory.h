@@ -40,6 +40,7 @@ enum class Item : uint8_t {
   GradePill = BreakthroughPill + 9,
   QiPill = GradePill + 9,  // 51
   RecipeSlip,              // 52: merchant stock only; buying one teaches a recipe, it never sits in the bag
+  Dross,                   // 53 (v0.2.1): what a failed brew leaves; worth selling, nothing else
   Count
 };
 
@@ -100,6 +101,18 @@ inline bool isTonic(const Item item) { return healPercent(item) > 0; }
 uint16_t count(const GameState& state, Item item);
 // Adds up to kMaxCount; returns how many were added.
 uint16_t add(GameState& state, Item item, uint16_t n = 1);
+// v0.2.1 (user): never lose a prize to the 9,999 limit silently. Herbs, ores
+// and dross past it are sold at a third (`soldStones` says for how much);
+// anything else stays at 9,999 and `kept` reports what did not fit.
+struct AddResult {
+  uint16_t added = 0;
+  uint16_t sold = 0;  // ordinary items sold because the bag held 9,999 already
+  uint32_t soldStones = 0;
+  uint16_t lost = 0;  // other items past the limit (the screens say so)
+};
+AddResult addOrSell(GameState& state, Item item, uint16_t n = 1);
+// How many more of an item fit under the limit.
+uint16_t room(const GameState& state, Item item);
 bool remove(GameState& state, Item item, uint16_t n = 1);
 uint8_t kinds(const GameState& state);  // item kinds held
 

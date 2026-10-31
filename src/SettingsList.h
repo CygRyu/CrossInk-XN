@@ -355,6 +355,8 @@ inline SettingInfo buildSleepScreenSetting() {
   // Path of Immortal Reading (personal fork): the "Cultivator" sleep screen, last in the list.
   s.enumValues.push_back(StrId::STR_CULT_SLEEP_CULTIVATOR);
   s.enumRawValues.push_back(static_cast<uint8_t>(CrossPointSettings::CULTIVATOR_SLEEP));
+  s.enumValues.push_back(StrId::STR_CULT_SLEEP_CULTIVATOR_LIGHT);
+  s.enumRawValues.push_back(static_cast<uint8_t>(CrossPointSettings::CULTIVATOR_LIGHT_SLEEP));
 #endif
   return s;
 }
@@ -607,6 +609,7 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
 #if CROSSINK_CULTIVATION
         // The game (and its sleep screen) only exists while reading stats are tracked.
         removeEnumRawValue(setting, static_cast<uint8_t>(CrossPointSettings::CULTIVATOR_SLEEP));
+        removeEnumRawValue(setting, static_cast<uint8_t>(CrossPointSettings::CULTIVATOR_LIGHT_SLEEP));
 #endif
       } else if (setting.valuePtr == &CrossPointSettings::shortPwrBtn ||
                  setting.valuePtr == &CrossPointSettings::longPwrBtn ||

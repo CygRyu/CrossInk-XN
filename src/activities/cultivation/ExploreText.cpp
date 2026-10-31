@@ -24,6 +24,7 @@ struct Names {
   const char* region;
   const char* beast;
   const char* pill = nullptr;
+  const char* scroll = nullptr;  // v0.2.1: Heart Demon scenes
 };
 
 bool lookupNames(const void* user, const char* key, const size_t len, char* out, const size_t outLen) {
@@ -34,6 +35,10 @@ bool lookupNames(const void* user, const char* key, const size_t len, char* out,
   }
   if (len == 10 && memcmp(key, "beast.name", 10) == 0 && n->beast != nullptr) {
     snprintf(out, outLen, "%s", n->beast);
+    return true;
+  }
+  if (len == 11 && memcmp(key, "scroll.name", 11) == 0 && n->scroll != nullptr) {
+    snprintf(out, outLen, "%s", n->scroll);
     return true;
   }
   if (len == 9 && memcmp(key, "pill.name", 9) == 0 && n->pill != nullptr) {
@@ -133,6 +138,11 @@ bool flavorWith(const GameState& s, const char* listKey, const uint32_t seed, co
 bool flavor(const GameState& s, const char* listKey, const uint32_t seed, const char* region, const char* beast,
             Grammar& grammar, char* out, const size_t len) {
   return flavorWith(s, listKey, seed, Names{region, beast}, grammar, out, len);
+}
+
+bool historyFlavor(const GameState& s, const char* listKey, const uint32_t seed, const char* region, const char* beast,
+                   const char* scroll, Grammar& grammar, char* out, const size_t len) {
+  return flavorWith(s, listKey, seed, Names{region, beast, nullptr, scroll}, grammar, out, len);
 }
 
 bool alchemyFlavor(const GameState& s, const char* listKey, const uint32_t seed, const char* pillName, Grammar& grammar,

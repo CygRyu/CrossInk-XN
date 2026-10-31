@@ -36,7 +36,8 @@
 //   0-3   encounter step counter u32
 //   4     region of the waiting fight (+1; 0 = none)
 //   5     waiting fight: 0 none, 1 beast, 2 lair, 3 guardian
-//   6-7   spare
+//   6     v0.2.1: bit 0x01 the last step brought a random fight (no two in a row)
+//   7     v0.2.1: the waiting random fight is returning foe N - 1 (0 = a new one)
 //   8 + 19 x region:
 //     0-4   charted tiles (36 bits)     5-9   used-up tiles (36 bits)
 //     10    reshape counter             11    flags (cleared, guardian beaten)
@@ -117,10 +118,33 @@ uint8_t enter(GameState& state, const Layout& layout, uint8_t region);
 // The kind comes from the seed that names the enemy, so nothing is stored.
 enum class Enemy : uint8_t { Beast = 0, Bandit, Cultivator, Spirit, Count };
 
-Enemy encounterEnemy(const GameState& state, uint8_t region);           // the waiting random encounter's kind
+Enemy encounterEnemy(const GameState& state, uint8_t region);
+Enemy enemyFromSeed(uint8_t region, uint32_t seed);  // a random encounter's kind from the seed that names it // the
+                                                     // waiting random encounter's kind
 Enemy lairEnemy(const GameState& state, uint8_t region, uint8_t tile);  // beast den or bandits' hideout
 Enemy guardianEnemy(const GameState& state, uint8_t region);
 uint32_t enemySeed(const GameState& state, uint8_t region, uint8_t tile);  // lairs (tile) and the guardian (kNoTile)
+
+// v0.2.1 (user): enemies that come back. A beast or bandit from a random
+// encounter that you slipped away from or paid off is remembered (a ring of 4
+// in the save's memory block: region + 1, how many times it came back
+// stronger (bits 0-1) and whether you paid (0x10), and the seed that names it).
+// A later random encounter in that region is the same enemy one time in
+// three: 3 levels stronger for each escape (at most 6), paying 1.5x. Beating
+// it forgets it; running or paying again makes it stronger still.
+constexpr uint8_t kFoeRing = 4;
+constexpr uint8_t kFoeLevelStep = 3;
+constexpr uint8_t kFoeMaxReturns = 2;
+struct Foe {
+  uint8_t region = 0;
+  uint8_t returns = 0;  // 1-2: levels added = 3 x returns
+  bool paid = false;    // the last time, you paid them off (else you ran)
+  uint32_t seed = 0;    // names it (like explore::beastSeed)
+};
+// Foe i of the ring; false when the entry is empty.
+bool foe(const GameState& state, uint8_t index, Foe& out);
+// The ring entry of the waiting random fight, or -1 when it is a new enemy.
+int returningFoe(const GameState& state);
 
 enum class Danger : uint8_t { Trivial = 0, Weak, Dangerous, Hazardous, Extreme, Impossible, Count };
 
@@ -152,6 +176,7 @@ struct Fight {
   bool canSlip = true;      // not from a spirit
   uint32_t payCost = 0;     // bandits (not a guardian): stones to be let go; 0 = cannot pay
   bool canIncense = false;  // a spirit, and a Calm-Heart Incense is held
+  uint8_t returns = 0;      // v0.2.1: a returning foe, back for the Nth time (0 = new)
 };
 
 // The fight waiting on the map (after a step), if any.
@@ -170,7 +195,17 @@ struct Reward {
   uint16_t itemCount = 0;
   inventory::Item item2 = inventory::Item::None;  // the guardian and clear rewards give two
   uint16_t item2Count = 0;
+  inventory::Item item3 = inventory::Item::None;  // v0.2.1: a hard fight's prize on top
+  uint16_t item3Count = 0;
+  uint32_t soldStones = 0;  // v0.2.1: herbs or ores past 9,999, sold at a third
+  uint16_t lost = 0;        // other items past 9,999
 };
+
+// v0.2.1 (user): a won Hazardous, Extreme or Impossible fight has a 15 / 25 /
+// 35% chance of a prize: a recipe slip if one can be taught, otherwise two of
+// the next grade's first ingredient (a region-4 herb or ore in a common
+// region, region 7's in a spirit one, any rare region's in a rare one).
+uint8_t prizePercent(Danger danger);
 
 enum class TileOutcome : uint8_t {
   Nothing,      // a path, or a tile already used up
@@ -213,8 +248,11 @@ struct FightResult {
   bool slipped = false;  // got away without a fight
   bool paid = false;     // v0.2.0: a bandit took the stones (FightResult::reward.stones is 0)
   uint32_t paidStones = 0;
-  bool drivenOff = false;  // v0.2.0: a spirit fled from the incense
-  bool refused = false;    // nothing happened: the answer was not available (short of stones, no incense)
+  bool drivenOff = false;   // v0.2.0: a spirit fled from the incense
+  bool refused = false;     // nothing happened: the answer was not available (short of stones, no incense)
+  bool returning = false;   // v0.2.1: it was a returning foe
+  bool remembered = false;  // v0.2.1: it got away and will come back (or will come back stronger)
+  bool foeBeaten = false;   // v0.2.1: a returning foe was beaten and is gone
   uint8_t roll = 0;
   uint16_t hpLost = 0;
   uint8_t thrownTo = kNoTile;  // after a loss or slipping away from a lair or guardian
@@ -250,7 +288,10 @@ struct Stock {
 Stock stockFor(const GameState& state, const Layout& layout, uint8_t region, uint8_t tile);
 // What a stock line costs (a recipe slip by the grade of the recipe it teaches).
 uint16_t stockPrice(const GameState& state, inventory::Item item);
-bool buy(GameState& state, const Layout& layout, uint8_t region, uint8_t tile, uint8_t line);
+// v0.2.1: herbs and ores can be bought `count` at a time; limited lines one.
+bool buy(GameState& state, const Layout& layout, uint8_t region, uint8_t tile, uint8_t line, uint16_t count = 1);
+// How many of an unlimited line the stones and the bag allow (0 for limited lines).
+uint16_t affordable(const GameState& state, inventory::Item item);
 bool sell(GameState& state, inventory::Item item);
 
 }  // namespace explore

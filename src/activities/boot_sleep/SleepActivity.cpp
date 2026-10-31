@@ -588,8 +588,10 @@ void SleepActivity::onEnter() {
       return renderDashboardSleepScreen();
 #if CROSSINK_CULTIVATION
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_SLEEP):
-      // Dark like the other generated screens unless the inverted filter is chosen.
-      if (!cultivation::sleepscreen::render(renderer, !sleepCoverFilterInvertsGeneratedScreen())) {
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_LIGHT_SLEEP):
+      // v0.2.1 (user): two plain choices, dark and light; the cover filter no longer flips them.
+      if (!cultivation::sleepscreen::render(
+              renderer, SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_SLEEP)) {
         return renderDefaultSleepScreen();  // no character yet
       }
       renderer.displayBuffer(HalDisplay::HALF_REFRESH, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH);
@@ -615,6 +617,7 @@ bool SleepActivity::rendersBeforeExit() const {
     case CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM:
 #if CROSSINK_CULTIVATION
     case CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_SLEEP:  // reads only the game's own save
+    case CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_LIGHT_SLEEP:
 #endif
       return true;
     case CrossPointSettings::SLEEP_SCREEN_MODE::COVER:

@@ -94,7 +94,7 @@ struct ProgressBlock {
   static constexpr uint8_t kInTrial = 0x08;
 };
 
-// The save file, about 1.35 KB. Blocks that later milestones fill in are
+// The save file, about 1.4 KB. Blocks that later milestones fill in are
 // reserved here at their full design-document size now, so adding their
 // meaning later never moves a byte or needs a format change: an all-zero
 // block must mean "empty" for every future field.
@@ -127,6 +127,10 @@ struct GameState {
   // Save v4 (v0.2.0): the bag, 64 slots x 3 bytes (Inventory.h). Every region
   // has its own herb and ore now, so 32 slots were too few.
   std::array<uint8_t, 192> bag{};
+  // Save v5 (v0.2.1): what the world remembers. Bytes 0-23 a ring of 4
+  // returning foes (Exploration.h), 24-31 the last scroll burned in a
+  // tribulation (a scroll slot, for Heart Demon scenes), 32-47 spare (v0.2.2).
+  std::array<uint8_t, 48> memory{};
 
   bool isCreated() const { return (character.flags & CharacterBlock::kCharacterCreated) != 0; }
   // Field by field, so no ~1 KB temporary GameState lands on the stack.
@@ -140,13 +144,14 @@ struct GameState {
 namespace save {
 
 constexpr uint16_t kMagic = 0x4950;  // "PI" when read as bytes 'P','I'
-constexpr uint16_t kSaveVersion = 4;
+constexpr uint16_t kSaveVersion = 5;
 constexpr size_t kHeaderSize = 10;
 constexpr size_t kPayloadSizeV1 = 945;
 constexpr size_t kPayloadSizeV2 = 949;   // + techniqueMeta (milestone 7)
 constexpr size_t kPayloadSizeV3 = 1149;  // + exploration (v0.1.10)
 constexpr size_t kPayloadSizeV4 = 1341;  // + bag (v0.2.0)
-constexpr size_t kPayloadSize = kPayloadSizeV4;
+constexpr size_t kPayloadSizeV5 = 1389;  // + memory (v0.2.1)
+constexpr size_t kPayloadSize = kPayloadSizeV5;
 constexpr size_t kFileSize = kHeaderSize + kPayloadSize;
 
 constexpr char kDirectory[] = "/.crosspoint/cultivation";

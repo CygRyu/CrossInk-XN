@@ -467,6 +467,19 @@ void CultivationActivity::formatReward(const explore::Reward& r, const uint16_t 
              itemLabel(r.item2, name, sizeof(name)));
     appendPart(out, len, part);
   }
+  if (r.item3 != inventory::Item::None && r.item3Count > 0) {
+    snprintf(part, sizeof(part), tr(STR_CULT_GAINED_ITEM_FORMAT), static_cast<unsigned>(r.item3Count),
+             itemLabel(r.item3, name, sizeof(name)));
+    appendPart(out, len, part);
+  }
+  if (r.soldStones > 0) {  // v0.2.1: the bag held 9,999 already
+    snprintf(part, sizeof(part), tr(STR_CULT_REWARD_SOLD_FORMAT), static_cast<unsigned long>(r.soldStones));
+    appendPart(out, len, part);
+  }
+  if (r.lost > 0) {
+    snprintf(part, sizeof(part), tr(STR_CULT_REWARD_KEPT_FORMAT), static_cast<unsigned>(r.lost));
+    appendPart(out, len, part);
+  }
   if (r.recipe >= 0 && r.recipe < alchemy::kRecipeCount) {
     snprintf(part, sizeof(part), tr(STR_CULT_GAINED_RECIPE_FORMAT),
              pillLabel(alchemy::recipesOf(*state_).recipes[r.recipe].pill));
@@ -543,7 +556,7 @@ void CultivationActivity::openFight() {
       static const char* const kKindLines[static_cast<int>(explore::Enemy::Count)] = {
           "explore.fight.beast", "explore.fight.bandit", "explore.fight.cultivator", "explore.fight.spirit"};
       if (f.kind == explore::FightKind::Beast) {
-        list = kKindLines[static_cast<int>(f.enemy)];
+        list = f.returns > 0 ? "explore.fight.return" : kKindLines[static_cast<int>(f.enemy)];
         named = exploretext::enemyName(*state_, v.region, f.enemy, explore::beastSeed(*state_), *grammar_, v.beast,
                                        sizeof(v.beast));
       } else if (f.kind == explore::FightKind::Lair) {
@@ -667,6 +680,14 @@ void CultivationActivity::answerFight() {
       const size_t used = strlen(v.numbers);
       if (used + 1 < sizeof(v.numbers)) snprintf(v.numbers + used, sizeof(v.numbers) - used, ".");
     }
+    // v0.2.1: enemies that come back.
+    if (res.remembered) appendSentence(v.numbers, sizeof(v.numbers), tr(STR_CULT_FOE_REMEMBERED));
+    if (res.foeBeaten) {
+      appendSentence(v.numbers, sizeof(v.numbers), tr(STR_CULT_FOE_GONE));
+      exploreChronicle("explore.line.return.won", v.region, v.beast, 5);
+    } else if (res.returning && (res.slipped || res.paid)) {
+      exploreChronicle("explore.line.return.left", v.region, v.beast, 6);
+    }
     if (res.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(res.reward.recipe));
     if (res.tile.reward.recipe >= 0) {
       alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(res.tile.reward.recipe));
@@ -703,6 +724,58 @@ void CultivationActivity::openMerchant(const uint8_t tile) {
     v.stock = explore::stockFor(*state_, v.layout, v.region, tile);
     notice_[0] = '\0';
     selected_ = 0;
+    screen_ = Screen::Merchant;
+  }
+  requestUpdate();
+}
+
+// v0.2.1: how many herbs or ores to buy: 1, 5, 10 (as far as the stones and
+// the bag allow) and as many as can be afforded.
+void CultivationActivity::openMerchantQty(const uint8_t line) {
+  {
+    RenderLock lock(*this);
+    ExploreView& v = *explore_;
+    const uint16_t most = explore::affordable(*state_, v.stock.lines[line].item);
+    v.qtyLine = line;
+    v.qtyRows = 0;
+    for (const uint16_t n : {static_cast<uint16_t>(1), static_cast<uint16_t>(5), static_cast<uint16_t>(10)}) {
+      if (n < most) v.qtyCounts[v.qtyRows++] = n;
+    }
+    v.qtyCounts[v.qtyRows++] = most;
+    notice_[0] = '\0';
+    selected_ = 0;
+    screen_ = Screen::MerchantQty;
+  }
+  requestUpdate();
+}
+
+void CultivationActivity::buyFromMerchant(const uint8_t line, const uint16_t count) {
+  {
+    RenderLock lock(*this);
+    ExploreView& v = *explore_;
+    const explore::StockLine l = v.stock.lines[line];
+    const uint16_t cost = explore::stockPrice(*state_, l.item);
+    const int slip = alchemy::slipRecipe(*state_);
+    char name[64];
+    if (explore::buy(*state_, v.layout, v.region, v.merchantTile, line, count)) {
+      if (l.item == inventory::Item::RecipeSlip && slip >= 0) {
+        snprintf(notice_, sizeof(notice_), tr(STR_CULT_SLIP_BOUGHT_FORMAT),
+                 pillLabel(alchemy::recipesOf(*state_).recipes[slip].pill), static_cast<unsigned>(cost));
+        alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(slip));
+      } else if (count > 1) {
+        snprintf(notice_, sizeof(notice_), tr(STR_CULT_BOUGHT_MANY_FORMAT), static_cast<unsigned>(count),
+                 itemLabel(l.item, name, sizeof(name)),
+                 static_cast<unsigned long>(static_cast<uint32_t>(cost) * count));
+      } else {
+        snprintf(notice_, sizeof(notice_), tr(STR_CULT_BOUGHT_FORMAT), itemLabel(l.item, name, sizeof(name)),
+                 static_cast<unsigned>(cost));
+      }
+      persist();
+    } else {
+      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_TOO_POOR));
+    }
+    v.stock = explore::stockFor(*state_, v.layout, v.region, v.merchantTile);
+    selected_ = line;
     screen_ = Screen::Merchant;
   }
   requestUpdate();
@@ -788,6 +861,7 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
     case Screen::MerchantSell:
     case Screen::Bag:
     case Screen::Talisman:
+    case Screen::MerchantQty:
       break;
     default:
       return false;
@@ -860,28 +934,12 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
         requestUpdate();
       } else if (confirm) {
         if (selected_ < v.stock.count) {
-          RenderLock lock(*this);
           const explore::StockLine& l = v.stock.lines[selected_];
-          const uint16_t cost = explore::stockPrice(*state_, l.item);
-          const int slip = alchemy::slipRecipe(*state_);
-          char name[64];
-          if (l.soldOut) {
-            // nothing: the row says when it comes back
-          } else if (explore::buy(*state_, v.layout, v.region, v.merchantTile, static_cast<uint8_t>(selected_))) {
-            if (l.item == inventory::Item::RecipeSlip && slip >= 0) {
-              snprintf(notice_, sizeof(notice_), tr(STR_CULT_SLIP_BOUGHT_FORMAT),
-                       pillLabel(alchemy::recipesOf(*state_).recipes[slip].pill), static_cast<unsigned>(cost));
-              alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(slip));
-            } else {
-              snprintf(notice_, sizeof(notice_), tr(STR_CULT_BOUGHT_FORMAT), itemLabel(l.item, name, sizeof(name)),
-                       static_cast<unsigned>(cost));
-            }
-            persist();
-          } else {
-            snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_TOO_POOR));
+          if (!l.limited && explore::affordable(*state_, l.item) > 1) {
+            openMerchantQty(static_cast<uint8_t>(selected_));  // v0.2.1: herbs and ores in bulk
+          } else if (!l.soldOut) {
+            buyFromMerchant(static_cast<uint8_t>(selected_), 1);
           }
-          v.stock = explore::stockFor(*state_, v.layout, v.region, v.merchantTile);
-          requestUpdate();
         } else {
           openBag(Screen::Merchant);
         }
@@ -914,6 +972,22 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
         useBagItem();
       } else {
         handleList(v.bagCount, up, down);
+      }
+      return true;
+
+    case Screen::MerchantQty:
+      if (back) {
+        RenderLock lock(*this);
+        selected_ = v.qtyLine;
+        screen_ = Screen::Merchant;
+        requestUpdate();
+      } else if (confirm && selected_ < v.qtyRows) {
+        const uint16_t count = v.qtyCounts[selected_];
+        selected_ = v.qtyLine;
+        screen_ = Screen::Merchant;
+        buyFromMerchant(v.qtyLine, count);
+      } else {
+        handleList(v.qtyRows, up, down);
       }
       return true;
 
@@ -968,6 +1042,8 @@ const char* CultivationActivity::exploreTitle(char* buf, const size_t len) const
       return tr(STR_CULT_BAG);
     case Screen::Talisman:
       return tr(STR_CULT_TALISMAN_TITLE);
+    case Screen::MerchantQty:
+      return tr(STR_CULT_MERCHANT);
     default:
       return tr(STR_CULT_REGIONS);
   }
@@ -1024,6 +1100,9 @@ void CultivationActivity::exploreLabels(const char*& confirmLabel, const char*& 
     case Screen::Talisman:
       if (v.talismanCount == 0) confirmLabel = "";
       if (v.talismanCount < 2) upLabel = downLabel = "";
+      return;
+    case Screen::MerchantQty:
+      if (v.qtyRows < 2) upLabel = downLabel = "";
       return;
     default:
       if (regionRows() < 2) upLabel = downLabel = "";
@@ -1291,6 +1370,10 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
   y += barHeight + metrics.verticalSpacing;
   if (v.fightResult[0] != '\0') {
     y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 2);
+  } else if (f.returns > 0) {  // v0.2.1
+    snprintf(line, sizeof(line), tr(STR_CULT_FOE_BACK_FORMAT),
+             static_cast<unsigned>(explore::kFoeLevelStep * f.returns));
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
   } else if (f.enemy == explore::Enemy::Spirit) {
     y = drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_SPIRIT_NO_SLIP), 2);
   }
@@ -1461,6 +1544,32 @@ void CultivationActivity::renderBag(const int x, int y, const int width, const i
         }
         return sub;
       });
+}
+
+void CultivationActivity::renderMerchantQty(const int x, int y, const int width, const int bottom) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  if (!explore_) return;
+  const ExploreView& v = *explore_;
+  char line[160];
+  char name[64];
+  const inventory::Item item = v.stock.lines[v.qtyLine].item;
+  snprintf(line, sizeof(line), tr(STR_CULT_QTY_HEADER_FORMAT), itemLabel(item, name, sizeof(name)),
+           static_cast<unsigned>(inventory::price(item)), static_cast<unsigned long>(state_->progress.stones));
+  y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  const int rowHeight = metrics.listRowHeight;
+  int height = rowHeight * v.qtyRows;
+  if (y + height > bottom) height = bottom - y;
+  GUI.drawList(renderer, Rect{0, y, renderer.getScreenWidth(), height}, v.qtyRows, selected_,
+               [this](const int i) -> std::string {
+                 const ExploreView& ev = *explore_;
+                 const uint16_t n = ev.qtyCounts[i];
+                 const uint32_t cost = static_cast<uint32_t>(inventory::price(ev.stock.lines[ev.qtyLine].item)) * n;
+                 char row[96];
+                 snprintf(row, sizeof(row),
+                          i + 1 == ev.qtyRows && i > 0 ? tr(STR_CULT_QTY_MAX_FORMAT) : tr(STR_CULT_QTY_FORMAT),
+                          static_cast<unsigned>(n), static_cast<unsigned long>(cost));
+                 return row;
+               });
 }
 
 void CultivationActivity::renderTalisman(const int x, int y, const int width, const int bottom) {

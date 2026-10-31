@@ -169,6 +169,7 @@ StrikeResult answerStrike(GameState& s, const uint8_t choice) {
   } else if (o.answer == Answer::Burn) {
     r.burned = scrolls::removeAt(s, static_cast<uint8_t>(o.slot));
     r.didBurn = true;
+    scrolls::rememberBurned(s, r.burned);  // v0.2.1: for Heart Demon scenes
   } else if (o.answer == Answer::Shield) {
     if (!inventory::remove(s, inventory::Item::ThunderTalisman)) return StrikeResult{};
     r.shielded = true;
@@ -229,6 +230,7 @@ SceneResult answerScene(GameState& s, const SceneAnswer answer) {
     if (slot < 0) return r;
     r.burned = scrolls::removeAt(s, static_cast<uint8_t>(slot));
     r.didBurn = true;
+    scrolls::rememberBurned(s, r.burned);
     r.passed = true;
   } else {
     const ProgressBlock& p = s.progress;

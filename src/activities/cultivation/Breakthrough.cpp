@@ -41,13 +41,18 @@ Chance chanceFor(const GameState& state) {
   const uint8_t consolidation = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
   c.consolidation =
       static_cast<uint8_t>(static_cast<uint32_t>(consolidation) * kConsolidationChanceMax / kConsolidationMax);
+  // v0.2.1: depth counts half (20 points = +4, rounded), within consolidation's +15.
+  const uint32_t depthChance =
+      (static_cast<uint32_t>(depth(state)) * kConsolidationChanceMax + kConsolidationMax) / (2u * kConsolidationMax);
+  const uint32_t room = kConsolidationChanceMax > c.consolidation ? kConsolidationChanceMax - c.consolidation : 0u;
+  c.depth = static_cast<uint8_t>(depthChance < room ? depthChance : room);
   c.element = scrolls::manualMatchesRoot(state) ? kElementChance : 0;
   // v0.2.0: the pill taken for an attempt under way, or the one it would take.
   c.pillItem = alchemy::pillInUse(state);
   if (c.pillItem == inventory::Item::None) c.pillItem = alchemy::chosenPill(state, c.target);
   if (!alchemy::pillFits(c.pillItem, c.target)) c.pillItem = inventory::Item::None;
   c.pill = alchemy::breakthroughBonus(c.pillItem);
-  uint32_t total = c.base + c.daoHeart + c.consolidation + c.element + c.pill;
+  uint32_t total = c.base + c.daoHeart + c.consolidation + c.depth + c.element + c.pill;
   if (total > kChanceCap) total = kChanceCap;
   // balance_sim.py: pity raises the chance by 15 per failure, but never past 90.
   if (p.failures > 0) {
@@ -90,9 +95,29 @@ uint8_t consolidationGained(const GameState& state, const uint32_t before, const
   return static_cast<uint8_t>(steps < room ? steps : room);
 }
 
+uint8_t depth(const GameState& state) {
+  const uint8_t d = state.flagsAndCodex[5];
+  return d < kDepthMax ? d : kDepthMax;
+}
+
+uint8_t depthGained(const GameState& state, const bool barWasFull, const uint32_t before, const uint32_t after) {
+  if (!barWasFull || inGreatPerfection(state) || after <= before) return 0;
+  const uint32_t steps = after / kSecondsPerDepth - before / kSecondsPerDepth;
+  const uint8_t have = depth(state);
+  const uint8_t room = static_cast<uint8_t>(kDepthMax - have);
+  return static_cast<uint8_t>(steps < room ? steps : room);
+}
+
+void addDepth(GameState& state, const uint8_t points) {
+  const uint32_t d = static_cast<uint32_t>(depth(state)) + points;
+  state.flagsAndCodex[5] = static_cast<uint8_t>(d < kDepthMax ? d : kDepthMax);
+}
+
 uint8_t gradeScore(const GameState& state, const uint8_t targetRealm) {
   const ProgressBlock& p = state.progress;
-  uint32_t score = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
+  // Consolidation and half of depth (v0.2.1) share the 40-point part.
+  uint32_t score = static_cast<uint32_t>(p.consolidation) + depth(state) / 2u;
+  if (score > kConsolidationMax) score = kConsolidationMax;
   score += static_cast<uint32_t>(p.daoHeart) * kDaoHeartGradeMax / 100u;
   if (targetRealm >= 2 && targetRealm <= 4) score += alchemy::gradePillScore(state);  // 0-20
   if (scrolls::manualMatchesRoot(state)) score += kElementGradeScore;
@@ -185,7 +210,8 @@ Result attempt(GameState& state) {
   p.stage = 0;
   p.qi = QiNumber{};
   p.failures = 0;
-  p.consolidation = 0;  // spent on this grade and this attempt
+  p.consolidation = 0;         // spent on this grade and this attempt
+  state.flagsAndCodex[5] = 0;  // and depth (v0.2.1)
   if (c.target >= 2 && c.target <= 4) alchemy::resetGradePills(state);
   p.progressFlags &= static_cast<uint8_t>(~(ProgressBlock::kInGreatPerfection | ProgressBlock::kHalfStep));
   return r;

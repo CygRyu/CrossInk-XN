@@ -41,6 +41,10 @@ bool flavor(const GameState& state, const char* listKey, uint32_t seed, const ch
 // One Chronicle line from `listKey` ("Spring, age 31. ..."), seeded so a retried save writes the same line.
 bool chronicleLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed,
                    const char* regionName, const char* beastName, Grammar& grammar);
+// v0.2.1: Heart Demon scenes from the player's history: {$region.name},
+// {$beast.name} and {$scroll.name} set (any may be null).
+bool historyFlavor(const GameState& state, const char* listKey, uint32_t seed, const char* regionName,
+                   const char* beastName, const char* scrollName, Grammar& grammar, char* out, size_t len);
 // Alchemy's lines ({$pill.name} set): for the screen, and for the Chronicle.
 bool alchemyFlavor(const GameState& state, const char* listKey, uint32_t seed, const char* pillName, Grammar& grammar,
                    char* out, size_t len);

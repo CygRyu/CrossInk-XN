@@ -121,6 +121,11 @@ TUNING = {
     "breakthrough_pill_bonus": 17,
     "pill_key_hours": 3.0,             # reading hours in-realm to gather for and brew a breakthrough pill
     "pill_keys": True,                 # breakthrough pills exist (alchemy, v0.2.0)
+    # v0.2.1 (user): depth. Reading at a full Peak bar outside Great Perfection (waiting for a key)
+    # adds 2 points an hour, up to 20; it counts half as much as consolidation and shares its caps.
+    "depth": True,
+    "depth_per_hour": 2.0,
+    "depth_max": 20,
     # Milestone 7 (user, session 3): a bottleneck needs a Technique Scroll of at least this tier, from any
     # realm, spent on success. Index = the realm being entered; None = no key (the small bottleneck).
     "key_tier_by_target": [None, None, 0, 1, 2, 3, 3, 3, 3, 3],
@@ -294,6 +299,7 @@ class Character:
         self.foundation_mult = 1.0
         self.core_mult = 1.0
         self.consolidation = 0.0
+        self.depth = 0.0                # v0.2.1: reading at a full Peak bar outside Great Perfection
         self.failures = 0
         self.manual_mult = 1.0          # best equipped Cultivation manual
         self.manual_tier = None         # its tier, so it can become a spare scroll when replaced
@@ -393,7 +399,7 @@ class Character:
 
     def grade_score(self) -> float:
         t = TUNING
-        s = min(t["consolidation_max"], self.consolidation)
+        s = min(t["consolidation_max"], self.consolidation + self.depth / 2)   # v0.2.1: depth counts half
         s += t["dao_heart_grade_max"] * self.dao_heart / 100
         s += min(t["pill_grade_max"], t["pill_grade_points"])
         if self.rng.random() < 0.5:   # main technique element matches the root
@@ -424,7 +430,8 @@ class Character:
         t = TUNING
         c = BASE_CHANCE[target]
         c += t["dao_heart_breakthrough_max"] * self.dao_heart / 100
-        c += t["consolidation_breakthrough_max"] * min(t["consolidation_max"], self.consolidation) / t["consolidation_max"]
+        c += t["consolidation_breakthrough_max"] * min(t["consolidation_max"], self.consolidation + self.depth / 2) \
+            / t["consolidation_max"]
         if target >= 2:
             c += t["breakthrough_pill_bonus"]
         if self.rng.random() < 0.5:
@@ -560,6 +567,8 @@ class Character:
             to_event = need_qi / rate if rate > 0 else math.inf
             step = min(left, until_cap_change, book_left_min, max(0.0, to_event))
             self._advance(bucket, step, rate)
+            if self.waiting_key and TUNING["depth"]:   # v0.2.1: reading at a full bar adds depth
+                self.depth = min(TUNING["depth_max"], self.depth + TUNING["depth_per_hour"] * step / 60)
             left -= step
             if self.book.read_h >= self.book.hours - 1e-9:
                 self._finish_book()
@@ -638,6 +647,8 @@ class Character:
                     return
                 wait = TUNING["pill_key_hours"] - hours_in_realm
                 self.hours += wait
+                if TUNING["depth"] and not (REALMS[r][3] and self.gp_linger_hours > 0):
+                    self.depth = min(TUNING["depth_max"], self.depth + TUNING["depth_per_hour"] * wait)
                 when_day += wait * 60 / max(1e-9, self._minutes_per_day())
             rec.attempts += 1
             if not self.pass_trial(r + 1):   # v0.1.9: a lost trial is a failed attempt
@@ -658,6 +669,7 @@ class Character:
         rec.end_day, rec.end_hours = when_day, self.hours
         self.failures = 0
         self.consolidation = 0.0
+        self.depth = 0.0
         self._enter_realm(r + 1, day=when_day)
 
     def _minutes_per_day(self) -> float:
@@ -826,6 +838,18 @@ def fairness(runs: int, seed: int, gp_linger: float, w):
       f"{statistics.mean(c.stones_spent for c in cs):,.0f} of "
       f"{statistics.mean(c.stones_spent + c.stones for c in cs):,.0f} stones spent\n")
     w("  Keys (milestone 7: a scroll of the tier, from any realm, spent on success; v0.2.0: or a breakthrough pill):\n")
+    saved_depth = TUNING["depth"]
+    TUNING["depth"] = False
+    try:
+        nodepth = summarize(simulate(PROFILES["30/day"], "modeled", runs, seed, gp_linger))
+        TUNING["pill_keys"], saved_pk = False, TUNING["pill_keys"]
+        TUNING["book_hours_median"], saved_bh = 4.0, TUNING["book_hours_median"]
+        nodepth_short = summarize(simulate(PROFILES["30/day"], "modeled", runs, seed, gp_linger))
+        TUNING["pill_keys"], TUNING["book_hours_median"] = saved_pk, saved_bh
+    finally:
+        TUNING["depth"] = saved_depth
+    w(f"  Depth (v0.2.1), 30 min/day: without it {statistics.median(nodepth['total_hours']):.0f} h; "
+      f"scrolls only with short books (4 h) without it: {nodepth_short['done']}/{runs} finish\n")
     for label, pills, median in (("with pill keys, typical books", True, 9.0),
                                  ("with pill keys, short books (4 h)", True, 4.0),
                                  ("scrolls only, typical books (9 h)", False, 9.0),

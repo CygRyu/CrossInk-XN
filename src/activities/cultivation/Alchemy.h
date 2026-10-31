@@ -36,7 +36,7 @@
 //
 // Save (no new block):
 //   timers[0]     brewing recipe + 1 (0 = cauldron empty)
-//   timers[1]     spare
+//   timers[1]     v0.2.1: brews in this batch (0 or 1 = one; at most 3)
 //   timers[2-5]   gameReadingSeconds when the brew began
 //   timers[6-7]   brews begun so far (seeds the quality roll)
 //   timers[8]     the breakthrough pill taken for the attempt under way (item id; 0 none)
@@ -116,7 +116,13 @@ bool ready(const GameState& state);
 // How many brews of a known recipe the bag holds the parts for.
 uint16_t batchesHeld(const GameState& state, const Recipe& recipe);
 bool canBrew(const GameState& state, uint8_t recipe);
-bool brew(GameState& state, uint8_t recipe);  // uses the parts, starts the timer
+// v0.2.1 (user): 1-3 brews of the same recipe in one go: the parts times N,
+// the time x1, x1.5, x2; one quality roll for the batch.
+constexpr uint8_t kMaxBatch = 3;
+uint8_t maxBatch(const GameState& state, uint8_t recipe);  // what the bag holds parts for, at most 3
+uint32_t batchMinutes(const Recipe& recipe, uint8_t batch);
+uint8_t brewingBatch(const GameState& state);
+bool brew(GameState& state, uint8_t recipe, uint8_t batch = 1);  // uses the parts, starts the timer
 
 struct Experiment {
   bool valid = false;        // the parts were held and the cauldron was empty
@@ -137,7 +143,17 @@ struct Collected {
   uint16_t count = 0;
   Quality quality = Quality::Low;
   uint8_t roll = 0;  // the quality roll with its bonuses
+  // v0.2.1 (user): taking the pills out is a small event.
+  uint8_t batch = 1;
+  bool failed = false;    // 4% (2% for the Herbalist): only dross comes out
+  bool extra = false;     // 8%: one more pill
+  bool improved = false;  // 6%: the quality one band higher
+  uint16_t dross = 0;
+  inventory::AddResult added;  // what fit in the bag (sold or lost past 9,999)
 };
+constexpr uint8_t kFailPercent = 4;
+constexpr uint8_t kExtraPercent = 8;
+constexpr uint8_t kImprovePercent = 6;
 Collected collect(GameState& state);
 uint8_t qualityBonus(const GameState& state, const Recipe& recipe);  // ingredient grade + Herbalist
 

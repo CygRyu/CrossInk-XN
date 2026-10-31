@@ -30,6 +30,12 @@ constexpr uint32_t kSecondsPerConsolidation = 1800;  // DOC: 2 points per readin
 constexpr uint8_t kDaoHeartGradeMax = 25;
 constexpr uint8_t kElementChance = 5;       // DOC: main technique's element matches the root
 constexpr uint8_t kElementGradeScore = 15;  // DOC: grade score's technique element part
+// v0.2.1 (user): depth. While the Peak bar is full outside Great Perfection,
+// every half hour of reading adds 1 point, up to 20. It counts half as much as
+// consolidation, and the two share consolidation's caps (40 grade points,
+// +15 chance). Kept after a failure, reset on success. flagsAndCodex[5].
+constexpr uint8_t kDepthMax = 20;
+constexpr uint32_t kSecondsPerDepth = 1800;
 
 // The chance of the next attempt and where it comes from, for the screen.
 struct Chance {
@@ -37,6 +43,7 @@ struct Chance {
   uint8_t base = 0;           // DOC: 90 / 70 / 45 / 35, then -5 per realm, floor 20
   uint8_t daoHeart = 0;       // up to +15
   uint8_t consolidation = 0;  // up to +15 (Great Perfection)
+  uint8_t depth = 0;          // v0.2.1: depth's part (together with consolidation at most +15)
   uint8_t element = 0;        // +5 when the equipped manual's element matches the root
   uint8_t pill = 0;           // v0.2.0: the breakthrough pill's +10 / +17 / +25
   uint8_t pity = 0;           // what pity added on top of the rest
@@ -64,6 +71,13 @@ void enterGreatPerfection(GameState& state);
 // Perfection: whole half-hours of this character's reading time, so no carry
 // field is needed (the same trick as stamina). Applied by absorb().
 uint8_t consolidationGained(const GameState& state, uint32_t readingSecondsBefore, uint32_t readingSecondsAfter);
+
+// v0.2.1: depth (see kDepthMax). `barWasFull`: the Peak bar was already full
+// when the visit's reading began (absorb() checks before adding Qi).
+uint8_t depth(const GameState& state);
+uint8_t depthGained(const GameState& state, bool barWasFull, uint32_t readingSecondsBefore,
+                    uint32_t readingSecondsAfter);
+void addDepth(GameState& state, uint8_t points);
 
 enum class GradeKind : uint8_t { None, Foundation, Core, Soul };
 

@@ -248,13 +248,15 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   }
   ProgressBlock& p = state.progress;
 
+  const bool barWasFull = atBottleneck(state);  // v0.2.1: depth only grows once the bar is full
   // Qi = qualifying minutes x 10 x M. Kept exact with a numerator carry:
   // numerator units are Qi * 60 s * 1000 permille.
   const uint64_t qualifying = gains.tiers.qualifyingSeconds();
   uint64_t numerator = qualifying * kQiPerMinute * qiMultiplierPermille(state) + p.qiCarry;
   // v0.2.0: a Qi Gathering pill adds 25% to the Qi of the reading minutes it
   // covers (the visit's qualifying share of them).
-  const uint32_t boosted = alchemy::spendQiPill(state, gains.seconds);
+  // v0.2.1: the pill waits while the Peak bar is full (that Qi could not be kept).
+  const uint32_t boosted = barWasFull ? 0u : alchemy::spendQiPill(state, gains.seconds);
   if (boosted > 0 && gains.seconds > 0) {
     r.qiPillSeconds = boosted;
     numerator += qualifying * boosted / gains.seconds * kQiPerMinute * qiMultiplierPermille(state) *
@@ -299,6 +301,8 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   // Great Perfection: 2 consolidation points per reading hour, up to 40.
   r.consolidationGained = breakthrough::consolidationGained(state, before, after);
   p.consolidation = static_cast<uint8_t>(p.consolidation + r.consolidationGained);
+  r.depthGained = breakthrough::depthGained(state, barWasFull, before, after);
+  breakthrough::addDepth(state, r.depthGained);
 
   // Fill the bar; minor stages advance on their own, Peak waits for a breakthrough.
   if (p.realm >= kMortalRealmCount) p.realm = kMortalRealmCount - 1;

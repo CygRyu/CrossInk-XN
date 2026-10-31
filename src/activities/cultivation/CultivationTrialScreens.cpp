@@ -108,6 +108,8 @@ void CultivationActivity::prepareTrialStep() {
     trialFlavor("trib.strike", trialSeed(s, kKindTrialText, index), trialText_, sizeof(trialText_));
   } else {
     // Scenes: the origin, then family, then the last failure (or the years).
+    // v0.2.1 (user): the second and third scenes come from the player's own
+    // history half the time, when there is any.
     const char* list = "demon.family";
     if (index == 0) {
       const int origin = static_cast<int>(s.character.origin);
@@ -115,7 +117,9 @@ void CultivationActivity::prepareTrialStep() {
     } else if (index >= 2) {
       list = s.progress.failures > 0 ? "demon.failure" : "demon.years";
     }
-    trialFlavor(list, trialSeed(s, kKindTrialText, index), trialText_, sizeof(trialText_));
+    if (index == 0 || !historyScene(index)) {
+      trialFlavor(list, trialSeed(s, kKindTrialText, index), trialText_, sizeof(trialText_));
+    }
     trialRows_[trialChoices_++] = TrialRow::Face;
     if (inventory::count(s, inventory::Item::CalmIncense) > 0) trialRows_[trialChoices_++] = TrialRow::Incense;
     const int burn = trials::burnableMindScroll(s);
@@ -125,6 +129,67 @@ void CultivationActivity::prepareTrialStep() {
     }
   }
   if (packs_) packs_->closeFile();
+}
+
+// A Heart Demon scene from what the save remembers: a guardian beaten, an
+// open region never cleared, a foe run from or paid off, the last scroll
+// burned. False (and nothing written) when the roll says no or nothing fits.
+bool CultivationActivity::historyScene(const uint8_t index) {
+  if (!grammar_) return false;
+  const GameState& s = *state_;
+  Rng rng(trialSeed(s, kKindTrialText, 0x40u | index));
+  if (rng.below(2) != 0) return false;
+  enum class Kind : uint8_t { Guardian, Uncleared, Foe, Burned };
+  struct Option {
+    Kind kind;
+    uint8_t index;
+  };
+  Option options[explore::kRegionCount * 2 + explore::kFoeRing + 1];
+  uint8_t n = 0;
+  const uint8_t open = explore::unlockedCount(s);
+  for (uint8_t r = 0; r < open; ++r) {
+    if (explore::guardianBeaten(s, r)) options[n++] = {Kind::Guardian, r};
+    if (!explore::cleared(s, r) && explore::chartedCount(s, r) > 0) options[n++] = {Kind::Uncleared, r};
+  }
+  for (uint8_t i = 0; i < explore::kFoeRing; ++i) {
+    explore::Foe f;
+    if (explore::foe(s, i, f)) options[n++] = {Kind::Foe, i};
+  }
+  scrolls::Scroll burned;
+  if (scrolls::lastBurned(s, burned)) options[n++] = {Kind::Burned, 0};
+  if (n == 0) return false;
+  const Option pick = options[rng.below(n)];
+
+  char region[64] = {};
+  char beast[exploretext::kNameSize] = {};
+  char scroll[scrollnames::kNameSize] = {};
+  const char* list = "demon.history.burned";
+  switch (pick.kind) {
+    case Kind::Guardian:
+      list = "demon.history.guardian";
+      exploretext::regionName(s, pick.index, *grammar_, region, sizeof(region));
+      exploretext::guardianName(s, pick.index, *grammar_, beast, sizeof(beast));
+      break;
+    case Kind::Uncleared:
+      list = "demon.history.uncleared";
+      exploretext::regionName(s, pick.index, *grammar_, region, sizeof(region));
+      break;
+    case Kind::Foe: {
+      explore::Foe f;
+      explore::foe(s, pick.index, f);
+      list = f.paid ? "demon.history.paid" : "demon.history.ran";
+      exploretext::regionName(s, f.region, *grammar_, region, sizeof(region));
+      exploretext::enemyName(s, f.region, explore::enemyFromSeed(f.region, f.seed), f.seed, *grammar_, beast,
+                             sizeof(beast));
+      break;
+    }
+    case Kind::Burned:
+      scrollName(burned, scroll, sizeof(scroll));
+      break;
+  }
+  return exploretext::historyFlavor(s, list, trialSeed(s, kKindTrialText, index), region, beast, scroll, *grammar_,
+                                    trialText_, sizeof(trialText_)) &&
+         trialText_[0] != '\0';
 }
 
 void CultivationActivity::answerTrial() {

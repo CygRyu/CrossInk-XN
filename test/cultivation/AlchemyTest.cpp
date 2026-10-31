@@ -237,10 +237,12 @@ TEST(Alchemy, QualityBandsAndBatchSizes) {
     readFor(s, 20);
     const alchemy::Collected c = alchemy::collect(s);
     ASSERT_TRUE(c.ok);
+    if (c.failed) continue;  // v0.2.1: a failed batch leaves dross (tested in V021Test)
     EXPECT_EQ(c.item, Item::TonicMinor);
-    EXPECT_EQ(c.count, static_cast<uint16_t>(static_cast<uint8_t>(c.quality) + 1));
-    EXPECT_EQ(c.quality, c.roll >= 85 ? Quality::High : c.roll >= 50 ? Quality::Medium : Quality::Low);
-    ++bands[c.quality];
+    EXPECT_EQ(c.count, static_cast<uint16_t>(static_cast<uint8_t>(c.quality) + 1 + (c.extra ? 1 : 0)));
+    const Quality rolled = c.roll >= 85 ? Quality::High : c.roll >= 50 ? Quality::Medium : Quality::Low;
+    EXPECT_EQ(c.quality, c.improved ? static_cast<Quality>(static_cast<uint8_t>(rolled) + 1) : rolled);
+    ++bands[rolled];
   }
   // Common ingredients, no Herbalist: about 50% Low, 35% Medium, 15% High.
   EXPECT_GT(bands[Quality::Low], 150);

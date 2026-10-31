@@ -78,6 +78,7 @@ class CultivationActivity final : public Activity {
     MerchantSell,  // selling items back at a third
     Bag,           // items; tonics are drunk here
     Talisman,      // which cleared region a Region Talisman reshapes
+    MerchantQty,   // v0.2.1: how many herbs or ores to buy
     Alchemy,       // v0.2.0 (CultivationAlchemyScreens.cpp): the cauldron and what to do with it
     Recipes,       // the recipes known
     RecipeDetail,  // one recipe: its parts, what it makes, the brew time; Confirm brews
@@ -113,6 +114,7 @@ class CultivationActivity final : public Activity {
   std::string trialRowTitle(int row) const;
   std::string trialRowSubtitle(int row) const;
   void trialFlavor(const char* listKey, uint32_t seed, char* out, size_t len);
+  bool historyScene(uint8_t index);  // v0.2.1: a Heart Demon scene from the player's own history
   void enterGreatPerfection();
   void recordOutcome(const char* listKey, uint32_t seed);
 
@@ -169,6 +171,9 @@ class CultivationActivity final : public Activity {
   void renderSell(int x, int y, int width, int bottom);
   void renderBag(int x, int y, int width, int bottom);
   void renderTalisman(int x, int y, int width, int bottom);
+  void renderMerchantQty(int x, int y, int width, int bottom);
+  void openMerchantQty(uint8_t line);
+  void buyFromMerchant(uint8_t line, uint16_t count);
   // v0.2.0: the fight's answers on screen, in order.
   enum class FightRow : uint8_t { Fight, Slip, Pay, Incense, Tonic };
   uint8_t fightRowList(FightRow* out) const;
@@ -354,6 +359,9 @@ class CultivationActivity final : public Activity {
     char numbers[200] = {};  // what it gave or cost
     cultivation::explore::Stock stock;
     uint8_t merchantTile = 0;
+    uint8_t qtyLine = 0;  // v0.2.1: the stock line being bought in bulk
+    uint16_t qtyCounts[4] = {};
+    uint8_t qtyRows = 0;
     cultivation::inventory::Item bag[kBagMax] = {};
     uint8_t bagCount = 0;
     bool forAlchemy = false;  // opened only for the Bag from the Alchemy screen
@@ -376,6 +384,7 @@ class CultivationActivity final : public Activity {
     uint8_t chosenCount = 0;
     char flavor[200] = {};  // the last result's line from the packs
     int menuSelected = 0;
+    uint8_t batch = 1;  // v0.2.1: brews in one go on RecipeDetail (Up/Down)
   };
   std::unique_ptr<AlchemyView> alchemy_;
   struct IngredientNames {

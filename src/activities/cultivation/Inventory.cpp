@@ -76,6 +76,7 @@ uint16_t price(const Item item) {
     return kBreakthroughPillPrice[static_cast<uint8_t>(item) - static_cast<uint8_t>(Item::BreakthroughPill)];
   if (isGradePill(item)) return kGradePillPrice[static_cast<int>(pillQuality(item))];
   if (item == Item::QiPill) return kQiPillPrice;
+  if (item == Item::Dross) return 15;  // sells for 5
   return legacyPrice(item);
 }
 
@@ -98,7 +99,7 @@ uint16_t count(const GameState& s, const Item item) {
 }
 
 uint16_t add(GameState& s, const Item item, const uint16_t n) {
-  if (item == Item::None || item >= Item::RecipeSlip || n == 0) return 0;
+  if (item == Item::None || item == Item::RecipeSlip || item >= Item::Count || n == 0) return 0;
   int slot = slotOf(s, item);
   if (slot < 0) {
     for (uint8_t i = 0; i < kSlots && slot < 0; ++i) {
@@ -155,6 +156,23 @@ uint16_t useTonic(GameState& s, const Item tonic) {
   remove(s, tonic);
   s.progress.hp = static_cast<uint16_t>(s.progress.hp + healed);
   return healed;
+}
+
+uint16_t room(const GameState& s, const Item item) { return static_cast<uint16_t>(kMaxCount - count(s, item)); }
+
+AddResult addOrSell(GameState& s, const Item item, const uint16_t n) {
+  AddResult r;
+  r.added = add(s, item, n);
+  const uint16_t extra = static_cast<uint16_t>(n - r.added);
+  if (extra == 0) return r;
+  if (isIngredient(item) || item == Item::Dross) {
+    r.sold = extra;
+    r.soldStones = static_cast<uint32_t>(sellPrice(item)) * extra;
+    s.progress.stones += r.soldStones;
+  } else {
+    r.lost = extra;
+  }
+  return r;
 }
 
 bool migrateLegacyBag(GameState& s) {

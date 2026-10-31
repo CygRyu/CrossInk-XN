@@ -86,7 +86,8 @@ bool isWebEnumOptionAvailable(const SettingInfo& setting, size_t optionIndex) {
       if (raw == CrossPointSettings::READING_STATS_SLEEP || raw == CrossPointSettings::MINIMAL_STATS_SLEEP)
         return false;
 #if CROSSINK_CULTIVATION
-      if (raw == CrossPointSettings::CULTIVATOR_SLEEP) return false;
+      if (raw == CrossPointSettings::CULTIVATOR_SLEEP || raw == CrossPointSettings::CULTIVATOR_LIGHT_SLEEP)
+        return false;
 #endif
     }
   }
