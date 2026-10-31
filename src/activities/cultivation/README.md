@@ -20,18 +20,30 @@ Personal-fork game built to `CrossInk_Cultivation_Game___Design_Document.md`. Ev
 | `LifeLog.{h,cpp}` | Pure: seasons passed in a visit, which seasons get a line, and the lines themselves (DOC: Time passage) |
 | `Breakthrough.{h,cpp}` | Pure: breakthrough chance and its parts, keys, the seeded roll, success and failure, Great Perfection and consolidation, grades and their Qi effect |
 | `Chronicle.{h,cpp}` | `chronicle.txt`: each life's opening chapter, and each visit's life-log lines appended once |
-| `CultivationActivity.{h,cpp}` | The screens: name, gender, origin, Awakening Test, Return summary, Cultivator, Chronicle |
+| `Scrolls.{h,cpp}` | Pure: Technique Scrolls in the save (8-byte slots), tier, element, kind and manual pity, quality, manual Qi rate, equipping, selling, keys, minting a finished book (new, reread, full library) |
+| `ScrollStore.{h,cpp}` | The hook's `pending_scrolls.bin` (replayed marks and unmarks) and `minted.bin` (books this life already turned into a scroll) |
+| `ScrollNames.{h,cpp}` | Scroll names from the packs (stable picks, the element as theme) and scroll Chronicle lines |
+| `CultivationHooks.{h,cpp}` | Device: the one call CrossInk makes when a book is marked finished or unfinished |
+| `CultivationUi.h` | Text helpers shared by the screen files |
+| `CultivationActivity.{h,cpp}` | The screens: name, gender, origin, Awakening Test, Return summary, Cultivator, breakthroughs, Chronicle |
+| `CultivationScrollScreens.cpp` | The Technique Scroll screens and minting at the start of a visit (members of `CultivationActivity`) |
 
 Hooks outside this folder (all inside `#if CROSSINK_CULTIVATION`):
 
 - `src/activities/home/HomeActivity.{h,cpp}`: the "Cultivation" menu entry, shown whenever reading stats are tracked.
+- The four places CrossInk changes `completedBooks` (milestone 7), one call each to `CultivationHooks::onBookCompletionChanged(title, stats, completed, progress[, session seconds, session start])`, next to the existing `completedBooks++/--`:
+  - `src/activities/reader/EpubReaderActivity.cpp` (`setBookCompleted`, inside `if (statsTrackingActive)`; passes the open session's seconds, not saved yet);
+  - `src/activities/reader/XtcReaderActivity.cpp` (`setBookCompleted`, same);
+  - `src/activities/reader/BookStatsActivity.cpp` (`saveStats`: completion edited on the stats screen only becomes real when it is saved, and a cancelled date edit never is, so the hook compares with the saved file there instead of in `applyCompletedState`);
+  - `src/activities/home/BookActions.cpp` (`toggleBookCompleted`, inside `if (trackStats)`).
+  The design document named the helper with `(cachePath, completed)`; it takes the title (the scroll's identity is a hash of the title) and the book's stats object the caller already holds, so the hook reads nothing from the card.
 - `lib/I18n/translations/english.yaml`: the `STR_CULT_*` block at the end. Other languages fall back to English. The strings are compiled into every build, game or not: about 6 KB of flash (1.7 KB of text plus a 2-byte index per language), and no RAM.
 
 Host tests: `test/cultivation/` (standalone CMake; see its `CMakeLists.txt`). Screens on a computer: `tools/cultivation/sim/` runs the real firmware in the CrossInk simulator with scripted buttons and screenshots.
 
 ## Save file
 
-`/.crosspoint/cultivation/save.bin`: 955 bytes = 10-byte header + 945-byte payload, little-endian.
+`/.crosspoint/cultivation/save.bin`: 959 bytes = 10-byte header + 949-byte payload, little-endian (save version 2; version 1 had 945 bytes and loads with the new block zeroed).
 
 | Offset | Size | Block |
 | --- | --- | --- |
@@ -41,6 +53,9 @@ Host tests: `test/cultivation/` (standalone CMake; see its `CMakeLists.txt`). Sc
 | 94 | 42 | Character: name (24 B UTF-8), gender, origin, root element and secondary, purity, talent, hidden trait, temperament, 2 paths, karma, rerolls allowed/used, flags, creation day |
 | 136 | 38 | Progress: realm, stage, Qi (6 B), stones, stamina, HP, max HP, age in months, age carry, Qi carry, failures, 3 grades, consolidation, Dao Heart, flags (bit 0x04: odd page toward the next stone), reading seconds |
 | 174 | 781 | Reserved at full design size: Daos and meridians 23, scrolls 513, inventory 96, world 37, timers 16, daily 25, rival 11, flags and codex 48, legacy 12 |
+| 955 | 4 | Save v2 (milestone 7): byte 0 = scrolls minted since the last Cultivation manual (manual pity); bytes 1-3 reserved |
+
+Technique Scrolls (milestone 7) fill the reserved 513-byte block with no format change: byte 0 is the count, then up to 64 slots of 8 bytes in minting order: title hash u32 (never 0), hours read in that book (cap 255; the tier is derived), element (bits 0-2) and kind (bits 3-5), comprehension 0-100, flags (0x01 equipped manual, 0x02 equipped technique). Removing a slot moves the later ones down and zeroes the last. The manual-pity counter has no room there, hence the 4-byte v2 block.
 
 Rules: append-only. A new field goes at the end, `kSaveVersion` and `kPayloadSize` go up, and older saves load with the new field at its default. All-zero must mean "empty" for every reserved byte, so later milestones can give meaning to reserved bytes without a format change. A newer save loads its known prefix in older firmware (and that firmware writes back only what it knows).
 
@@ -58,7 +73,8 @@ Differences from the design document's budget: the stats snapshot is 68 bytes in
 - Chronicle viewer: `ChronicleView` (~2 KB: the byte offsets of the last 512 pages, for Previous) is allocated when the Chronicle is opened and freed when it is closed. Each page is read straight from the card, one paragraph at a time, through a 256-byte stack buffer.
 - Breakthrough and Great Perfection outcomes keep their Chronicle line (~200 B) and result in members of the activity; no new heap blocks. The no-repeat count walks every season since season 0 (a few thousand cheap steps at most, no memory).
 - Writing the Chronicle uses a 256-byte stack buffer for the file's tail; lines are appended, never rewritten.
-- Saving streams the payload twice, once to compute the CRC and once to the file, so there is no 945-byte buffer.
+- Saving streams the payload twice, once to compute the CRC and once to the file, so there is no 949-byte buffer.
+- Technique Scrolls (milestone 7), each only while needed: `MintWork` (~0.4 KB: 32 pending books and the hashes minted) while a visit starts, if any book is waiting; `ScrollNews` (~0.8 KB: 8 events with names) from the visit's start until its screen is left; `LibraryView` (~1 KB: the display order of 64 slots and the names of one page, up to 12 rows) while the Techniques screens are open. Never at the same time as the Chronicle viewer; the news can coexist with the life log, for a peak of about 13 KB on the Return summary of a visit that also minted scrolls. Names are generated in the input loop into these buffers, never while drawing. The hook itself streams one 12-byte record; `minted.bin` is read 4 bytes at a time.
 - Largest stack users: `readLocalStats()` holds a `GlobalReadingStats` (~160 B) for one call; `save::store`/`load` use two 64-byte path buffers and a 32-byte scratch.
 
 ## Stats rules (StatsBridge)
@@ -114,15 +130,25 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 ## Breakthroughs, Great Perfection and grades (milestone 6, the doc's build step 5)
 
 - **When:** a full Peak bar. The Cultivator screen then lists "Break through", and from Qi Condensation on "Enter Great Perfection".
-- **Keys:** the doc's small bottleneck (Body Tempering -> Qi Condensation) needs none. Every later one needs a Technique Scroll, Dao points or a breakthrough pill; none exists yet, so the screen says so (decided with the user in session 3, matching `balance_sim.py`'s `has_key`).
-- **Chance:** base 90/70/45/35, then -5 per realm, floor 20; + Dao Heart x 15 / 100; + consolidation x 15 / 40; capped at 99. Pity: +15 per failure, never past 90 (`balance_sim.py`'s formula). Parts are rounded down separately, so the total can be a point below the simulator's.
+- **Keys:** the doc's small bottleneck (Body Tempering -> Qi Condensation) needs none. From milestone 7 every later one needs an unequipped Technique Scroll of at least Mortal (into Foundation), Yellow (Core), Earth (Nascent Soul) or Heaven tier (later realms). The game picks the lowest-tier qualifying scroll (then the lowest comprehension, then the oldest), shows it before Attempt and spends it only on success; the Chronicle then records which scroll opened the realm (`scroll.line.key`). Dao points and breakthrough pills come later.
+- **Chance:** base 90/70/45/35, then -5 per realm, floor 20; + Dao Heart x 15 / 100; + consolidation x 15 / 40; + 5 when the equipped manual's element matches the root (DOC); capped at 99. Pity: +15 per failure, never past 90 (`balance_sim.py`'s formula). Parts are rounded down separately, so the total can be a point below the simulator's.
 - **Roll:** `contentSeed(world, 55, realm << 8 | failures)`, so reopening the game never changes an outcome, and each failure makes the next roll a new one.
-- **Success:** next realm at stage 0, Qi zero, failures and consolidation reset, Half-step and Great Perfection cleared, grade set when entering Foundation (score: consolidation + Dao Heart x 25 / 100 + Fallen clan heir 5), Core and Nascent Soul (soul clarity). Grades change the Qi rate (`gradeQiPermille`).
+- **Success:** next realm at stage 0, Qi zero, failures and consolidation reset, Half-step and Great Perfection cleared, grade set when entering Foundation (score: consolidation + Dao Heart x 25 / 100 + 15 when the equipped manual's element matches the root + Fallen clan heir 5), Core and Nascent Soul (soul clarity). Grades change the Qi rate (`gradeQiPermille`).
 - **Failure:** 75% of the Peak bar kept, failures + 1, Half-step title; Great Perfection and consolidation are kept.
 - **Great Perfection:** a flag on the Peak stage. Consolidation is +1 per whole half-hour of this character's reading time while it is set, up to 40, so no carry field is needed.
 - **Chronicle:** each attempt or entering Great Perfection appends one line (`log.breakthrough`, `log.failure`, `log.gp.enter`), seeded by realm and failures, written before the save and skipped if already there.
 - **Save:** no format change; the fields (failures, grades, consolidation, `kInGreatPerfection`, `kHalfStep`) were reserved in milestone 2.
-- **Not yet:** Tribulations (Core Formation) and Heart Demons (Nascent Soul), keys, pills and techniques in the grade score, lifespan running out (rebirth).
+- **Not yet:** Tribulations (Core Formation) and Heart Demons (Nascent Soul), pills in the grade score, lifespan running out (rebirth).
+
+## Technique Scrolls (milestone 7, the doc's build step 6)
+
+- **Hook:** marking a book finished or unfinished (in the EPUB or XTC reader, on the book's stats screen, or from the Home/library book menu) appends a 12-byte record to `pending_scrolls.bin`, only if a save exists. Creating a character deletes `pending_scrolls.bin` and `minted.bin`: books finished before this life give nothing. Books finished before this firmware are not known to the game at all.
+- **Minting** (each visit, before the save): the records are replayed (an unmark before minting cancels the mark; a later mark refreshes the numbers), up to 32 books per visit; the rest wait in `pending_scrolls.rest` and come on the next visit. Each book then becomes, in this order of checks: a **reread** if its scroll is in the library (quality rises to the new comprehension if higher; hours and tier never change, or rereading would double them); **nothing** if this life already minted it and the scroll was spent or sold (`minted.bin`); **nothing** if it was read for under 30 minutes (anti-farming: marking unread books finished must not mint keys or sellable scrolls); otherwise a **new scroll**. After a successful save, the new hashes go to `minted.bin` and the pending list is replaced by what is left. A failed save leaves both alone, so the same books are minted again next time.
+- **Properties:** tier from whole hours read in that book (<3 Mortal, 3-8 Yellow, 8-15 Earth, 15-25 Heaven, 25+ Saint); element from the book's dominant time-of-day bucket (Morning Wood, Afternoon Fire, Evening Metal, Night Water, Earth when none is over 40% or there is no clock data); kind from `contentSeed(world, 60, title hash) % 6`, except that after 4 scrolls without a Cultivation manual the next one is a manual (user); quality from comprehension, which is **where the reader was in the book (book progress %) when it was marked finished** (CrossInk does not record a book's total page count, so "pages read in tracked time" cannot be measured; skimming is already limited by the hours-based tier). Bands: <50 Fragmentary, 50-74 Incomplete, 75-89 Complete, 90-97 Refined, 98+ Perfected.
+- **Manual:** one equipped Cultivation manual multiplies the Qi rate by its tier (1.15 / 1.30 / 1.50 / 1.75 / 2.00) x quality (0.90-1.10 over 75-100% comprehension, as `balance_sim.py`). Up to 3 other techniques can be equipped (used by later systems). Equipped scrolls are never spent or sold.
+- **Selling:** an unequipped scroll sells for 25 / 60 / 150 / 300 / 500 Spirit Stones by tier (proposed: about a fifth of the stones the book's reading earned). A 65th scroll sells the weakest unequipped one (tier, then comprehension), which may be the new one. Every sale gets a Chronicle line and, for automatic ones, a line in the visit's news.
+- **Names:** `{scroll.name} {scroll.kind.<kind>} {scroll.tier.<tier>}` from the packs, themed by element (`~water` ...), with stable picks seeded by `contentSeed(world, 61, title hash)`: the same book gets the same name all life, a different one in another life, and its title never contributes a word. Names are not saved; an SD pack that changes these lists renames scrolls.
+- **contentSeed kinds:** 60 kind roll, 61 name, 62 Chronicle lines.
 
 ## Screens (milestone 3)
 
@@ -131,11 +157,16 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 3. **Origin:** five origins with their birth line; the selected origin's gifts are shown under the list.
 4. **Awakening Test:** one destiny per screen. Previous and Next move between destinies seen so far, Next past the last one spends a reroll (3 per life), and Keep takes the destiny on screen. Destinies are a pure function of the world seed (MAC, creation day, life number), so leaving and re-entering shows the same ones.
 5. **Return summary** (milestone 5, after any visit with reading): how many seasons or months passed, realm, stage and age, the minutes, Qi and stones the visit brought, and the life-log lines. Next and Previous page through long logs; Continue or Back goes to the Cultivator screen.
-6. **Cultivator:** name, titles (Foundation grade, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate, Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, and at the bottom a list of actions: Break through, Enter Great Perfection, Read the Chronicle. Text above the list is cut to fit.
-7. **Breakthrough:** the target realm, the chance and its parts, what a failure costs or which key is missing. Attempt rolls.
+6. **Cultivator:** name, titles (Foundation grade, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate (with the manual's part), Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, and at the bottom a list of actions: Break through, Enter Great Perfection, Techniques, Read the Chronicle. Text above the list is cut to fit; the rumor keeps its room before the "no reading" note does.
+7. **Breakthrough:** the target realm, the chance and its parts, the key scroll that would be used (or the tier that is missing), what a failure costs. Attempt rolls.
 8. **Great Perfection:** what staying at the peak does. Enter enters it.
-9. **Outcome:** success or failure, the roll and the chance, the Chronicle line, the Foundation grade when one is formed, or the next attempt's chance.
+9. **Outcome:** success or failure, the roll and the chance, the Chronicle line, the Foundation grade when one is formed and the key used up, or the next attempt's chance.
 10. **Chronicle:** the Chronicle one page at a time, from the beginning; Next and Previous turn pages, Back returns.
+11. **Technique Scrolls** (after the Return summary, or straight after opening the game when a book was finished without new reading): each new, improved, unchanged or sold scroll with its tier, element, kind and quality, and books that gave nothing with the reason. Up to 8 entries over as many pages as needed; more are counted ("N more are in the Chronicle"), automatic sales past 8 get their own total line.
+12. **A better manual:** when a new manual beats the equipped one (or none is equipped): the Qi rate now and with it. Equip, or Back to keep things as they are.
+13. **Techniques:** the equipped manual and the Qi rate, how many techniques are equipped, then the library (equipped first, then strongest first) with tier, element, kind, quality and tags (equipped, best manual), one page at a time.
+14. **A scroll:** name, tier, element, kind, quality and comprehension, hours read, what it does (manual Qi rate, root match) and which breakthroughs it can open as a key; Equip / Unequip and Sell.
+15. **Sell:** asks before selling, because a sold scroll's book cannot give another one in this life.
 
 Nothing is saved until a destiny is kept. If a damaged save is found, the new character's first save first moves it to `save.damaged.bin`.
 

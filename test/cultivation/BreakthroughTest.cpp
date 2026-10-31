@@ -97,8 +97,105 @@ TEST(Breakthrough, OnlyTheSmallBottleneckNeedsNoKey) {
   EXPECT_TRUE(canAttempt(atPeak(0)));
   for (uint8_t realm = 1; realm + 1 < kMortalRealmCount; ++realm) {
     EXPECT_TRUE(chanceFor(atPeak(realm)).needsKey) << int(realm);
-    EXPECT_FALSE(canAttempt(atPeak(realm))) << int(realm);  // no keys exist yet
+    EXPECT_FALSE(canAttempt(atPeak(realm))) << int(realm);  // an empty library: no key
   }
+}
+
+namespace {
+// A scroll with `hours` read in its book, put straight into the library.
+scrolls::Scroll addScroll(GameState& s, const uint8_t hours, const uint32_t hash,
+                          const scrolls::Kind kind = scrolls::Kind::Sword, const uint8_t comprehension = 90) {
+  scrolls::Scroll sc;
+  sc.titleHash = hash;
+  sc.hours = hours;
+  sc.kind = kind;
+  sc.comprehension = comprehension;
+  const uint8_t n = scrolls::count(s);
+  scrolls::put(s, n, sc);
+  s.techniqueScrolls[0] = static_cast<uint8_t>(n + 1);
+  return sc;
+}
+}  // namespace
+
+TEST(Breakthrough, KeysFollowTheTierTable) {
+  // Foundation: any scroll. Core: Yellow (3 h). Nascent Soul: Earth (8 h). Later: Heaven (15 h).
+  const uint8_t hoursNeeded[] = {0, 0, 3, 8, 15, 15, 15, 15, 15};  // by the realm the player is in
+  for (uint8_t realm = 1; realm + 1 < kMortalRealmCount; ++realm) {
+    GameState s = atPeak(realm);
+    if (hoursNeeded[realm] > 0) {
+      addScroll(s, static_cast<uint8_t>(hoursNeeded[realm] - 1), 11);
+      EXPECT_FALSE(canAttempt(s)) << int(realm);
+    }
+    addScroll(s, hoursNeeded[realm], 12);
+    EXPECT_TRUE(canAttempt(s)) << int(realm);
+    EXPECT_EQ(scrolls::get(s, static_cast<uint8_t>(chanceFor(s).keyIndex)).titleHash, 12u) << int(realm);
+  }
+}
+
+TEST(Breakthrough, TheKeyIsTheLowestQualifyingUnequippedScroll) {
+  GameState s = atPeak(2);  // into Core Formation: Yellow or better
+  addScroll(s, 20, 1);      // Heaven
+  addScroll(s, 1, 2);       // Mortal: does not qualify
+  addScroll(s, 5, 3, scrolls::Kind::Sword, 95);
+  addScroll(s, 4, 4, scrolls::Kind::Sword, 80);  // Yellow, lower comprehension: this one
+  addScroll(s, 6, 5, scrolls::Kind::Sword, 80);  // same strength, newer
+  EXPECT_EQ(scrolls::get(s, static_cast<uint8_t>(chanceFor(s).keyIndex)).titleHash, 4u);
+  ASSERT_TRUE(scrolls::equip(s, 3));  // equipped scrolls are never spent
+  EXPECT_EQ(scrolls::get(s, static_cast<uint8_t>(chanceFor(s).keyIndex)).titleHash, 5u);
+}
+
+TEST(Breakthrough, TheKeyIsSpentOnlyOnSuccess) {
+  bool sawFailure = false;
+  bool sawSuccess = false;
+  for (uint32_t seed = 1; seed < 80 && !(sawFailure && sawSuccess); ++seed) {
+    GameState s = atPeak(1, seed);  // into Foundation: 70%
+    addScroll(s, 2, 77);
+    const Result r = attempt(s);
+    ASSERT_TRUE(r.attempted);
+    if (r.success) {
+      sawSuccess = true;
+      EXPECT_TRUE(r.keyUsed);
+      EXPECT_EQ(r.key.titleHash, 77u);
+      EXPECT_EQ(scrolls::count(s), 0);
+    } else {
+      sawFailure = true;
+      EXPECT_FALSE(r.keyUsed);
+      EXPECT_EQ(scrolls::count(s), 1);
+    }
+  }
+  EXPECT_TRUE(sawFailure);
+  EXPECT_TRUE(sawSuccess);
+}
+
+TEST(Breakthrough, NoKeyIsSpentIntoQiCondensation) {
+  for (uint32_t seed = 1; seed < 50; ++seed) {
+    GameState s = atPeak(0, seed);
+    addScroll(s, 2, 9);
+    const Result r = attempt(s);
+    if (!r.success) continue;
+    EXPECT_FALSE(r.keyUsed);
+    EXPECT_EQ(scrolls::count(s), 1);
+    return;
+  }
+  FAIL();
+}
+
+TEST(Breakthrough, AManualOfTheRootsElementAddsChanceAndGradeScore) {
+  GameState s = atPeak(1);
+  s.progress.daoHeart = 0;
+  s.character.rootElement = Element::Water;
+  scrolls::Scroll m = addScroll(s, 9, 5, scrolls::Kind::Manual);
+  m.element = Element::Fire;
+  scrolls::put(s, 0, m);
+  ASSERT_TRUE(scrolls::equip(s, 0));
+  EXPECT_EQ(chanceFor(s).element, 0);
+  EXPECT_EQ(gradeScore(s, 2), 0);
+  m = scrolls::get(s, 0);
+  m.element = Element::Water;
+  scrolls::put(s, 0, m);
+  EXPECT_EQ(chanceFor(s).element, 5);
+  EXPECT_EQ(chanceFor(s).total, 75);
+  EXPECT_EQ(gradeScore(s, 2), 15);
 }
 
 TEST(Breakthrough, NeedsAFullPeakBar) {
@@ -277,8 +374,7 @@ TEST(Breakthrough, GradesChangeTheQiRate) {
 }
 
 TEST(Breakthrough, FoundationGradeFromTypicalNumbers) {
-  // Entering Foundation needs a key (next milestone), so this checks the
-  // grade the rules would give: 30 consolidation + 60 Dao Heart (15) = 45.
+  // 30 consolidation + 60 Dao Heart (15) = 45.
   GameState s = atPeak(1);
   s.progress.consolidation = 30;
   s.progress.daoHeart = 60;

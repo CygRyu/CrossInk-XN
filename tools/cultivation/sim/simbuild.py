@@ -83,9 +83,20 @@ def prepare():
     run(["git", "apply", str(HERE / "sim-reading-hook.patch")], cwd=REPO)
 
     # The generators PlatformIO runs before a simulator build.
+    # Generated into a temporary folder and copied only when changed, so the
+    # files' times say when the strings really changed (see compile_one).
     I18N.mkdir(exist_ok=True)
-    run([sys.executable, "scripts/gen_i18n.py", "lib/I18n/translations", str(I18N)], cwd=REPO,
+    fresh = WORK / "i18n.new"
+    if fresh.exists():
+        shutil.rmtree(fresh)
+    fresh.mkdir()
+    run([sys.executable, "scripts/gen_i18n.py", "lib/I18n/translations", str(fresh)], cwd=REPO,
         stdout=subprocess.DEVNULL)
+    for f in fresh.iterdir():
+        dest = I18N / f.name
+        if not dest.exists() or dest.read_bytes() != f.read_bytes():
+            shutil.copyfile(f, dest)
+    shutil.rmtree(fresh)
     run([sys.executable, "scripts/build_web.py"], cwd=REPO, stdout=subprocess.DEVNULL)
     # scripts/build_scalable_font_assets.py only runs with CROSSINK_SCALABLE_FONTS=1 (not on the X3).
 
@@ -131,10 +142,39 @@ def build():
     common = [f"-D{d}" for d in DEFINES] + [f"-I{d}" for d in inc] + sdl_cflags + ["-O1", "-g0", "-w"]
     OUT.mkdir(parents=True, exist_ok=True)
 
+    # A .cpp is also out of date when a game header it may include changed
+    # (otherwise HomeActivity.o keeps an old CultivationActivity size and the
+    # simulator crashes in a way that looks like a game bug).
+    game_dir = REPO / "src/activities/cultivation"
+    game_headers = max((h.stat().st_mtime for h in game_dir.glob("*.h")), default=0)
+    # New or removed strings renumber StrId and change its _COUNT.
+    strings_header = (I18N / "I18nKeys.h").stat().st_mtime
+
+    def depends_on_game(src: Path) -> bool:
+        if game_dir in src.parents:
+            return True
+        try:
+            return "activities/cultivation/" in src.read_text(errors="ignore")
+        except OSError:
+            return False
+
+    def uses_strings(src: Path) -> bool:
+        try:
+            text = src.read_text(errors="ignore")
+        except OSError:
+            return False
+        return "I18n" in text or "tr(" in text or "StrId" in text
+
     def compile_one(src: Path):
         obj = OUT / (str(src.relative_to(WORK)).replace("/", "_") + ".o")
-        if obj.exists() and obj.stat().st_mtime > src.stat().st_mtime:
-            return obj, None
+        if obj.exists():
+            newest = src.stat().st_mtime
+            if depends_on_game(src):
+                newest = max(newest, game_headers)
+            if uses_strings(src):
+                newest = max(newest, strings_header)
+            if obj.stat().st_mtime > newest:
+                return obj, None
         if src.suffix == ".c":
             cmd = ["gcc", "-std=gnu11"] + common
         else:

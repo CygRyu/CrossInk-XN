@@ -40,7 +40,7 @@ the ferry at {place.town} stopped running after the boatman was found with a swo
 | `{name.[m\|f]}` | a key built from parts: here `name.m` or `name.f` |
 | `\{`, `\[`, `\|` | the character itself |
 
-Game values: `$player.name`, `$player.realm` (or `$realm`), `$player.stage`, `$player.age`, `$player.element`, `$season` ("spring"), `$root.glow` and `$root.color` (the Awakening Test stone: "murky", "green"), `$past.pages`, `$past.books` and `$past.hours` (reading from before this life, with the noun: "48,210 pages", "1 book"); pronouns `$pro.they`, `$pro.them`, `$pro.their`, `$pro.theirs`, `$pro.themself` with matching verbs `$pro.is`, `$pro.was`, `$pro.has` ("{$pro.they.cap} {$pro.is} ready" gives "She is ready" or "They are ready"); titles `$title.senior` (Senior Brother / Sister / Sibling / Senior), `$title.sect` (Sect Master / Mistress / Head) and `$title.god` (Godking / Godqueen / Godsovereign).
+Game values: `$player.name`, `$player.realm` (or `$realm`), `$player.stage`, `$player.age`, `$player.element`, `$season` ("spring"), `$root.glow` and `$root.color` (the Awakening Test stone: "murky", "green"), `$past.pages`, `$past.books` and `$past.hours` (reading from before this life, with the noun: "48,210 pages", "1 book"); pronouns `$pro.they`, `$pro.them`, `$pro.their`, `$pro.theirs`, `$pro.themself` with matching verbs `$pro.is`, `$pro.was`, `$pro.has` ("{$pro.they.cap} {$pro.is} ready" gives "She is ready" or "They are ready"); titles `$title.senior` (Senior Brother / Sister / Sibling / Senior), `$title.sect` (Sect Master / Mistress / Head) and `$title.god` (Godking / Godqueen / Godsovereign); `$scroll.name`, a Technique Scroll's name, only in the `scroll.line.*` lists.
 
 After expanding, the engine tidies spacing ("word ," becomes "word,") and doubled articles ("the the river" becomes "the river"). Lists remember their recent picks (60% of the list, at most 16) and avoid repeating them.
 
@@ -79,6 +79,30 @@ Within a realm, each list's sentences are used once each, in an order shuffled p
 [log.body.farmer]
 You dig an irrigation ditch for the village headman, and he pays you in rice.
 ```
+
+## Technique Scrolls
+
+Every book marked as finished becomes a Technique Scroll. Its name is built as
+
+```
+{scroll.name} {scroll.kind.<kind>} {scroll.tier.<tier>}
+```
+
+with the scroll's element as the theme, so `[scroll.image~water]` replaces `scroll.image` for Water scrolls (themes: `wood`, `fire`, `earth`, `metal`, `water`). A themed list can still mix in the common words with an entry like `{scroll.image.common}` (not `{scroll.image}`, which would pick the themed list again). Picks are stable: the same book always gets the same name in a life, and the book's own title never contributes a word. Changing these lists in an SD pack renames existing scrolls.
+
+| List | Used for |
+| --- | --- |
+| `scroll.name` | the pattern before the kind word; uses the lists below |
+| `scroll.adj`, `scroll.number`, `scroll.heavens`, `scroll.verb` | words in the patterns |
+| `scroll.image`, `scroll.color`, `scroll.beast`, `scroll.place` | words in the patterns, each with `~wood` ... `~water` versions |
+| `scroll.kind.sword`, `.palm`, `.body`, `.movement`, `.mind`, `.manual` | the kind word: "Saber", "Fist", "Iron Skin", "Light Body", "Heart", "Breathing" |
+| `scroll.tier.mortal`, `.yellow`, `.earth`, `.heaven`, `.saint` | the suffix: Method, Art, Scripture, Canon, True Classic |
+| `scroll.line.new` | Chronicle: a new scroll; `{$scroll.name}` is its name |
+| `scroll.line.reread` | Chronicle: a reread raised its quality |
+| `scroll.line.sold` | Chronicle: sold, by the player or because the library was full |
+| `scroll.line.key` | Chronicle: spent as the key of a breakthrough; `{$player.realm}` is the new realm |
+
+Names should read like wuxia and xianxia manuals ("Moon-Severing Sword Canon", "Azure Dragon Body Refining Scripture"); keep a whole name under about 60 bytes. Chronicle lines follow the life log's rules: one sentence, second person, a full stop at the end.
 
 ## Events
 

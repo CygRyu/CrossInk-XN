@@ -415,6 +415,7 @@ bool Grammar::emitValue(const char* name, const size_t len) {
 
 uint32_t Grammar::pick(const uint32_t keyHash, const uint32_t total) {
   if (total <= 1) return 0;
+  if (ctx_ != nullptr && ctx_->stable) return rng_.below(total);
   // DOC: remember up to 60% of the list's length, at most 16 picks.
   uint32_t limit = total * 60 / 100;
   if (limit > kRecentMax) limit = kRecentMax;

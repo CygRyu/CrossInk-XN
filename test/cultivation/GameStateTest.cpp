@@ -47,6 +47,7 @@ GameState sampleState(const uint32_t marker) {
   s.progress.gameReadingSeconds = 9000;
   s.legacy[11] = 0xAB;
   s.techniqueScrolls[0] = 1;
+  s.techniqueMeta[0] = 3;
   return s;
 }
 
@@ -81,6 +82,7 @@ void expectSame(const GameState& a, const GameState& b) {
   EXPECT_EQ(a.progress.gameReadingSeconds, b.progress.gameReadingSeconds);
   EXPECT_EQ(a.techniqueScrolls, b.techniqueScrolls);
   EXPECT_EQ(a.legacy, b.legacy);
+  EXPECT_EQ(a.techniqueMeta, b.techniqueMeta);
 }
 
 uint32_t qiOf(const GameState& s) {
@@ -100,7 +102,7 @@ TEST_F(GameStateTest, FileIsAboutNineHundredBytes) {
   const auto* bytes = Storage.bytesOf(kPath);
   ASSERT_NE(bytes, nullptr);
   EXPECT_EQ(bytes->size(), save::kFileSize);
-  EXPECT_EQ(save::kFileSize, 955u);
+  EXPECT_EQ(save::kFileSize, 959u);  // v2: + 4 bytes techniqueMeta
   EXPECT_LT(save::kFileSize, 1024u);
 }
 
@@ -199,7 +201,7 @@ TEST_F(GameStateTest, LoadsNewerSaveWithExtraFields) {
   const uint8_t extra[4] = {1, 2, 3, 4};
   bytes.insert(bytes.end(), extra, extra + 4);
   const uint16_t newSize = static_cast<uint16_t>(save::kPayloadSize + 4);
-  bytes[2] = 2;  // version 2
+  bytes[2] = 3;  // version 3
   bytes[4] = static_cast<uint8_t>(newSize);
   bytes[5] = static_cast<uint8_t>(newSize >> 8);
   const uint32_t crc = save::crc32Update(0, bytes.data() + save::kHeaderSize, newSize);
@@ -225,4 +227,27 @@ TEST_F(GameStateTest, OutOfRangeEnumsLoadAsDefaults) {
   GameState s;
   ASSERT_EQ(save::load(s), save::LoadResult::Loaded);
   EXPECT_EQ(s.character.gender, Gender::Unspecified);
+}
+
+TEST_F(GameStateTest, LoadsVersionOneSaveWithTechniqueMetaDefaulted) {
+  // A milestone 2-6 save: version 1, 945-byte payload, no techniqueMeta.
+  GameState original = sampleState(77);
+  ASSERT_TRUE(save::store(original));
+  auto& bytes = *Storage.bytesOf(kPath);
+  bytes.resize(save::kHeaderSize + save::kPayloadSizeV1);
+  bytes[2] = 1;
+  bytes[3] = 0;
+  bytes[4] = static_cast<uint8_t>(save::kPayloadSizeV1);
+  bytes[5] = static_cast<uint8_t>(save::kPayloadSizeV1 >> 8);
+  const uint32_t crc = save::crc32Update(0, bytes.data() + save::kHeaderSize, save::kPayloadSizeV1);
+  for (int i = 0; i < 4; ++i) bytes[6 + i] = static_cast<uint8_t>(crc >> (8 * i));
+
+  GameState s;
+  ASSERT_EQ(save::load(s), save::LoadResult::Loaded);
+  EXPECT_EQ(qiOf(s), 77u);
+  EXPECT_EQ(s.techniqueScrolls, original.techniqueScrolls);
+  EXPECT_EQ(s.techniqueMeta[0], 0u);
+  // Saving again writes the current version.
+  ASSERT_TRUE(save::store(s));
+  EXPECT_EQ(Storage.bytesOf(kPath)->size(), save::kFileSize);
 }

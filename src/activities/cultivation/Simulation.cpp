@@ -7,6 +7,7 @@
 
 #include "Breakthrough.h"
 #include "Rng.h"
+#include "Scrolls.h"
 #include "Simulation.h"
 
 namespace cultivation {
@@ -175,7 +176,8 @@ void suggestName(const uint32_t seed, const uint8_t index, const Gender gender, 
 uint32_t qiMultiplierPermille(const GameState& state) {
   const uint32_t talent = talentInfo(state.character.talent).qiPermille;
   const uint32_t root = talent * purityPermille(state.character.rootPurity) / 1000u;
-  return root * breakthrough::gradeQiPermille(state) / 1000u;  // Foundation and Golden Core grades
+  const uint32_t graded = root * breakthrough::gradeQiPermille(state) / 1000u;  // Foundation and Golden Core grades
+  return static_cast<uint32_t>(static_cast<uint64_t>(graded) * scrolls::equippedManualPermille(state) / 1000u);
 }
 
 void createCharacter(GameState& state, const CharacterDraft& draft, const StatsSample& now) {

@@ -40,7 +40,8 @@ Chance chanceFor(const GameState& state) {
   const uint8_t consolidation = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
   c.consolidation =
       static_cast<uint8_t>(static_cast<uint32_t>(consolidation) * kConsolidationChanceMax / kConsolidationMax);
-  uint32_t total = c.base + c.daoHeart + c.consolidation;
+  c.element = scrolls::manualMatchesRoot(state) ? kElementChance : 0;
+  uint32_t total = c.base + c.daoHeart + c.consolidation + c.element;
   if (total > kChanceCap) total = kChanceCap;
   // balance_sim.py: pity raises the chance by 15 per failure, but never past 90.
   if (p.failures > 0) {
@@ -53,7 +54,10 @@ Chance chanceFor(const GameState& state) {
   }
   c.total = static_cast<uint8_t>(total);
   c.needsKey = c.target >= 2;  // the small bottleneck into Qi Condensation needs none
-  c.hasKey = false;            // Technique Scrolls, Daos and pills arrive in later milestones
+  if (c.needsKey) {
+    c.keyIndex = scrolls::keyFor(state, c.target);  // Daos and pills join in later milestones
+    c.hasKey = c.keyIndex >= 0;
+  }
   return c;
 }
 
@@ -83,8 +87,8 @@ uint8_t gradeScore(const GameState& state, const uint8_t targetRealm) {
   const ProgressBlock& p = state.progress;
   uint32_t score = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
   score += static_cast<uint32_t>(p.daoHeart) * kDaoHeartGradeMax / 100u;
-  // Pills used (0-20) and a technique element matching the root (0-15) join
-  // with alchemy and Technique Scrolls.
+  // Pills used (0-20) join with alchemy.
+  if (scrolls::manualMatchesRoot(state)) score += kElementGradeScore;
   if (targetRealm == 2) score += originBonus(state.character.origin).foundationGradeScore;
   return clampPercent(score);
 }
@@ -145,6 +149,10 @@ Result attempt(GameState& state) {
     return r;
   }
 
+  if (c.needsKey && c.keyIndex >= 0) {
+    r.key = scrolls::removeAt(state, static_cast<uint8_t>(c.keyIndex));  // spent only on success
+    r.keyUsed = true;
+  }
   r.gradeScore = gradeScore(state, c.target);
   if (c.target == 2) {
     r.gradeKind = GradeKind::Foundation;

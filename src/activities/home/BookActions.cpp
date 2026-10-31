@@ -18,6 +18,7 @@
 #include "CrossPointState.h"
 #include "RecentBookProgress.h"
 #include "RecentBooksStore.h"
+#include "activities/cultivation/CultivationConfig.h"
 #include "activities/reader/BookReadingStats.h"
 #include "activities/reader/BookStatsActivity.h"
 #include "activities/reader/BookStatsTracking.h"
@@ -25,6 +26,9 @@
 #include "activities/reader/GlobalReadingStats.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivationHooks.h"
+#endif
 #include "util/BookCacheUtils.h"
 #include "util/BookMoveUtils.h"
 
@@ -247,6 +251,12 @@ bool toggleBookCompleted(const std::string& fullPath, const std::string& display
       globalStats.completedBooks--;
     }
     globalStats.save();
+#if CROSSINK_CULTIVATION
+    const RecentBook book{fullPath, title, {}, {}};
+    const float progress =
+        isEpub ? RecentBookProgress::loadCachedEpubPercent(book) : RecentBookProgress::loadPercent(book);
+    CultivationHooks::onBookCompletionChanged(title, stats, completed, progress);
+#endif
   }
 
   // Changing completion status does not open a book. The reader adds it to

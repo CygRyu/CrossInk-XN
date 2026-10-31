@@ -39,6 +39,10 @@ struct GrammarContext {
   uint8_t plane = 0;            // 0 = Mortal, 1 = Immortal, 2 = Divine ...
   const char* theme = nullptr;  // e.g. "demonic"; nullptr outside themed events
   GrammarValues values;
+  // Picks depend on the seed alone, never on the anti-repetition memory, and
+  // leave that memory untouched: for names that must read the same every
+  // time they are shown (Technique Scrolls).
+  bool stable = false;
 };
 
 class Grammar {

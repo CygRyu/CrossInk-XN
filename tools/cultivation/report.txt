@@ -67,17 +67,17 @@ Median days per realm (time from entering the realm to entering the next):
    # Realm                        15 min/day   30 min/day   60 min/day   90 min/day   Night only Weekends onl Evening only Rotating buc 3 x 10 min/d Weekends onl
    0 Body Tempering                     15 d          7 d          3 d          2 d          7 d         12 d          7 d          7 d          7 d          6 d
    1 Qi Condensation                    43 d         21 d         11 d          7 d         22 d         21 d         21 d         21 d         21 d         13 d
-   2 Foundation Establishment         4.6 mo       2.2 mo         35 d         23 d       2.2 mo       2.3 mo       2.2 mo       2.2 mo       2.2 mo         35 d
-   3 Core Formation                   7.0 mo       3.4 mo         54 d         36 d       3.4 mo       3.4 mo       3.4 mo       3.4 mo       3.4 mo         55 d
-   4 Nascent Soul                    10.1 mo       5.0 mo       2.6 mo         51 d       5.0 mo       5.0 mo       5.0 mo       5.0 mo       5.0 mo       2.5 mo
-   5 Soul Transformation             12.4 mo       6.2 mo       3.1 mo       2.1 mo       6.2 mo       6.2 mo       6.2 mo       6.2 mo       6.2 mo       3.0 mo
-   6 Void Refinement                 14.0 mo       7.0 mo       3.5 mo       2.3 mo       7.1 mo       7.1 mo       7.0 mo       7.0 mo       7.0 mo       3.5 mo
-   7 Body Integration                16.6 mo       8.3 mo       4.2 mo       2.8 mo       8.4 mo       8.6 mo       8.3 mo       8.4 mo       8.5 mo       4.1 mo
-   8 Mahayana                        18.5 mo       9.1 mo       4.7 mo       3.1 mo       9.4 mo       9.4 mo       9.1 mo       9.3 mo       9.4 mo       4.6 mo
-   9 Tribulation Transcendence       19.7 mo       9.5 mo       4.9 mo       3.3 mo       9.7 mo       9.9 mo       9.5 mo       9.8 mo       9.7 mo       4.8 mo
-     Mortal Plane (median)             8.7 y        4.3 y        2.2 y      17.6 mo        4.4 y        4.5 y        4.3 y        4.3 y        4.4 y        2.2 y
-       p10 - p90                 6.5 y-11.5y   3.2 y-5.6y 20.0 mo-2.9y13.2 mo-22.0mo   3.3 y-5.6y   3.4 y-5.7y   3.2 y-5.6y   3.3 y-5.6y   3.3 y-5.6y 19.7 mo-2.9y
-     Reading hours (median)             795h         791h         800h         803h         803h         812h         791h         789h         798h         800h
+   2 Foundation Establishment         4.5 mo       2.2 mo         34 d         23 d       2.2 mo       2.3 mo       2.2 mo       2.2 mo       2.2 mo         35 d
+   3 Core Formation                   6.3 mo       3.1 mo         48 d         33 d       3.2 mo       3.2 mo       3.1 mo       3.2 mo       3.1 mo         49 d
+   4 Nascent Soul                     9.3 mo       4.7 mo       2.4 mo         48 d       4.7 mo       4.8 mo       4.7 mo       4.7 mo       4.6 mo       2.3 mo
+   5 Soul Transformation             11.7 mo       5.9 mo       3.0 mo       2.0 mo       5.9 mo       5.9 mo       5.9 mo       5.8 mo       5.8 mo       3.0 mo
+   6 Void Refinement                 13.6 mo       6.7 mo       3.4 mo       2.3 mo       6.7 mo       6.9 mo       6.7 mo       6.7 mo       6.7 mo       3.4 mo
+   7 Body Integration                16.1 mo       8.0 mo       4.1 mo       2.7 mo       8.1 mo       8.3 mo       8.0 mo       8.1 mo       8.0 mo       4.1 mo
+   8 Mahayana                        18.1 mo       8.9 mo       4.6 mo       3.0 mo       9.2 mo       9.1 mo       8.9 mo       9.0 mo       9.0 mo       4.6 mo
+   9 Tribulation Transcendence       19.0 mo       9.3 mo       4.7 mo       3.2 mo       9.4 mo       9.5 mo       9.3 mo       9.4 mo       9.2 mo       4.8 mo
+     Mortal Plane (median)             8.4 y        4.1 y        2.1 y      16.9 mo        4.2 y        4.2 y        4.1 y        4.2 y        4.1 y        2.1 y
+       p10 - p90                 6.3 y-10.8y   3.2 y-5.4y 19.2 mo-2.7y12.8 mo-21.4mo   3.1 y-5.4y   3.2 y-5.5y   3.2 y-5.4y   3.2 y-5.5y   3.2 y-5.3y 18.8 mo-2.8y
+     Reading hours (median)             771h         754h         772h         771h         766h         765h         754h         764h         754h         772h
      Finished in 40 y                300/300      300/300      300/300      300/300      300/300      300/300      300/300      300/300      300/300      300/300
 
   Weekends only, 105 min Sat+Sun: same 210 min/week as 30 min/day
@@ -87,31 +87,35 @@ Per realm, 30 min/day profile: reading hours vs target, multiplier vs M_hat, att
    # Realm                      target h median h     p10-p90 h  M entry  M_hat attempts   age  life
    0 Body Tempering                  4.5      3.8    2.9-4.9        1.11   1.00     1.04    20    80
    1 Qi Condensation                10.5     10.7    8.0-14.1       1.48   1.60     1.01    31   120
-   2 Foundation Establishment       30.0     33.9   24.5-46.1       1.99   2.56     1.29    64   200
-   3 Core Formation                 52.0     51.1   38.3-71.8       3.77   4.10     1.40   117   320
-   4 Nascent Soul                   75.0     76.4   57.5-99.7       6.26   6.55     1.50   193   500
-   5 Soul Transformation            90.0     94.1   68.7-122.7      9.89  10.49     1.57   286   800
-   6 Void Refinement               105.0    105.8   77.6-139.9     16.92  16.78     1.66   395  1200
-   7 Body Integration              120.0    125.6   92.0-167.6     25.67  26.84     1.62   522  2000
-   8 Mahayana                      135.0    139.0  104.7-185.5     42.84  42.95     1.65   667  3000
-   9 Tribulation Transcendence     150.0    145.2  108.7-191.1     70.39  68.72      nan   807  5000
+   2 Foundation Establishment       30.0     33.7   24.5-43.6       1.99   2.56     1.28    64   200
+   3 Core Formation                 52.0     47.7   36.7-62.6       3.94   4.10     1.44   113   320
+   4 Nascent Soul                   75.0     72.1   52.5-93.2       6.76   6.55     1.55   185   500
+   5 Soul Transformation            90.0     89.8   65.6-116.1     10.43  10.49     1.57   272   800
+   6 Void Refinement               105.0    102.6   75.7-135.9     17.79  16.78     1.66   375  1200
+   7 Body Integration              120.0    121.2   92.0-163.4     26.64  26.84     1.71   493  2000
+   8 Mahayana                      135.0    135.6  101.8-178.2     44.17  42.95     1.60   631  3000
+   9 Tribulation Transcendence     150.0    142.1  108.2-186.6     72.30  68.72      nan   770  5000
 
 Fairness checks (DOC fairness rules, with decisions 1A 2B 4A 5B 6A):
   Reading hours to finish the Mortal Plane (lower = stronger):
-    Evening only, 30 min/day                  791 h  (+0.0% vs evening)
-    Rotating buckets, 30 min/day              789 h  (-0.1% vs evening)
-    Night only, 30 min/day                    803 h  (+1.6% vs evening)
-    3 x 10 min/day                            798 h  (+0.9% vs evening)
-    30 min/day                                791 h  (+0.0% vs evening)
-    Weekends only, 105 min Sat+Sun            812 h  (+2.8% vs evening)
-    60 min/day                                800 h  (+1.2% vs evening)
-    90 min/day                                803 h  (+1.6% vs evening)
-    Weekends only, 210 min Sat+Sun            800 h  (+1.2% vs evening)
+    Evening only, 30 min/day                  754 h  (+0.0% vs evening)
+    Rotating buckets, 30 min/day              764 h  (+1.3% vs evening)
+    Night only, 30 min/day                    766 h  (+1.6% vs evening)
+    3 x 10 min/day                            754 h  (-0.0% vs evening)
+    30 min/day                                754 h  (+0.0% vs evening)
+    Weekends only, 105 min Sat+Sun            765 h  (+1.5% vs evening)
+    60 min/day                                772 h  (+2.4% vs evening)
+    90 min/day                                771 h  (+2.3% vs evening)
+    Weekends only, 210 min Sat+Sun            772 h  (+2.4% vs evening)
   Dao Heart at the end (0-100, full after 15 h read): daily 100, weekends-only 100
   Stamina per week (+1 per 15 min read, nothing per session, bank cap 12):
     30 min/day                              14.0/week earned
     3 x 10 min/day                          14.0/week earned
     Weekends only, 105 min Sat+Sun          14.0/week earned
-    Weekends only, 210 min Sat+Sun          28.0/week earned
+    Weekends only, 210 min Sat+Sun          27.9/week earned
+  Keys (milestone 7: a scroll of the tier, from any realm, spent on success):
+    30 min/day, with pill keys (alchemy, later)      754 h, 300/300 finish in 40 y
+    30 min/day, scrolls only, typical books (9 h)    796 h, 300/300 finish in 40 y
+    30 min/day, scrolls only, short books (4 h)     5157 h, 183/300 finish in 40 y, the rest stop in realm 7
   Spirit Stones (1/min + 1 per 2 pages, page part <= half the minutes): at 30 min/day a slow reader (0.7 pages/min) earns 40/day, a fast one (1.4) 45/day -> 1.12x.
 

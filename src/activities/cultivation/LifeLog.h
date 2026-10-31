@@ -84,8 +84,10 @@ SeasonPick seasonPick(const GameState& state, uint32_t season, const Grammar& gr
 
 // One line outside the seasons (a breakthrough, entering Great Perfection),
 // labelled with the character's current season. False if the list is empty
-// or the line could not be expanded.
-bool eventLine(Line& line, LineKind kind, const char* key, uint32_t seed, const GameState& state, Grammar& grammar);
+// or the line could not be expanded. `extra` answers {$name} values first
+// (a scroll's name); everything else comes from the game.
+bool eventLine(Line& line, LineKind kind, const char* key, uint32_t seed, const GameState& state, Grammar& grammar,
+               const GrammarValues* extra = nullptr);
 
 // "Spring, age 17. " into out.
 void formatLabel(uint32_t season, char* out, size_t outLen);

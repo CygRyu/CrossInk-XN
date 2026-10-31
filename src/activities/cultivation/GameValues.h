@@ -18,6 +18,8 @@
 //   past.pages / past.books / past.hours   reading recorded before this life
 //                   began (the baseline), with their noun: "48,210 pages",
 //                   "1 book", "no hours"
+//   scroll.name     a Technique Scroll's name, only in the scroll's own
+//                   Chronicle lines (set by ScrollNames; unknown elsewhere)
 //   pro.they / pro.them / pro.their / pro.theirs / pro.themself
 //   pro.is / pro.was / pro.has     verb forms that agree ("they are", "she is")
 //   title.senior / title.sect / title.god   gendered titles from the doc's table

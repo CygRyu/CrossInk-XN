@@ -67,7 +67,7 @@ uint8_t rollHiddenTrait(uint32_t worldSeed);  // 1..kHiddenTraitCount
 // Writes a generated name ("Lin Xueyan") into buf; always NUL-terminated.
 void suggestName(uint32_t worldSeed, uint8_t index, Gender gender, char* buf, size_t len);
 
-// Qi multiplier in permille: talent x root purity x grades (more sources join later).
+// Qi multiplier in permille: talent x root purity x grades x equipped manual (more sources join later).
 uint32_t qiMultiplierPermille(const GameState& state);
 uint16_t purityPermille(uint8_t purity);  // 850..1150
 

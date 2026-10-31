@@ -91,7 +91,7 @@ struct ProgressBlock {
   static constexpr uint8_t kOddPageCarry = 0x04;
 };
 
-// The save file, about 950 bytes. Blocks that later milestones fill in are
+// The save file, about 960 bytes. Blocks that later milestones fill in are
 // reserved here at their full design-document size now, so adding their
 // meaning later never moves a byte or needs a format change: an all-zero
 // block must mean "empty" for every future field.
@@ -109,6 +109,9 @@ struct GameState {
   std::array<uint8_t, 11> rival{};              // milestone 9
   std::array<uint8_t, 48> flagsAndCodex{};      // 128 event flags + 256 codex bits
   std::array<uint8_t, 12> legacy{};             // imprints, perk ranks (milestone 10)
+  // Save v2 (milestone 7): byte 0 = scrolls minted since the last Cultivation
+  // manual (manual pity, see Scrolls.h); bytes 1-3 reserved.
+  std::array<uint8_t, 4> techniqueMeta{};
 
   bool isCreated() const { return (character.flags & CharacterBlock::kCharacterCreated) != 0; }
   // Field by field, so no ~1 KB temporary GameState lands on the stack.
@@ -122,10 +125,11 @@ struct GameState {
 namespace save {
 
 constexpr uint16_t kMagic = 0x4950;  // "PI" when read as bytes 'P','I'
-constexpr uint16_t kSaveVersion = 1;
+constexpr uint16_t kSaveVersion = 2;
 constexpr size_t kHeaderSize = 10;
 constexpr size_t kPayloadSizeV1 = 945;
-constexpr size_t kPayloadSize = kPayloadSizeV1;
+constexpr size_t kPayloadSizeV2 = 949;  // + techniqueMeta (milestone 7)
+constexpr size_t kPayloadSize = kPayloadSizeV2;
 constexpr size_t kFileSize = kHeaderSize + kPayloadSize;
 
 constexpr char kDirectory[] = "/.crosspoint/cultivation";

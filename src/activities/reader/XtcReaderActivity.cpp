@@ -22,6 +22,10 @@
 #include "GlobalActions.h"
 #include "MappedInputManager.h"
 #include "QuickActions.h"
+#include "activities/cultivation/CultivationConfig.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivationHooks.h"
+#endif
 #include "ReaderUtils.h"
 #include "ReadingSessionStats.h"
 #include "RecentBooksStore.h"
@@ -821,6 +825,11 @@ void XtcReaderActivity::setBookCompleted(const bool isCompleted) {
       globalStats.completedBooks--;
     }
     globalStats.save();
+#if CROSSINK_CULTIVATION
+    CultivationHooks::onBookCompletionChanged(xtc->getTitle(), stats, isCompleted, getCurrentBookProgressPercent(),
+                                              sessionReadingSeconds,
+                                              hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
+#endif
   }
 }
 

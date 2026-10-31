@@ -3,16 +3,18 @@
 #include <cstdint>
 
 #include "GameState.h"
+#include "Scrolls.h"
 
 // Major-realm breakthroughs, Great Perfection and grades (DOC: Realms,
 // stages and breakthroughs). Pure functions over GameState, mirroring
 // tools/cultivation/balance_sim.py (breakthrough_chance, _set_grade).
 //
-// Not yet: the keys a bottleneck needs from Foundation Establishment on
-// (Technique Scrolls, Daos, breakthrough pills), Tribulations and Heart
-// Demons. Agreed with the user in session 3: Body Tempering -> Qi
-// Condensation is the doc's "small bottleneck" and needs no key; later
-// breakthroughs report a missing key until scrolls exist.
+// Keys (milestone 7): from Foundation Establishment on, a bottleneck needs a
+// Technique Scroll of at least the tier Scrolls.h keyTierFor() names; it is
+// used up only when the attempt succeeds. Daos and breakthrough pills, the
+// doc's other keys, come later. Body Tempering -> Qi Condensation is the
+// doc's "small bottleneck" and needs no key. Tribulations and Heart Demons
+// are a later milestone.
 namespace cultivation {
 namespace breakthrough {
 
@@ -24,6 +26,8 @@ constexpr uint8_t kConsolidationChanceMax = 15;
 constexpr uint8_t kConsolidationMax = 40;
 constexpr uint32_t kSecondsPerConsolidation = 1800;  // DOC: 2 points per reading hour in Great Perfection
 constexpr uint8_t kDaoHeartGradeMax = 25;
+constexpr uint8_t kElementChance = 5;       // DOC: main technique's element matches the root
+constexpr uint8_t kElementGradeScore = 15;  // DOC: grade score's technique element part
 
 // The chance of the next attempt and where it comes from, for the screen.
 struct Chance {
@@ -31,10 +35,12 @@ struct Chance {
   uint8_t base = 0;           // DOC: 90 / 70 / 45 / 35, then -5 per realm, floor 20
   uint8_t daoHeart = 0;       // up to +15
   uint8_t consolidation = 0;  // up to +15 (Great Perfection)
+  uint8_t element = 0;        // +5 when the equipped manual's element matches the root
   uint8_t pity = 0;           // what pity added on top of the rest
   uint8_t total = 0;
   bool needsKey = false;  // every bottleneck after the small one into Qi Condensation
-  bool hasKey = false;    // always false until Technique Scrolls (next milestone)
+  bool hasKey = false;    // a qualifying unequipped scroll is in the library
+  int keyIndex = -1;      // that scroll (Scrolls.h keyFor), -1 if none or none needed
 };
 
 Chance chanceFor(const GameState& state);
@@ -66,18 +72,21 @@ struct Result {
   GradeKind gradeKind = GradeKind::None;
   uint8_t grade = 0;       // the value stored in the save for that grade
   uint8_t gradeScore = 0;  // 0..100
+  bool keyUsed = false;    // success with a key: `key` left the library
+  scrolls::Scroll key;
 };
 
 // One attempt. The roll is seeded by the world, the realm and the number of
 // failures so far, so leaving and reopening the game never changes an outcome.
 // Success: next realm at its first stage, Qi zero, grade set, consolidation
-// spent. Failure: Half-step title, 25% of the bar lost, never a stage; pity
-// grows and Great Perfection (if entered) is kept.
+// spent, the key scroll (if one was needed) removed from the library. Failure: Half-step title, 25% of the bar lost,
+// never a stage; pity grows and Great Perfection (if entered) is kept.
 Result attempt(GameState& state);
 
 // Grade score entering `targetRealm` (DOC: consolidation 0-40 + Dao Heart
 // 0-25 + pills 0-20 + technique element 0-15; the Fallen clan heir adds 5 to
-// the Foundation grade). Pills and techniques add nothing yet.
+// the Foundation grade). Pills add nothing yet; the technique part is the
+// equipped manual's element matching the root.
 uint8_t gradeScore(const GameState& state, uint8_t targetRealm);
 
 // Bands (DOC): Foundation 1 Cracked, 2 Flawed, 3 Standard, 4 Perfect, 5

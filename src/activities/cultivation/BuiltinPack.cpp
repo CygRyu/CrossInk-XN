@@ -353,6 +353,279 @@ At sixteen the testing elder held your hand to the stone until it glowed a {$roo
 [chronicle.past]
 In a former life you turned {$past.pages} and finished {$past.books}.
 
+# --- Technique Scrolls (milestone 7) --------------------------------------
+# A scroll's name is "{scroll.name} {scroll.kind.<kind>} {scroll.tier.<tier>}",
+# expanded with the scroll's element as the theme (~wood ~fire ~earth ~metal
+# ~water) and stable picks, so it reads the same every time it is shown.
+
+[scroll.name]
+{scroll.adj} {scroll.image}
+{scroll.number} {scroll.heavens} {scroll.image}
+{scroll.image}-{scroll.verb}
+{scroll.color} {scroll.beast}
+{scroll.place}
+
+[scroll.adj]
+Solitary
+Boundless
+Silent
+Unyielding
+Ancient
+Profound
+Wandering
+Hidden
+Falling
+Still
+
+[scroll.number]
+Three
+Seven
+Nine
+Ten Thousand
+
+[scroll.heavens]
+Heavens
+Realms
+Peaks
+Rivers
+
+[scroll.verb]
+Severing
+Devouring
+Piercing
+Sealing
+Returning
+Splitting
+Shaking
+
+[scroll.image]
+{scroll.image.common}
+
+[scroll.image.common]
+Cloud
+Lotus
+Thunder
+Celestial
+Myriad Stars
+Mountain
+Moon
+Wind
+
+[scroll.image~water]
+Moon
+River
+Frost
+Cold Tide
+Autumn Rain
+{scroll.image.common}
+
+[scroll.image~fire]
+Sun
+Flame
+Ember
+Red Dawn
+Burning Cloud
+{scroll.image.common}
+
+[scroll.image~wood]
+Pine
+Bamboo
+Willow
+Spring
+Green Vine
+{scroll.image.common}
+
+[scroll.image~metal]
+Iron
+Bronze Bell
+West Wind
+Autumn
+Silver Frost
+{scroll.image.common}
+
+[scroll.image~earth]
+Stone
+Yellow Dust
+Boulder
+Great Plain
+{scroll.image.common}
+
+[scroll.color]
+Azure
+Crimson
+Jade
+Violet
+Golden
+
+[scroll.color~water]
+Black
+Azure
+Dark
+
+[scroll.color~fire]
+Crimson
+Vermilion
+Scarlet
+
+[scroll.color~wood]
+Jade
+Green
+Azure
+
+[scroll.color~metal]
+White
+Silver
+Pale
+
+[scroll.color~earth]
+Golden
+Yellow
+Ochre
+
+[scroll.beast]
+Dragon
+Phoenix
+Qilin
+Tortoise
+Crane
+
+[scroll.beast~water]
+Tortoise
+Serpent
+Dragon
+Crane
+
+[scroll.beast~fire]
+Phoenix
+Bird
+Lion
+Qilin
+
+[scroll.beast~wood]
+Dragon
+Deer
+Crane
+Phoenix
+
+[scroll.beast~metal]
+Tiger
+Crane
+Hawk
+Wolf
+
+[scroll.beast~earth]
+Qilin
+Ox
+Dragon
+Tortoise
+
+[scroll.place]
+Boundless Sea
+Lone Peak
+Hidden Valley
+Nine Bends River
+
+[scroll.place~water]
+Boundless Sea
+Still Lake
+Cold Pool
+Nine Bends River
+
+[scroll.place~fire]
+Burning Plain
+Red Cliff
+Furnace Peak
+Sunset Ridge
+
+[scroll.place~wood]
+Bamboo Grove
+Green Hill
+Spring Valley
+Pine Ridge
+
+[scroll.place~metal]
+Iron Gate
+Autumn Pass
+West Wind Pass
+Bell Tower
+
+[scroll.place~earth]
+Yellow Plain
+Stone Forest
+Lone Peak
+Hidden Valley
+
+[scroll.kind.sword]
+Sword
+Saber
+Blade
+
+[scroll.kind.palm]
+Palm
+Fist
+
+[scroll.kind.body]
+Body Refining
+Iron Skin
+Bone Forging
+
+[scroll.kind.movement]
+Shadow Steps
+Light Body
+Wind Steps
+
+[scroll.kind.mind]
+Heart
+Mind
+Spirit Sense
+
+[scroll.kind.manual]
+Qi Cultivation
+Breathing
+Meridian
+
+[scroll.tier.mortal]
+Method
+
+[scroll.tier.yellow]
+Art
+
+[scroll.tier.earth]
+Scripture
+
+[scroll.tier.heaven]
+Canon
+
+[scroll.tier.saint]
+True Classic
+
+# Chronicle lines for scrolls; {$scroll.name} is the scroll's name.
+
+[scroll.line.new]
+You finish the book by lamplight and write out what it taught you as the {$scroll.name}.
+You sit with the book closed for an hour, then copy out the {$scroll.name} before you forget a word of it.
+You spend the night writing out the {$scroll.name} and burn three candles down to the stub.
+You pay a copyist in {place.town} two taels for a clean copy of the {$scroll.name}.
+You sew your notes into a cover of oiled cloth and write the {$scroll.name} on the spine.
+You buy good paper in {place.town} and spend three evenings copying out the {$scroll.name}.
+You go over the book until you can recite it, then write down what it taught you as the {$scroll.name}.
+You read the last chapter twice, then start a fair copy of the {$scroll.name} before breakfast.
+
+[scroll.line.reread]
+You go through the {$scroll.name} a second time and fill its margins with corrections.
+Reading it again, you find the mistakes in your copy of the {$scroll.name} and put them right.
+On a second reading the {$scroll.name} makes sense in places it never did before.
+
+[scroll.line.sold]
+You sell the {$scroll.name} to a book dealer in {place.town}, who pays without haggling.
+Your shelves are full, so the {$scroll.name} goes to a dealer from {place.town}.
+A travelling cultivator buys the {$scroll.name} from you and leaves before dawn.
+
+[scroll.line.key]
+The {$scroll.name} has nothing more to teach you, and you burn it after the breakthrough as the old rule says.
+You break through on what the {$scroll.name} taught you, and its pages are worn too thin to read again.
+You burn the {$scroll.name} in the courtyard after the breakthrough; you know it by heart and need it no longer.
+
 # --- Sample event (exploration arrives in a later milestone) ---------------
 
 [ruin.desc]

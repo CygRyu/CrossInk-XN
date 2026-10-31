@@ -18,6 +18,7 @@
 #include "Breakthrough.h"
 #include "Chronicle.h"
 #include "CultivationActivity.h"
+#include "CultivationUi.h"
 #include "GameValues.h"
 #include "MappedInputManager.h"
 #include "Rng.h"
@@ -127,6 +128,18 @@ void nameOf(const GameState& state, char out[kNameMaxBytes + 1]) {
 
 }  // namespace
 
+namespace cultivation {
+namespace ui {
+const char* realmName(const uint8_t realm) { return text(kRealmNames[realm < kMortalRealmCount ? realm : 0]); }
+const char* elementName(const Element e) {
+  return text(kElementNames[static_cast<int>(e) < static_cast<int>(Element::Count) ? static_cast<int>(e) : 2]);
+}
+void formatPermille(char* buf, const size_t len, const uint32_t permille) {
+  snprintf(buf, len, "x%u.%02u", static_cast<unsigned>(permille / 1000), static_cast<unsigned>((permille % 1000) / 10));
+}
+}  // namespace ui
+}  // namespace cultivation
+
 // --- Lifecycle ------------------------------------------------------------------
 
 void CultivationActivity::onEnter() {
@@ -168,6 +181,8 @@ void CultivationActivity::onEnter() {
 }
 
 void CultivationActivity::onExit() {
+  library_.reset();
+  news_.reset();
   chronicle_.reset();
   lifeLog_.reset();
   grammar_.reset();  // the engine reads through packs_, so it goes first
@@ -247,12 +262,22 @@ void CultivationActivity::startVisit() {
   // visit rebuilds the same lines and chronicle::appendVisit() skips them.
   const bool summary = visitSeconds_ > 0 && !visitReset_;
   if (summary) writeLifeLog(change);
+  // Books finished since the last visit become scrolls (Chronicle lines first,
+  // like the life log). minted.bin and the pending list are only updated
+  // once the save holds the new scrolls, so a failed save mints them again.
+  auto minting = mintScrolls();
   persist();
+  if (minting && !saveFailed_) finishMinting(*minting);
+  minting.reset();
   chronicleExists_ = chronicle::exists();
   refreshActions();
   summaryPage_ = 0;
   summaryPages_[0] = 0;
-  screen_ = summary ? Screen::Summary : Screen::Cultivator;
+  if (summary) {
+    screen_ = Screen::Summary;
+  } else {
+    afterSummary();
+  }
 }
 
 // Builds the visit's life log for the Return summary and appends it to the
@@ -277,7 +302,7 @@ void CultivationActivity::leaveSummary() {
     RenderLock lock(*this);
     lifeLog_.reset();
     selected_ = 0;
-    screen_ = Screen::Cultivator;
+    afterSummary();
   }
   requestUpdate();
 }
@@ -303,6 +328,7 @@ void CultivationActivity::refreshActions() {
     // Shown even when a key is missing: the Breakthrough screen says which.
     if (atBottleneck(*state_)) actions_[actionCount_++] = Action::Breakthrough;
     if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
+    actions_[actionCount_++] = Action::Techniques;
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
   if (selected_ >= actionCount_) selected_ = 0;
@@ -311,9 +337,15 @@ void CultivationActivity::refreshActions() {
 void CultivationActivity::runAction() {
   if (selected_ < 0 || selected_ >= actionCount_) return;
   switch (actions_[selected_]) {
-    case Action::Breakthrough:
+    case Action::Breakthrough: {
+      RenderLock lock(*this);
+      prepareKeyName();
       screen_ = Screen::Breakthrough;
+    }
       requestUpdate();
+      return;
+    case Action::Techniques:
+      openTechniques();
       return;
     case Action::GreatPerfection:
       screen_ = Screen::GreatPerfection;
@@ -337,6 +369,10 @@ void CultivationActivity::attemptBreakthrough() {
     outcome_ = breakthrough::attempt(*state_);
     outcomeKind_ = outcome_.success ? OutcomeKind::BreakthroughSuccess : OutcomeKind::BreakthroughFailure;
     recordOutcome(outcome_.success ? "log.breakthrough" : "log.failure", seed);
+    if (outcome_.keyUsed) {  // the Chronicle records which scroll opened which realm
+      scrollName(outcome_.key, nameBuf_, sizeof(nameBuf_));
+      appendScrollLine("scroll.line.key", outcome_.key);
+    }
     LOG_INF("CULT", "Breakthrough into realm %u: roll %u, chance %u, %s", static_cast<unsigned>(outcome_.toRealm),
             static_cast<unsigned>(outcome_.roll), static_cast<unsigned>(outcome_.chance),
             outcome_.success ? "success" : "failure");
@@ -411,6 +447,7 @@ void CultivationActivity::finishCreation() {
       LOG_ERR("CULT", "Could not keep the damaged save aside");
     }
   }
+  scrollstore::clearForNewLife();                    // books finished before this life give nothing (baseline rule)
   chronicle::writeOpening(*state_, grammar_.get());  // a new chapter; the book's title too if it is new
   if (packs_) packs_->closeFile();
   chronicleExists_ = chronicle::exists();
@@ -531,6 +568,56 @@ void CultivationActivity::loop() {
       }
       return;
     }
+
+    case Screen::ScrollNews:
+      if (back || confirm) {
+        if (confirm && news_ && news_->next > news_->pageStarts[news_->page] && news_->next < news_->count &&
+            news_->page + 1 < static_cast<int>(sizeof(news_->pageStarts))) {
+          RenderLock lock(*this);
+          news_->pageStarts[++news_->page] = news_->next;
+        } else {
+          leaveScrollNews();
+        }
+        requestUpdate();
+      } else if (down && news_ && news_->next < news_->count && news_->next > news_->pageStarts[news_->page] &&
+                 news_->page + 1 < static_cast<int>(sizeof(news_->pageStarts))) {
+        RenderLock lock(*this);
+        news_->pageStarts[++news_->page] = news_->next;
+        requestUpdate();
+      } else if (up && news_ && news_->page > 0) {
+        RenderLock lock(*this);
+        --news_->page;
+        requestUpdate();
+      }
+      return;
+
+    case Screen::BetterManual:
+      if (confirm) {
+        equipBetterManual();
+      } else if (back) {
+        betterManualHash_ = 0;
+        screen_ = Screen::Cultivator;
+        requestUpdate();
+      }
+      return;
+
+    case Screen::Techniques:
+      handleTechniques(back, confirm, up, down);
+      return;
+
+    case Screen::ScrollDetail:
+      handleScrollDetail(back, confirm, up, down);
+      return;
+
+    case Screen::SellConfirm:
+      if (confirm) {
+        sellSelected();
+      } else if (back) {
+        selected_ = 0;
+        screen_ = Screen::ScrollDetail;
+        requestUpdate();
+      }
+      return;
 
     case Screen::Name:
       if (back) {
@@ -687,6 +774,10 @@ void CultivationActivity::render(RenderLock&&) {
     title =
         outcomeKind_ == OutcomeKind::EnteredGreatPerfection ? tr(STR_CULT_GREAT_PERFECTION) : tr(STR_CULT_BREAKTHROUGH);
   }
+  if (screen_ == Screen::ScrollNews) title = tr(STR_CULT_SCROLLS_TITLE);
+  if (screen_ == Screen::BetterManual) title = tr(STR_CULT_BETTER_MANUAL);
+  if (screen_ == Screen::Techniques || screen_ == Screen::ScrollDetail) title = tr(STR_CULT_TECHNIQUES);
+  if (screen_ == Screen::SellConfirm) title = tr(STR_CULT_SELL);
   char chronicleTitle[48];
   if (screen_ == Screen::Chronicle && chronicle_) {
     snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_TITLE_FORMAT),
@@ -760,6 +851,38 @@ void CultivationActivity::render(RenderLock&&) {
       confirmLabel = "";
       upLabel = chronicle_ && chronicle_->depth > 0 ? tr(STR_CULT_PREVIOUS) : "";
       downLabel = chronicle_ && chronicle_->more ? tr(STR_CULT_NEXT) : "";
+      break;
+    case Screen::ScrollNews: {
+      renderScrollNews(x, top, width, bottom);
+      const bool more = news_ && news_->next < news_->count && news_->next > news_->pageStarts[news_->page];
+      confirmLabel = more ? tr(STR_CULT_NEXT) : tr(STR_CULT_CONTINUE);
+      upLabel = news_ && news_->page > 0 ? tr(STR_CULT_PREVIOUS) : "";
+      downLabel = more ? tr(STR_CULT_NEXT) : "";
+      break;
+    }
+    case Screen::BetterManual:
+      renderBetterManual(x, top, width);
+      confirmLabel = tr(STR_CULT_EQUIP);
+      upLabel = "";
+      downLabel = "";
+      break;
+    case Screen::Techniques:
+      renderTechniques(x, top, width, bottom);
+      confirmLabel = library_ && library_->count > 0 ? tr(STR_SELECT) : "";
+      upLabel = library_ && library_->count > 1 ? tr(STR_DIR_UP) : "";
+      downLabel = library_ && library_->count > 1 ? tr(STR_DIR_DOWN) : "";
+      break;
+    case Screen::ScrollDetail:
+      renderScrollDetail(x, top, width, bottom);
+      confirmLabel = detailActionCount_ > 0 ? tr(STR_SELECT) : "";
+      upLabel = detailActionCount_ > 1 ? tr(STR_DIR_UP) : "";
+      downLabel = detailActionCount_ > 1 ? tr(STR_DIR_DOWN) : "";
+      break;
+    case Screen::SellConfirm:
+      renderSellConfirm(x, top, width);
+      confirmLabel = tr(STR_CULT_SELL);
+      upLabel = "";
+      downLabel = "";
       break;
     case Screen::Error:
       drawWrapped(UI_10_FONT_ID, x, top, width, tr(STR_CULT_OUT_OF_MEMORY), 4);
@@ -944,7 +1067,15 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
-  formatRate(line, sizeof(line), qiMultiplierPermille(s));
+  const uint32_t rate = qiMultiplierPermille(s);
+  if (scrolls::equippedManual(s) >= 0) {
+    const uint32_t manual = scrolls::equippedManualPermille(s);
+    snprintf(line, sizeof(line), tr(STR_CULT_QI_RATE_MANUAL_FORMAT), static_cast<unsigned>(rate / 1000),
+             static_cast<unsigned>((rate % 1000) / 10), static_cast<unsigned>(manual / 1000),
+             static_cast<unsigned>((manual % 1000) / 10));
+  } else {
+    formatRate(line, sizeof(line), rate);
+  }
   renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
@@ -979,13 +1110,25 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
     return room < wanted ? (room > 0 ? room : 0) : wanted;
   };
 
+  // The rumor keeps its room (in the small font) on the busiest screens:
+  // the "no reading" note is the first thing to give way (found in the
+  // simulator with four actions, a title line and a Half-step bar).
+  int rumorReserve = 0;
+  if (rumor_[0] != '\0') {
+    snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
+    rumorReserve = static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, line, width, 5).size()) * smallLine +
+                   metrics.verticalSpacing * 2;
+  }
+
   // What this visit brought.
   if (justCreated_) {
     y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_WELCOME), 3);
   } else if (visitReset_) {
     y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_RESET), 3);
   } else if (visitSeconds_ == 0) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_NONE), 3);
+    const int needed =
+        static_cast<int>(renderer.wrappedText(UI_10_FONT_ID, tr(STR_CULT_VISIT_NONE), width, 3).size()) * textLine;
+    if (y + needed + rumorReserve <= listTop) y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_NONE), 3);
   }  // otherwise the Return summary already showed what this visit brought
   if (originGift_.stones > 0 || originGift_.hp > 0) {
     if (originGift_.hp > 0) {
@@ -1030,6 +1173,8 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
                        return tr(STR_CULT_ACTION_BREAKTHROUGH);
                      case Action::GreatPerfection:
                        return tr(STR_CULT_ACTION_GREAT_PERFECTION);
+                     case Action::Techniques:
+                       return tr(STR_CULT_ACTION_TECHNIQUES);
                      case Action::Chronicle:
                        return tr(STR_CULT_ACTION_CHRONICLE);
                    }
@@ -1067,6 +1212,10 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
     snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_CONSOLIDATION_FORMAT), static_cast<unsigned>(c.consolidation));
     part(line);
   }
+  if (c.element > 0) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_ELEMENT_FORMAT), static_cast<unsigned>(c.element));
+    part(line);
+  }
   if (c.pity > 0) {
     snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_PITY_FORMAT), static_cast<unsigned>(s.progress.failures),
              static_cast<unsigned>(c.pity));
@@ -1075,9 +1224,20 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
   y += metrics.verticalSpacing;
 
   if (c.needsKey && !c.hasKey) {
-    snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_FORMAT), text(kRealmNames[c.target]));
+    const scrolls::Tier need = scrolls::keyTierFor(c.target);
+    static const uint8_t kTierHours[] = {0, 3, 8, 15, 25};
+    if (need == scrolls::Tier::Mortal) {
+      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_ANY_FORMAT), text(kRealmNames[c.target]));
+    } else {
+      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_TIER_FORMAT), text(kRealmNames[c.target]),
+               cultivation::ui::tierName(need), static_cast<unsigned>(kTierHours[static_cast<int>(need)]));
+    }
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5);
   } else {
+    if (c.needsKey && nameBuf_[0] != '\0') {
+      snprintf(line, sizeof(line), tr(STR_CULT_KEY_FORMAT), nameBuf_);
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + metrics.verticalSpacing;
+    }
     y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_BREAKTHROUGH_RISK), 4);
   }
   if (breakthrough::canEnterGreatPerfection(s)) {
@@ -1127,6 +1287,10 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
       outcome_.grade >= 1 && outcome_.grade <= 5) {
     snprintf(line, sizeof(line), tr(STR_CULT_FOUNDATION_FORMED_FORMAT), text(kFoundationGrades[outcome_.grade - 1]),
              static_cast<unsigned>(outcome_.gradeScore));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  }
+  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.keyUsed && nameBuf_[0] != '\0') {
+    snprintf(line, sizeof(line), tr(STR_CULT_KEY_USED_FORMAT), nameBuf_);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughFailure) {

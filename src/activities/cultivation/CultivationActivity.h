@@ -13,19 +13,26 @@
 #include "Grammar.h"
 #include "LifeLog.h"
 #include "PackStore.h"
+#include "ScrollNames.h"
+#include "ScrollStore.h"
+#include "Scrolls.h"
 #include "Simulation.h"
 #include "activities/Activity.h"
 
 // Path of Immortal Reading: character creation, the Return summary, the
 // Cultivator screen with its actions (breakthrough, Great Perfection,
-// Chronicle), the breakthrough screens and the Chronicle viewer.
+// techniques, Chronicle), the breakthrough screens, the Technique Scroll
+// screens (CultivationScrollScreens.cpp) and the Chronicle viewer.
 //
 // Memory: the ~1 KB GameState is allocated in onEnter() with
 // makeUniqueNoThrow and freed in onExit(), so the game costs nothing while it
 // is closed. It is too large for the stack, and a static would hold DRAM for
 // the whole session. Two more blocks live only while their screen is open:
 // the visit's life log (~1.6 KB, Return summary) and the Chronicle viewer's
-// page history (~2 KB). Everything else is a few dozen bytes of members.
+// page history (~2 KB). Technique Scrolls add, only while their screen is
+// open: the visit's scroll news (~0.8 KB), the minting work list (~0.5 KB,
+// during the visit's start) and the library list with one page of names
+// (~1 KB). Everything else is a few hundred bytes of members.
 class CultivationActivity final : public Activity {
  public:
   CultivationActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -48,10 +55,15 @@ class CultivationActivity final : public Activity {
     GreatPerfection,  // what staying at the peak does; Confirm enters it
     Outcome,          // the result of either, with its Chronicle line
     Chronicle,
+    ScrollNews,    // scrolls minted, improved or sold this visit
+    BetterManual,  // a new manual beats the equipped one: offer to equip it
+    Techniques,    // the library
+    ScrollDetail,  // one scroll: equip, unequip, sell
+    SellConfirm,   // selling cannot be undone
     Error
   };
   // What the Cultivator screen's list offers right now.
-  enum class Action : uint8_t { Breakthrough, GreatPerfection, Chronicle };
+  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Chronicle };
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection };
 
   // Visit
@@ -68,6 +80,34 @@ class CultivationActivity final : public Activity {
   void attemptBreakthrough();
   void enterGreatPerfection();
   void recordOutcome(const char* listKey, uint32_t seed);
+
+  // Technique Scrolls (CultivationScrollScreens.cpp)
+  // One visit's finished books (~0.5 KB, only while the visit starts): the
+  // pending records, then the title hashes minted, for minted.bin once saved.
+  struct MintWork {
+    cultivation::scrolls::BookRecord books[cultivation::scrollstore::kMaxPending];
+    uint32_t minted[cultivation::scrollstore::kMaxPending] = {};
+    uint8_t mintedCount = 0;
+  };
+  std::unique_ptr<MintWork> mintScrolls();
+  void finishMinting(MintWork& work);
+  void appendScrollLine(const char* listKey, const cultivation::scrolls::Scroll& s);
+  void scrollName(const cultivation::scrolls::Scroll& s, char* out, size_t len);
+  void afterSummary();
+  void leaveScrollNews();
+  void openTechniques();
+  void closeTechniques();
+  void sortLibrary();
+  void loadLibraryNames(bool force);
+  int libraryRows() const;
+  int selectedSlot() const;
+  void handleTechniques(bool back, bool confirm, bool up, bool down);
+  void handleScrollDetail(bool back, bool confirm, bool up, bool down);
+  void refreshDetailActions();
+  void sellSelected();
+  void equipBetterManual();
+  void prepareKeyName();
+  void scrollAttributes(const cultivation::scrolls::Scroll& s, char* out, size_t len) const;
 
   // Input per screen
   void handleList(int count, bool up, bool down);
@@ -91,6 +131,11 @@ class CultivationActivity final : public Activity {
   void renderOutcome(int x, int y, int width);
   void stageText(char* out, size_t len) const;
   void renderChronicle(int x, int y, int width, int bottom);
+  void renderScrollNews(int x, int y, int width, int bottom);
+  void renderBetterManual(int x, int y, int width);
+  void renderTechniques(int x, int y, int width, int bottom);
+  void renderScrollDetail(int x, int y, int width, int bottom);
+  void renderSellConfirm(int x, int y, int width);
 
   Screen screen_ = Screen::Error;
   int selected_ = 0;
@@ -137,8 +182,42 @@ class CultivationActivity final : public Activity {
   std::unique_ptr<ChronicleView> chronicle_;
   bool chronicleExists_ = false;
 
+  // Technique Scrolls. The visit's news, freed when its screen is left.
+  struct ScrollNews {
+    static constexpr uint8_t kMax = 8;  // shown; any more are still in the Chronicle
+    cultivation::scrolls::Event events[kMax];
+    char names[kMax][cultivation::scrollnames::kNameSize] = {};
+    uint8_t count = 0;
+    uint8_t hidden = 0;
+    uint8_t soldHidden = 0;  // auto-sales past kMax: never only "more in the Chronicle"
+    uint32_t soldHiddenStones = 0;
+    bool overflow = false;  // more books were waiting than one visit takes; the rest wait
+    uint8_t pageStarts[kMax + 1] = {};
+    uint8_t page = 0;
+    uint8_t next = 0;  // first event of the next page, set while drawing
+  };
+  std::unique_ptr<ScrollNews> news_;
+  uint32_t betterManualHash_ = 0;  // a manual minted this visit that beats the equipped one
+
+  // The library screen: slots in display order and the names of one page.
+  struct LibraryView {
+    static constexpr uint8_t kMaxRows = 12;
+    uint8_t order[cultivation::scrolls::kCapacity] = {};
+    uint8_t count = 0;
+    int pageLoaded = -1;
+    char names[kMaxRows][cultivation::scrollnames::kNameSize] = {};
+    char manualName[cultivation::scrollnames::kNameSize] = {};  // the equipped manual's
+  };
+  std::unique_ptr<LibraryView> library_;
+  int librarySelected_ = 0;  // position in library_->order
+  enum class DetailAction : uint8_t { Equip, Unequip, Sell };
+  DetailAction detailActions_[2] = {};
+  uint8_t detailActionCount_ = 0;
+  char nameBuf_[cultivation::scrollnames::kNameSize] = {};  // key, better manual or selected scroll
+  char notice_[200] = {};                                   // one line after selling, equipping ...
+
   // Cultivator actions and the last breakthrough or Great Perfection outcome.
-  Action actions_[3] = {};
+  Action actions_[4] = {};
   uint8_t actionCount_ = 0;
   OutcomeKind outcomeKind_ = OutcomeKind::BreakthroughSuccess;
   cultivation::breakthrough::Result outcome_;

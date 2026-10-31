@@ -32,10 +32,14 @@ static const char* const kOriginLists[static_cast<int>(Origin::Count)] = {
 struct LineValues {
   const GameState* state;
   uint32_t season;
+  const GrammarValues* extra = nullptr;
 };
 
 bool lookupLineValue(const void* user, const char* name, const size_t len, char* out, const size_t outLen) {
   const auto* v = static_cast<const LineValues*>(user);
+  if (v->extra != nullptr && v->extra->lookup != nullptr && v->extra->lookup(v->extra->user, name, len, out, outLen)) {
+    return true;
+  }
   if (len == 6 && memcmp(name, "season", 6) == 0) {
     snprintf(out, outLen, "%s", kSeasonProse[seasonInYear(v->season)]);
     return true;
@@ -216,8 +220,8 @@ SeasonPick seasonPick(const GameState& state, const uint32_t season, const Gramm
 }
 
 bool eventLine(Line& line, const LineKind kind, const char* key, const uint32_t seed, const GameState& state,
-               Grammar& grammar) {
-  LineValues values{&state, seasonOf(state.progress.ageMonths)};
+               Grammar& grammar, const GrammarValues* extra) {
+  LineValues values{&state, seasonOf(state.progress.ageMonths), extra};
   GrammarContext ctx;
   ctx.values.lookup = lookupLineValue;
   ctx.values.user = &values;

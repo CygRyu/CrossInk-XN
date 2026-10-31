@@ -1,37 +1,68 @@
 --- a/src/activities/cultivation/CultivationActivity.cpp
 +++ b/src/activities/cultivation/CultivationActivity.cpp
-@@ -127,6 +127,30 @@
+@@ -128,6 +128,61 @@
  
  }  // namespace
  
-+
 +#ifdef SIMULATOR
-+// TEST HOOK, applied only to a scratch copy by tools/cultivation/sim/simbuild.py: CULT_SIM_READ_MINUTES
-+// adds that much reading to CrossInk's own stats before the visit, as if the
-+// player had read, through GlobalReadingStats itself.
++// TEST HOOK, applied only to a scratch copy by tools/cultivation/sim/simbuild.py.
++// CULT_SIM_READ_MINUTES adds that much reading to CrossInk's own stats before
++// the visit, as if the player had read, through GlobalReadingStats itself.
++// CULT_SIM_FINISH_BOOKS="Title:minutes:bucket:percent;..." marks books as
++// finished through the real CultivationHooks call (bucket 0-3 Morning..Night,
++// 4 = spread evenly); a title starting with '-' marks it unfinished instead.
 +#include <cstdlib>
++#include "CultivationHooks.h"
++#include "activities/reader/BookReadingStats.h"
 +#include "activities/reader/GlobalReadingStats.h"
 +static void simAddReading() {
 +  const char* v = std::getenv("CULT_SIM_READ_MINUTES");
-+  if (v == nullptr) return;
-+  const uint32_t seconds = static_cast<uint32_t>(std::strtoul(v, nullptr, 10)) * 60u;
-+  GlobalReadingStats g = GlobalReadingStats::load();
-+  g.totalReadingSeconds += seconds;
-+  g.totalPagesTurned += seconds / 40u;
-+  g.totalSessions += 1;
-+  const StatsSample now = readLocalStats();
-+  const uint32_t weekday = now.today != StatsSnapshot::kNoDay ? (5u + now.today) % 7u : 0u;
-+  g.dayOfWeekSeconds[weekday] += seconds;
-+  g.timeOfDaySeconds[2] += seconds;
-+  g.save();
-+  LOG_INF("CULT", "SIM: added %lu reading seconds", static_cast<unsigned long>(seconds));
++  if (v != nullptr) {
++    const uint32_t seconds = static_cast<uint32_t>(std::strtoul(v, nullptr, 10)) * 60u;
++    GlobalReadingStats g = GlobalReadingStats::load();
++    g.totalReadingSeconds += seconds;
++    g.totalPagesTurned += seconds / 40u;
++    g.totalSessions += 1;
++    const StatsSample now = readLocalStats();
++    const uint32_t weekday = now.today != StatsSnapshot::kNoDay ? (5u + now.today) % 7u : 0u;
++    g.dayOfWeekSeconds[weekday] += seconds;
++    g.timeOfDaySeconds[2] += seconds;
++    g.save();
++    LOG_INF("CULT", "SIM: added %lu reading seconds", static_cast<unsigned long>(seconds));
++  }
++  const char* books = std::getenv("CULT_SIM_FINISH_BOOKS");
++  if (books == nullptr) return;
++  std::string all(books);
++  size_t start = 0;
++  while (start < all.size()) {
++    size_t end = all.find(';', start);
++    if (end == std::string::npos) end = all.size();
++    const std::string item = all.substr(start, end - start);
++    start = end + 1;
++    const size_t a = item.find(':');
++    const size_t b = item.find(':', a + 1);
++    const size_t c = item.find(':', b + 1);
++    if (a == std::string::npos || b == std::string::npos || c == std::string::npos) continue;
++    std::string title = item.substr(0, a);
++    const bool completed = title.empty() || title[0] != '-';
++    if (!completed) title.erase(0, 1);
++    BookReadingStats stats;
++    stats.totalReadingSeconds = static_cast<uint32_t>(std::strtoul(item.c_str() + a + 1, nullptr, 10)) * 60u;
++    const int bucket = std::atoi(item.c_str() + b + 1);
++    for (int i = 0; i < 4; ++i) {
++      if (bucket == i) stats.timeOfDaySeconds[i] = stats.totalReadingSeconds;
++      if (bucket > 3) stats.timeOfDaySeconds[i] = stats.totalReadingSeconds / 4;
++    }
++    CultivationHooks::onBookCompletionChanged(title, stats, completed, std::strtof(item.c_str() + c + 1, nullptr));
++    LOG_INF("CULT", "SIM: book '%s' %s", title.c_str(), completed ? "finished" : "unfinished");
++  }
 +}
 +#endif
 +
- // --- Lifecycle ------------------------------------------------------------------
- 
- void CultivationActivity::onEnter() {
-@@ -146,6 +170,9 @@
+ namespace cultivation {
+ namespace ui {
+ const char* realmName(const uint8_t realm) { return text(kRealmNames[realm < kMortalRealmCount ? realm : 0]); }
+@@ -159,6 +214,9 @@
    }
  
    loadPacks();

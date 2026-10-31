@@ -115,6 +115,12 @@ TUNING = {
     "pill_grade_points": 10,           # typical pill contribution to grade score
     "breakthrough_pill_bonus": 15,     # DOC range +10..+25; typical value
     "pill_key_hours": 3.0,             # reading hours in-realm to brew a breakthrough pill as key
+    "pill_keys": True,                 # breakthrough pills exist (alchemy, a later milestone; not in firmware yet)
+    # Milestone 7 (user, session 3): a bottleneck needs a Technique Scroll of at least this tier, from any
+    # realm, spent on success. Index = the realm being entered; None = no key (the small bottleneck).
+    "key_tier_by_target": [None, None, 0, 1, 2, 3, 3, 3, 3, 3],
+    "manual_pity": 4,                  # if none of the last 4 minted scrolls was a manual, the next one is
+    "min_book_hours": 0.5,             # books read under 30 minutes give no scroll
     "dao_heart_full_hours": 15,        # decision 2B: Dao Heart 100 after 15 h read, never decays
     "flowing_water_unlock_night_h": 5,  # DOC
     "dao_time_of_day_unlock_any_h": 40,  # DOC
@@ -262,7 +268,10 @@ class Character:
         self.consolidation = 0.0
         self.failures = 0
         self.manual_mult = 1.0          # best equipped Cultivation manual
-        self.unused_scroll_this_realm = False
+        self.manual_tier = None         # its tier, so it can become a spare scroll when replaced
+        self.spare_scrolls = []         # tiers of unequipped scrolls (keys); techniques are kept unequipped
+        self.since_manual = 0
+        self.waiting_key = False        # full Peak bar, no key (only without pill keys)
         self.hours = 0.0               # all reading hours (drives age)
         self.qual_minutes_week = 0.0
         self.bucket_h = [0.0] * 4
@@ -338,7 +347,6 @@ class Character:
     def _enter_realm(self, r: int, day: float):
         t = TUNING
         self.realm, self.stage, self.qi = r, 0, 0.0
-        self.unused_scroll_this_realm = False
         self.extra_cost = 0.0
         if self.mode == "modeled":
             pts = t["meridian_points_per_realm"][r]
@@ -390,10 +398,20 @@ class Character:
             c = max(c, min(t["pity_cap"], c + t["pity_per_failure"] * self.failures))
         return c
 
+    def scroll_key(self, target: int):
+        """Index of the spare scroll the firmware would spend (lowest qualifying tier), or None."""
+        need = TUNING["key_tier_by_target"][target]
+        if need is None:
+            return None
+        fits = [i for i, t in enumerate(self.spare_scrolls) if t >= need]
+        return min(fits, key=lambda i: self.spare_scrolls[i]) if fits else None
+
     def has_key(self, target: int, hours_in_realm: float) -> bool:
-        if target <= 1:   # small bottleneck into Qi Condensation needs no key
+        if TUNING["key_tier_by_target"][target] is None:   # small bottleneck into Qi Condensation needs no key
             return True
-        return self.unused_scroll_this_realm or hours_in_realm >= TUNING["pill_key_hours"]
+        if self.scroll_key(target) is not None:
+            return True
+        return TUNING["pill_keys"] and hours_in_realm >= TUNING["pill_key_hours"]
 
     # -- the reading loop ----------------------------------------------------
     def new_day(self, day: int):
@@ -425,6 +443,8 @@ class Character:
         while left > 1e-9 and not self.done:
             cap_factor, until_cap_change = soft_cap_factor(self.qual_minutes_week)
             rate = t["qi_per_minute"] * self.multiplier(bucket) * cap_factor   # Qi per minute
+            if self.waiting_key:   # a full bar waiting for a scroll: reading only finishes books
+                rate = 0.0
             book_left_min = (self.book.hours - self.book.read_h) * 60
             need_qi = self.current_need() - self.qi
             to_event = need_qi / rate if rate > 0 else math.inf
@@ -433,7 +453,9 @@ class Character:
             left -= step
             if self.book.read_h >= self.book.hours - 1e-9:
                 self._finish_book()
-            if self.qi >= self.current_need() - 1e-6:
+                if self.waiting_key and self.has_key(self.realm + 1, 0.0):
+                    self.waiting_key = False
+            if self.qi >= self.current_need() - 1e-6 and not self.waiting_key:
                 self._complete_stage(day + (minutes - left) / (24 * 60))
 
     def _advance(self, bucket: int, minutes: float, rate: float):
@@ -455,12 +477,23 @@ class Character:
         t = TUNING
         b = self.book
         self.books_finished += 1
-        self.unused_scroll_this_realm = True
-        if TECHNIQUE_KINDS[b.kind] == "Cultivation":
-            lo, hi = t["manual_quality_range"]
-            q = lo + (hi - lo) * (b.comprehension - t["comprehension_range"][0]) / (
-                t["comprehension_range"][1] - t["comprehension_range"][0])
-            self.manual_mult = max(self.manual_mult, t["manual_tier_mult"][scroll_tier(b.hours)] * q)
+        if b.hours >= t["min_book_hours"]:
+            tier = scroll_tier(b.hours)
+            kind = TECHNIQUE_KINDS.index("Cultivation") if self.since_manual >= t["manual_pity"] else b.kind
+            self.since_manual = 0 if TECHNIQUE_KINDS[kind] == "Cultivation" else self.since_manual + 1
+            if TECHNIQUE_KINDS[kind] == "Cultivation":
+                lo, hi = t["manual_quality_range"]
+                q = lo + (hi - lo) * (b.comprehension - t["comprehension_range"][0]) / (
+                    t["comprehension_range"][1] - t["comprehension_range"][0])
+                mult = t["manual_tier_mult"][tier] * q
+                if mult > self.manual_mult:   # equip the better manual; the old one becomes a spare scroll
+                    if self.manual_tier is not None:
+                        self.spare_scrolls.append(self.manual_tier)
+                    self.manual_mult, self.manual_tier = mult, tier
+                else:
+                    self.spare_scrolls.append(tier)
+            else:
+                self.spare_scrolls.append(tier)
         self.book = self._new_book()
 
     def _complete_stage(self, when_day: float):
@@ -490,6 +523,9 @@ class Character:
                 when_day += extra * 60 / max(1e-9, self._minutes_per_day())
                 hours_in_realm += extra
             if not self.has_key(r + 1, hours_in_realm):
+                if not TUNING["pill_keys"]:   # wait, reading, until a book gives a scroll of the tier
+                    self.waiting_key = True
+                    return
                 wait = TUNING["pill_key_hours"] - hours_in_realm
                 self.hours += wait
                 when_day += wait * 60 / max(1e-9, self._minutes_per_day())
@@ -498,6 +534,9 @@ class Character:
                 self.failures += 1
                 self.qi = need * (1 - TUNING["failure_bar_loss"])
                 return
+            key = self.scroll_key(r + 1)
+            if key is not None:   # a scroll is spent only on success; otherwise a pill was the key
+                self.spare_scrolls.pop(key)
             self._set_grade(r + 1)
         else:
             rec.attempts += 1
@@ -652,6 +691,21 @@ def fairness(runs: int, seed: int, gp_linger: float, w):
         weeks = statistics.median([max(1, c.day) / 7 for c in cs])
         earned = statistics.median([c.stamina_earned for c in cs]) / weeks
         w(f"    {cmp[k].name:<38}{earned:>6.1f}/week earned\n")
+
+    w("  Keys (milestone 7: a scroll of the tier, from any realm, spent on success):\n")
+    for label, pills, median in (("with pill keys (alchemy, later)", True, 9.0),
+                                 ("scrolls only, typical books (9 h)", False, 9.0),
+                                 ("scrolls only, short books (4 h)", False, 4.0)):
+        saved = (TUNING["pill_keys"], TUNING["book_hours_median"])
+        TUNING["pill_keys"], TUNING["book_hours_median"] = pills, median
+        try:
+            r30 = summarize(simulate(PROFILES["30/day"], "modeled", runs, seed, gp_linger))
+        finally:
+            TUNING["pill_keys"], TUNING["book_hours_median"] = saved
+        hours = statistics.median(r30["total_hours"]) if r30["total_hours"] else float("nan")
+        stuck = [len(c.records) - 1 for c in r30["chars"] if not c.done]
+        where = f", the rest stop in realm {statistics.median(stuck):.0f}" if stuck else ""
+        w(f"    30 min/day, {label:<34}{hours:>6.0f} h, {r30['done']}/{runs} finish in 40 y{where}\n")
 
     ppm_slow, ppm_fast = 0.7, 1.4
     slow = stones_for_visit(30, 30 * ppm_slow)

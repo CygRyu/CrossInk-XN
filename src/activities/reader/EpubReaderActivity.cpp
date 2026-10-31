@@ -54,6 +54,10 @@
 #include "ProgressMapper.h"
 #include "QrDisplayActivity.h"
 #include "QuickActions.h"
+#include "activities/cultivation/CultivationConfig.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivationHooks.h"
+#endif
 #include "ReaderFontLoading.h"
 #include "ReaderUtils.h"
 #include "ReadingSessionStats.h"
@@ -5651,6 +5655,11 @@ void EpubReaderActivity::setBookCompleted(bool isCompleted) {
       globalStats.completedBooks--;
     }
     globalStats.save();
+#if CROSSINK_CULTIVATION
+    CultivationHooks::onBookCompletionChanged(epub->getTitle(), stats, isCompleted, getCurrentBookProgressPercent(),
+                                              sessionReadingSeconds,
+                                              hasSessionStartLocalDateTime ? &sessionStartLocalDateTime : nullptr);
+#endif
   }
 }
 

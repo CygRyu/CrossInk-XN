@@ -42,6 +42,8 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/BuiltinPack.cpp
   ${CULTIVATION_SRC}/LifeLog.cpp
   ${CULTIVATION_SRC}/Breakthrough.cpp
+  ${CULTIVATION_SRC}/Scrolls.cpp
+  ${CULTIVATION_SRC}/ScrollNames.cpp
 )
 
 add_executable(CultivationCoreTest
@@ -53,9 +55,11 @@ add_executable(CultivationCoreTest
   PackStoreTest.cpp
   LifeLogTest.cpp
   BreakthroughTest.cpp
+  ScrollsTest.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp
+  ${CULTIVATION_SRC}/ScrollStore.cpp
 )
 
 target_include_directories(CultivationCoreTest PRIVATE

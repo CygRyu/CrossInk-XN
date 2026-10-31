@@ -72,6 +72,20 @@ Every habit now lands within 3% of evening-only reading (before: −12% to +56%)
 
 Other checks after the decisions: Dao Heart ends at 100 for daily and weekend readers alike; stamina is 14 a week for 30 min/day whether read as 1×30 min, 3×10 min or at weekends (before: 17.5, 31.5 and 12.5); stones are 40 vs 45 per 30 minutes for a 0.7 vs 1.4 pages-per-minute reader (before 21 vs 42).
 
+### Milestone 7: Technique Scroll keys and manual pity
+
+The simulator now follows the firmware's scroll rules (user decisions, session 3): a bottleneck from Foundation Establishment on needs an unequipped scroll of at least Mortal / Yellow / Earth / Heaven tier (Foundation / Core / Nascent Soul / later), **from any realm**, spent only on success; a book read under 30 minutes gives no scroll; if none of the last 4 scrolls was a Cultivation manual the next one is; a better manual is equipped and the old one becomes a spare scroll. Before, the simulator only counted a scroll finished in the current realm. Breakthrough pills stay modelled as the third key (3 reading hours in the realm), as before.
+
+| 30 min/day (300 characters) | Before | After |
+| --- | --- | --- |
+| Mortal Plane, reading hours (median) | 791 h | 754 h (2.3% under the 772 h target) |
+| Mortal Plane, years | 4.3 y | 4.1 y |
+| Spread of habits vs evening-only | within 3% | within 3% (largest +2.4%, 60 and 90 min/day) |
+
+Most of the change comes from manual pity (more manuals, so a higher Qi multiplier earlier), not from the key rule. Nothing was re-tuned.
+
+Keys without breakthrough pills (`--extra` prints this in the fairness section): with typical books (median 9 h) 30 min/day needs 796 h and everyone finishes; with **short books (median 4 h) only 183 of 300 finish within 40 years and the rest stop around realm 7**, because Heaven tier needs 15 hours in one book. This is the fairness caveat agreed with the user: breakthrough pills (alchemy) must arrive before players reach the Soul Transformation bottleneck.
+
 ### Earlier findings (doc rules, before the decisions)
 
 These came straight from the document's rules and led to the decisions above:

@@ -4,6 +4,10 @@
 
 #include "BookStatsView.h"
 #include "MappedInputManager.h"
+#include "activities/cultivation/CultivationConfig.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivationHooks.h"
+#endif
 #include "components/TouchHeaderBackButton.h"
 #include "components/UITheme.h"
 #include "util/InputReleaseGuard.h"
@@ -76,11 +80,21 @@ void BookStatsActivity::saveStats() {
     return;
   }
 
+#if CROSSINK_CULTIVATION
+  // Completion is edited in applyCompletedState() but only becomes real here
+  // (a cancelled date edit never saves), so the game hears of it here.
+  const bool wasCompleted = BookReadingStats::load(bookCachePath).isCompleted;
+#endif
   if (!stats.save(bookCachePath)) {
     LOG_ERR("BookStats", "Could not save book stats");
     return;
   }
   globalStats.save();
+#if CROSSINK_CULTIVATION
+  if (wasCompleted != stats.isCompleted) {
+    CultivationHooks::onBookCompletionChanged(bookTitle, stats, stats.isCompleted, progressPercent);
+  }
+#endif
   refreshAllDevicesStats();
   didChangeStats = false;
 }
