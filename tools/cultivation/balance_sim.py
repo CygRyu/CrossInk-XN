@@ -121,6 +121,16 @@ TUNING = {
     "key_tier_by_target": [None, None, 0, 1, 2, 3, 3, 3, 3, 3],
     "manual_pity": 4,                  # if none of the last 4 minted scrolls was a manual, the next one is
     "min_book_hours": 0.5,             # books read under 30 minutes give no scroll
+    # v0.1.9 trials before the roll (user-approved mechanics). Strike damage in % of max HP by
+    # strike count; the model endures every strike and burns a spare scroll (never the last
+    # qualifying key) only when the next strike would kill. HP is full at every attempt: it heals
+    # 1 per minute read, and refilling the bar after any failure takes far longer than 100 minutes.
+    # Turning strikes with equipped techniques and Body cuts are left out (a cautious model).
+    "trials": True,
+    "tribulation_strikes": {3: [25, 30, 35], 5: [15, 18, 21, 24, 27], 7: [12, 15, 18, 21, 24, 27, 30],
+                            9: [10, 13, 16, 19, 22, 25, 28, 31, 34]},
+    "heart_demon_realms": (4, 6, 8),
+    "heart_demon_base": 40,            # + Dao Heart x 30 / 100 + Golden Core grade 0..20 (+10 Mind technique: left out)
     "dao_heart_full_hours": 15,        # decision 2B: Dao Heart 100 after 15 h read, never decays
     "flowing_water_unlock_night_h": 5,  # DOC
     "dao_time_of_day_unlock_any_h": 40,  # DOC
@@ -272,6 +282,8 @@ class Character:
         self.spare_scrolls = []         # tiers of unequipped scrolls (keys); techniques are kept unequipped
         self.since_manual = 0
         self.waiting_key = False        # full Peak bar, no key (only without pill keys)
+        self.scrolls_burned = 0         # v0.1.9: spare scrolls burned in tribulations
+        self.trials_lost = 0
         self.hours = 0.0               # all reading hours (drives age)
         self.qual_minutes_week = 0.0
         self.bucket_h = [0.0] * 4
@@ -406,6 +418,38 @@ class Character:
         fits = [i for i, t in enumerate(self.spare_scrolls) if t >= need]
         return min(fits, key=lambda i: self.spare_scrolls[i]) if fits else None
 
+    def pass_trial(self, target: int) -> bool:
+        """The Tribulation or Heart Demon before the roll (firmware Trials.cpp), with the cautious model."""
+        t = TUNING
+        if not t["trials"]:
+            return True
+        strikes = t["tribulation_strikes"].get(target)
+        if strikes:
+            hp = 100
+            for pct in strikes:
+                if pct < hp:
+                    hp -= pct
+                    continue
+                key = self.scroll_key(target)
+                spare = [i for i in range(len(self.spare_scrolls)) if i != key]
+                if not spare:
+                    return False
+                weakest = min(spare, key=lambda i: self.spare_scrolls[i])
+                self.spare_scrolls.pop(weakest)
+                self.scrolls_burned += 1
+            return True
+        if target in t["heart_demon_realms"]:
+            core_bonus = min(20.0, (self.core_mult - 1.0) / 0.30 * 20.0)
+            chance = min(95.0, t["heart_demon_base"] + 30 * self.dao_heart / 100 + core_bonus)
+            won = lost = 0
+            while won < 2 and lost < 2:
+                if self.rng.random() * 100 < chance:
+                    won += 1
+                else:
+                    lost += 1
+            return won == 2
+        return True
+
     def has_key(self, target: int, hours_in_realm: float) -> bool:
         if TUNING["key_tier_by_target"][target] is None:   # small bottleneck into Qi Condensation needs no key
             return True
@@ -530,6 +574,11 @@ class Character:
                 self.hours += wait
                 when_day += wait * 60 / max(1e-9, self._minutes_per_day())
             rec.attempts += 1
+            if not self.pass_trial(r + 1):   # v0.1.9: a lost trial is a failed attempt
+                self.trials_lost += 1
+                self.failures += 1
+                self.qi = need * (1 - TUNING["failure_bar_loss"])
+                return
             if self.rng.random() * 100 >= self.breakthrough_chance(r + 1):
                 self.failures += 1
                 self.qi = need * (1 - TUNING["failure_bar_loss"])
@@ -692,6 +741,10 @@ def fairness(runs: int, seed: int, gp_linger: float, w):
         earned = statistics.median([c.stamina_earned for c in cs]) / weeks
         w(f"    {cmp[k].name:<38}{earned:>6.1f}/week earned\n")
 
+    cs = res["30/day"]["chars"]
+    w(f"  Trials (v0.1.9, cautious model: endure, burn a spare scroll only to survive): 30 min/day loses "
+      f"{statistics.mean(c.trials_lost for c in cs):.2f} trials and burns "
+      f"{statistics.mean(c.scrolls_burned for c in cs):.1f} scrolls over the Mortal Plane (mean)\n")
     w("  Keys (milestone 7: a scroll of the tier, from any realm, spent on success):\n")
     for label, pills, median in (("with pill keys (alchemy, later)", True, 9.0),
                                  ("scrolls only, typical books (9 h)", False, 9.0),

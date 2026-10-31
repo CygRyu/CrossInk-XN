@@ -105,6 +105,20 @@ with the scroll's element as the theme, so `[scroll.image~water]` replaces `scro
 
 Names should read like wuxia and xianxia manuals ("Moon-Severing Sword Canon", "Azure Dragon Body Refining Scripture"); keep a whole name under about 60 bytes. Chronicle lines follow the life log's rules: one sentence, second person, a full stop at the end.
 
+## Tribulations and Heart Demons
+
+| List | Used for |
+| --- | --- |
+| `trib.gather`, `demon.gather` | Chronicle: the trial begins |
+| `trib.strike` | the Trial screen: one strike (no season label) |
+| `demon.origin.farmer` ... `demon.origin.herbalist` | the Trial screen: the first scene, by origin |
+| `demon.family` | the second scene |
+| `demon.failure`, `demon.years` | the third scene: after a failed attempt at this barrier, or otherwise |
+| `trib.survive`, `trib.fail`, `demon.pass`, `demon.fail` | Chronicle: how it ended |
+| `trib.burn` | Chronicle: a scroll burned to stop a strike or pass a scene; `{$scroll.name}` is its name |
+
+Scenes are what the cultivator sees in seclusion: concrete people and places from their past, one sentence, present tense.
+
 ## Events
 
 Events are written now and come alive with exploration in a later update. The checker already validates them.

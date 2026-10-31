@@ -1,6 +1,6 @@
 --- a/src/activities/cultivation/CultivationActivity.cpp
 +++ b/src/activities/cultivation/CultivationActivity.cpp
-@@ -136,6 +136,61 @@
+@@ -135,6 +135,61 @@
  
  }  // namespace
  
@@ -62,7 +62,7 @@
  namespace cultivation {
  namespace ui {
  const char* realmName(const uint8_t realm) { return text(kRealmNames[realm < kMortalRealmCount ? realm : 0]); }
-@@ -211,6 +266,9 @@
+@@ -209,6 +264,9 @@
    }
  
    loadPacks();

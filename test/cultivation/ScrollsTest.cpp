@@ -548,7 +548,8 @@ TEST(ScrollNames, ChronicleLinesNameTheScroll) {
   const Scroll sc = sampleScroll(99, Kind::Manual, 10, Element::Fire);
   char n[scrollnames::kNameSize];
   ASSERT_TRUE(scrollnames::name(sc, worldSeedOf(s), *packs.grammar, n, sizeof(n)));
-  for (const char* key : {"scroll.line.new", "scroll.line.reread", "scroll.line.sold", "scroll.line.key"}) {
+  for (const char* key :
+       {"scroll.line.new", "scroll.line.reread", "scroll.line.sold", "scroll.line.key", "trib.burn"}) {
     for (uint32_t age = 0; age < 40; ++age) {
       s.progress.ageMonths = 16 * 12 + age * 5;
       lifelog::Line line;

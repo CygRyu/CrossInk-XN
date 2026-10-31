@@ -89,6 +89,9 @@ struct ProgressBlock {
   // One page toward the next "1 stone per 2 pages" (decision 5B). A bit in a
   // byte that already exists, so the save layout does not change.
   static constexpr uint8_t kOddPageCarry = 0x04;
+  // v0.1.9: a Tribulation or Heart Demon is under way (see Trials.h); its
+  // step and tallies are bytes 1-3 of techniqueMeta.
+  static constexpr uint8_t kInTrial = 0x08;
 };
 
 // The save file, about 960 bytes. Blocks that later milestones fill in are
@@ -110,7 +113,10 @@ struct GameState {
   std::array<uint8_t, 48> flagsAndCodex{};      // 128 event flags + 256 codex bits
   std::array<uint8_t, 12> legacy{};             // imprints, perk ranks (milestone 10)
   // Save v2 (milestone 7): byte 0 = scrolls minted since the last Cultivation
-  // manual (manual pity, see Scrolls.h); bytes 1-3 reserved.
+  // manual (manual pity, see Scrolls.h). v0.1.9, while a trial is under way:
+  // byte 1 = strike or scene (0-based), byte 2 = equipped techniques already
+  // used to turn a strike (bit per equipped technique, in library order),
+  // byte 3 = Heart Demon scenes won (high nibble) and lost (low nibble).
   std::array<uint8_t, 4> techniqueMeta{};
 
   bool isCreated() const { return (character.flags & CharacterBlock::kCharacterCreated) != 0; }

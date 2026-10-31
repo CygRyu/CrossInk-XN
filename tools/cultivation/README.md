@@ -86,6 +86,19 @@ Most of the change comes from manual pity (more manuals, so a higher Qi multipli
 
 Keys without breakthrough pills (`--extra` prints this in the fairness section): with typical books (median 9 h) 30 min/day needs 796 h and everyone finishes; with **short books (median 4 h) only 183 of 300 finish within 40 years and the rest stop around realm 7**, because Heaven tier needs 15 hours in one book. This is the fairness caveat agreed with the user: breakthrough pills (alchemy) must arrive before players reach the Soul Transformation bottleneck.
 
+### v0.1.9: Tribulations and Heart Demons
+
+The simulator now plays the trial before each roll that has one (Core Formation, Soul Transformation, Body Integration and Tribulation Transcendence: 3/5/7/9 strikes; Nascent Soul, Void Refinement and Mahayana: a Heart Demon of 3 scenes at 40 + Dao Heart x 30 / 100 + Golden Core grade 0-20). The model is cautious: it endures every strike from full HP and burns a spare scroll (never the last key) only when the next strike would kill; it never turns strikes with techniques or uses a Body technique or Mind scroll. A lost trial is a failed attempt.
+
+| 30 min/day (300 characters) | Before | After |
+| --- | --- | --- |
+| Mortal Plane, reading hours (median) | 754 h | 762 h |
+| Trials lost per life (mean) | - | 0.49 |
+| Scrolls burned in tribulations per life (mean) | - | 11.3 |
+| Spread of habits vs evening-only | within 2.4% | within 1.7% |
+
+Nothing was re-tuned. Real players who turn strikes with techniques burn fewer scrolls.
+
 ### Earlier findings (doc rules, before the decisions)
 
 These came straight from the document's rules and led to the decisions above:

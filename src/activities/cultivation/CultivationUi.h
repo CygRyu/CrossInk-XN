@@ -21,7 +21,7 @@ const char* gradeName(breakthrough::GradeKind kind, uint8_t grade);  // "" for n
 // "Flawed Foundation, 9th-Grade Golden Core, Half-step Nascent Soul" ("" if none).
 void formatTitles(const GameState& s, char* out, size_t len);
 void stageName(const GameState& s, char* out, size_t len);  // "Layer 4", "Peak", "Great Perfection"
-// "CrossInk 1.6.1 · Immortal Reading M8 · a1b2c3d"
+// "Path of Immortal Reading v0.1.9"
 void versionLine(char* out, size_t len);
 
 }  // namespace ui

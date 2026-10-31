@@ -2,7 +2,6 @@
 
 #if CROSSINK_CULTIVATION
 
-#include <AppVersion.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -183,8 +182,7 @@ void stageName(const GameState& s, char* out, const size_t len) {
   }
 }
 void versionLine(char* out, const size_t len) {
-  snprintf(out, len, tr(STR_CULT_VERSION_FORMAT), AppVersion::version(), CULTIVATION_GAME_VERSION,
-           AppVersion::gitSha());
+  snprintf(out, len, tr(STR_CULT_VERSION_FORMAT), CULTIVATION_GAME_VERSION);
 }
 void formatPermille(char* buf, const size_t len, const uint32_t permille) {
   snprintf(buf, len, "x%u.%02u", static_cast<unsigned>(permille / 1000), static_cast<unsigned>((permille % 1000) / 10));
@@ -275,9 +273,8 @@ void CultivationActivity::updateRumor() {
   packs_->closeFile();
   if (grammar_->missing() > 0) {
     LOG_ERR("CULT", "Rumor had %u missing key(s)", grammar_->missing());
-  } else {
-    sleepscreen::storeRumor(day, rumor_);  // for the Cultivator sleep screen; written only when it changes
   }
+  if (Storage.exists(sleepscreen::kOldRumorPath)) Storage.remove(sleepscreen::kOldRumorPath);  // v0.1.8 leftover
 }
 
 bool CultivationActivity::persist() {
@@ -379,7 +376,10 @@ void CultivationActivity::openChronicle() {
 // The Cultivator screen's list: what can be done right now.
 void CultivationActivity::refreshActions() {
   actionCount_ = 0;
-  if (state_ && state_->isCreated()) {
+  if (state_ && state_->isCreated() && trials::inTrial(*state_)) {
+    // A Tribulation or Heart Demon under way: carry on with it first (equipping is blocked meanwhile).
+    actions_[actionCount_++] = Action::Trial;
+  } else if (state_ && state_->isCreated()) {
     // Shown even when a key is missing: the Breakthrough screen says which.
     if (atBottleneck(*state_)) actions_[actionCount_++] = Action::Breakthrough;
     if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
@@ -395,6 +395,7 @@ void CultivationActivity::runAction() {
     case Action::Breakthrough: {
       RenderLock lock(*this);
       prepareKeyName();
+      trialSummary_[0] = '\0';
       screen_ = Screen::Breakthrough;
     }
       requestUpdate();
@@ -408,6 +409,10 @@ void CultivationActivity::runAction() {
       return;
     case Action::Chronicle:
       openChronicle();
+      return;
+    case Action::Trial:
+      trialLast_[0] = '\0';
+      openTrial();
       return;
   }
 }
@@ -563,7 +568,26 @@ void CultivationActivity::loop() {
         screen_ = Screen::Cultivator;
         requestUpdate();
       } else if (confirm) {
-        attemptBreakthrough();
+        // Realms with a Tribulation or Heart Demon face it first (v0.1.9).
+        if (trials::kindFor(state_->progress.realm + 1) != trials::Kind::None) {
+          startTrial();
+        } else {
+          attemptBreakthrough();
+        }
+      }
+      return;
+
+    case Screen::Trial:
+      if (back) {  // the trial waits in the save; the Cultivator screen offers to continue it
+        RenderLock lock(*this);
+        refreshActions();
+        selected_ = 0;
+        screen_ = Screen::Cultivator;
+        requestUpdate();
+      } else if (confirm) {
+        answerTrial();
+      } else {
+        handleList(trialChoices_, up, down);
       }
       return;
 
@@ -838,10 +862,18 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::Name || screen_ == Screen::Gender || screen_ == Screen::Origin) title = tr(STR_CULT_NEW_LIFE);
   if (screen_ == Screen::Awakening) title = tr(STR_CULT_AWAKENING);
   if (screen_ == Screen::Breakthrough) title = tr(STR_CULT_BREAKTHROUGH);
+  if (screen_ == Screen::Trial) {
+    title = trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon ? tr(STR_CULT_HEART_DEMON)
+                                                                                    : tr(STR_CULT_TRIBULATION);
+  }
   if (screen_ == Screen::GreatPerfection) title = tr(STR_CULT_GREAT_PERFECTION);
   if (screen_ == Screen::Outcome) {
     title =
         outcomeKind_ == OutcomeKind::EnteredGreatPerfection ? tr(STR_CULT_GREAT_PERFECTION) : tr(STR_CULT_BREAKTHROUGH);
+    if (outcomeKind_ == OutcomeKind::TrialLost) {
+      title = trials::kindFor(outcome_.toRealm) == trials::Kind::HeartDemon ? tr(STR_CULT_HEART_DEMON)
+                                                                            : tr(STR_CULT_TRIBULATION);
+    }
   }
   if (screen_ == Screen::ScrollNews) title = tr(STR_CULT_SCROLLS_TITLE);
   if (screen_ == Screen::BetterManual) title = tr(STR_CULT_BETTER_MANUAL);
@@ -897,11 +929,20 @@ void CultivationActivity::render(RenderLock&&) {
       upLabel = actionCount_ > 1 ? tr(STR_DIR_UP) : "";
       downLabel = actionCount_ > 1 ? tr(STR_DIR_DOWN) : "";
       break;
-    case Screen::Breakthrough:
+    case Screen::Breakthrough: {
       renderBreakthrough(x, top, width);
-      confirmLabel = breakthrough::canAttempt(*state_) ? tr(STR_CULT_ATTEMPT) : "";
+      const bool lightning = trials::kindFor(state_->progress.realm + 1) == trials::Kind::Tribulation;
+      confirmLabel =
+          breakthrough::canAttempt(*state_) && !(lightning && state_->progress.hp == 0) ? tr(STR_CULT_ATTEMPT) : "";
       upLabel = "";
       downLabel = "";
+      break;
+    }
+    case Screen::Trial:
+      renderTrial(x, top, width, bottom);
+      confirmLabel = trialChoices_ > 0 ? tr(STR_SELECT) : "";
+      upLabel = trialChoices_ > 1 ? tr(STR_DIR_UP) : "";
+      downLabel = trialChoices_ > 1 ? tr(STR_DIR_DOWN) : "";
       break;
     case Screen::GreatPerfection:
       renderGreatPerfection(x, top, width);
@@ -1066,18 +1107,11 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   nameOf(s, name);
   renderer.drawText(UI_12_FONT_ID, x, y, name, true, EpdFontFamily::BOLD);
   // The build on the name's line, right-aligned, so builds can be told apart
-  // (user request); shortened to the game version and commit if the name is long.
+  // (user request: "v0.1.9"); left out if a long name leaves no room.
   {
-    char version[96];
-    ui::versionLine(version, sizeof(version));
+    char version[24];
+    snprintf(version, sizeof(version), "v%s", CULTIVATION_GAME_VERSION);
     const int nameWidth = renderer.getTextWidth(UI_12_FONT_ID, name, EpdFontFamily::BOLD);
-    if (nameWidth + renderer.getTextWidth(SMALL_FONT_ID, version) + 16 > width) {
-      snprintf(version, sizeof(version), tr(STR_CULT_VERSION_SHORT_FORMAT), CULTIVATION_GAME_VERSION,
-               AppVersion::gitSha());
-    }
-    if (nameWidth + renderer.getTextWidth(SMALL_FONT_ID, version) + 16 > width) {
-      snprintf(version, sizeof(version), "%s · %s", CULTIVATION_GAME_VERSION, AppVersion::gitSha());
-    }
     const int versionWidth = renderer.getTextWidth(SMALL_FONT_ID, version);
     if (nameWidth + versionWidth + 16 <= width) {
       const int baseline = renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(SMALL_FONT_ID);
@@ -1158,6 +1192,9 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   snprintf(line, sizeof(line), tr(STR_CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
            static_cast<unsigned>(kStaminaCap));
   renderer.drawText(UI_10_FONT_ID, x, y, line);
+  // HP on the same line, on the right (v0.1.9: Tribulations spend it, reading heals it).
+  snprintf(line, sizeof(line), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+  renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, line), y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
   snprintf(line, sizeof(line), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
@@ -1249,6 +1286,10 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
                        return tr(STR_CULT_ACTION_TECHNIQUES);
                      case Action::Chronicle:
                        return tr(STR_CULT_ACTION_CHRONICLE);
+                     case Action::Trial:
+                       return trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon
+                                  ? tr(STR_CULT_ACTION_DEMON)
+                                  : tr(STR_CULT_ACTION_TRIBULATION);
                    }
                    return {};
                  });
@@ -1295,6 +1336,28 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
   }
   y += metrics.verticalSpacing;
 
+  // v0.1.9: what comes before the roll.
+  const trials::Kind trial = trials::kindFor(c.target);
+  if (trial == trials::Kind::Tribulation) {
+    const uint8_t strikes = trials::strikesFor(c.target);
+    uint32_t total = 0;
+    for (uint8_t i = 0; i < strikes; ++i) total += trials::strikePercent(strikes, i);
+    const ProgressBlock& p = s.progress;
+    snprintf(line, sizeof(line), tr(STR_CULT_BT_TRIB_FORMAT), static_cast<unsigned>(strikes),
+             static_cast<unsigned>(total), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4);
+    if (p.hp == 0) {
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_BT_NO_HP), 3);
+    } else if (p.hp < p.hpMax) {
+      snprintf(line, sizeof(line), tr(STR_CULT_BT_HEAL_FORMAT), static_cast<unsigned>(p.hpMax - p.hp));
+      y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
+    }
+    y += metrics.verticalSpacing;
+  } else if (trial == trials::Kind::HeartDemon) {
+    snprintf(line, sizeof(line), tr(STR_CULT_BT_DEMON_FORMAT), static_cast<unsigned>(trials::sceneChance(s)));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + metrics.verticalSpacing;
+  }
+
   if (c.needsKey && !c.hasKey) {
     const scrolls::Tier need = scrolls::keyTierFor(c.target);
     static const uint8_t kTierHours[] = {0, 3, 8, 15, 25};
@@ -1339,6 +1402,11 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
     case OutcomeKind::EnteredGreatPerfection:
       snprintf(line, sizeof(line), "%s", tr(STR_CULT_GP_ENTERED));
       break;
+    case OutcomeKind::TrialLost:
+      snprintf(line, sizeof(line), "%s",
+               trials::kindFor(outcome_.toRealm) == trials::Kind::HeartDemon ? tr(STR_CULT_DEMON_LOST)
+                                                                             : tr(STR_CULT_TRIB_LOST));
+      break;
   }
   const auto header = renderer.wrappedText(UI_12_FONT_ID, line, width, 2, EpdFontFamily::BOLD);
   for (const auto& h : header) {
@@ -1347,7 +1415,8 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
   }
   y += metrics.verticalSpacing;
 
-  if (outcomeKind_ != OutcomeKind::EnteredGreatPerfection) {
+  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess || outcomeKind_ == OutcomeKind::BreakthroughFailure) {
+    if (trialSummary_[0] != '\0') y = drawWrapped(UI_10_FONT_ID, x, y, width, trialSummary_, 2) + 4;
     snprintf(line, sizeof(line), tr(STR_CULT_BT_ROLL_FORMAT), static_cast<unsigned>(outcome_.roll),
              static_cast<unsigned>(outcome_.chance));
     y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
@@ -1367,9 +1436,14 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
     snprintf(line, sizeof(line), tr(STR_CULT_KEY_USED_FORMAT), nameBuf_);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
   }
-  if (outcomeKind_ == OutcomeKind::BreakthroughFailure) {
+  if (outcomeKind_ == OutcomeKind::BreakthroughFailure || outcomeKind_ == OutcomeKind::TrialLost) {
     snprintf(line, sizeof(line), tr(STR_CULT_NEXT_CHANCE_FORMAT),
              static_cast<unsigned>(breakthrough::chanceFor(s).total));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  }
+  if (outcomeKind_ == OutcomeKind::TrialLost && s.progress.hp < s.progress.hpMax) {
+    snprintf(line, sizeof(line), tr(STR_CULT_HP_HEAL_FORMAT), static_cast<unsigned>(s.progress.hp),
+             static_cast<unsigned>(s.progress.hpMax), static_cast<unsigned>(s.progress.hpMax - s.progress.hp));
     drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
   }
 }

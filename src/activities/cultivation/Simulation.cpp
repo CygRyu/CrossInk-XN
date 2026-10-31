@@ -278,6 +278,12 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   r.staminaGained = static_cast<uint8_t>(staminaSteps < room ? staminaSteps : room);
   p.stamina = static_cast<uint8_t>(p.stamina + r.staminaGained);
 
+  // v0.1.9 (user): HP heals 1 per minute of reading, never past max HP.
+  const uint32_t hpSteps = after / 60u - before / 60u;
+  const uint32_t hpRoom = p.hp < p.hpMax ? static_cast<uint32_t>(p.hpMax - p.hp) : 0u;
+  r.hpGained = static_cast<uint16_t>(hpSteps < hpRoom ? hpSteps : hpRoom);
+  p.hp = static_cast<uint16_t>(p.hp + r.hpGained);
+
   p.daoHeart = daoHeartFor(after);
 
   // Great Perfection: 2 consolidation points per reading hour, up to 40.

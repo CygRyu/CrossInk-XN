@@ -125,6 +125,16 @@ uint32_t gradeQiPermille(const GameState& state) {
   return permille;
 }
 
+void failAttempt(GameState& state) {
+  // DOC: "costs 25% of the Qi bar, never a stage"; pity grows.
+  ProgressBlock& p = state.progress;
+  QiNumber left = stageCost(p.realm, p.stage);
+  left.mulRatio(3, 4);
+  p.qi = left;
+  if (p.failures < 255) ++p.failures;
+  p.progressFlags |= ProgressBlock::kHalfStep;
+}
+
 Result attempt(GameState& state) {
   Result r;
   if (!canAttempt(state)) return r;
@@ -140,12 +150,7 @@ Result attempt(GameState& state) {
   r.success = r.roll < c.total;
 
   if (!r.success) {
-    // DOC: "costs 25% of the Qi bar, never a stage"; pity grows.
-    QiNumber left = stageCost(p.realm, p.stage);
-    left.mulRatio(3, 4);
-    p.qi = left;
-    if (p.failures < 255) ++p.failures;
-    p.progressFlags |= ProgressBlock::kHalfStep;
+    failAttempt(state);
     return r;
   }
 

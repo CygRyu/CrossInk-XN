@@ -25,7 +25,9 @@ Personal-fork game built to `CrossInk_Cultivation_Game___Design_Document.md`. Ev
 | `ScrollNames.{h,cpp}` | Scroll names from the packs (stable picks, the element as theme) and scroll Chronicle lines |
 | `CultivationHooks.{h,cpp}` | Device: the one call CrossInk makes when a book is marked finished or unfinished |
 | `CultivationUi.h` | Text helpers shared by the screen files (names, grade titles, stage, version line) |
-| `CultivatorSleepScreen.{h,cpp}` | The "Cultivator" sleep screen and the `rumor.txt` it reads |
+| `CultivatorSleepScreen.{h,cpp}` | The "Cultivator" sleep screen |
+| `Trials.{h,cpp}` | Pure: Tribulations (strikes, answers, HP) and Heart Demons (scene chance, seeded rolls), kept in the save so they resume |
+| `CultivationTrialScreens.cpp` | The Trial screen and its Chronicle lines (members of `CultivationActivity`) |
 | `CultivationActivity.{h,cpp}` | The screens: name, gender, origin, Awakening Test, Return summary, Cultivator, breakthroughs, Chronicle |
 | `CultivationScrollScreens.cpp` | The Technique Scroll screens and minting at the start of a visit (members of `CultivationActivity`) |
 
@@ -56,7 +58,7 @@ Host tests: `test/cultivation/` (standalone CMake; see its `CMakeLists.txt`). Sc
 | 94 | 42 | Character: name (24 B UTF-8), gender, origin, root element and secondary, purity, talent, hidden trait, temperament, 2 paths, karma, rerolls allowed/used, flags, creation day |
 | 136 | 38 | Progress: realm, stage, Qi (6 B), stones, stamina, HP, max HP, age in months, age carry, Qi carry, failures, 3 grades, consolidation, Dao Heart, flags (bit 0x04: odd page toward the next stone), reading seconds |
 | 174 | 781 | Reserved at full design size: Daos and meridians 23, scrolls 513, inventory 96, world 37, timers 16, daily 25, rival 11, flags and codex 48, legacy 12 |
-| 955 | 4 | Save v2 (milestone 7): byte 0 = scrolls minted since the last Cultivation manual (manual pity); bytes 1-3 reserved |
+| 955 | 4 | Save v2 (milestone 7): byte 0 = scrolls minted since the last Cultivation manual (manual pity); v0.1.9, during a trial: byte 1 strike or scene, byte 2 equipped techniques already used to turn a strike, byte 3 Heart Demon scenes won (high nibble) and lost (low nibble) |
 
 Technique Scrolls (milestone 7) fill the reserved 513-byte block with no format change: byte 0 is the count, then up to 64 slots of 8 bytes in minting order: title hash u32 (never 0), hours read in that book (cap 255; the tier is derived), element (bits 0-2) and kind (bits 3-5), comprehension 0-100, flags (0x01 equipped manual, 0x02 equipped technique). Removing a slot moves the later ones down and zeroes the last. The manual-pity counter has no room there, hence the 4-byte v2 block.
 
@@ -64,7 +66,7 @@ Rules: append-only. A new field goes at the end, `kSaveVersion` and `kPayloadSiz
 
 Differences from the design document's budget: the stats snapshot is 68 bytes instead of 24, because it also keeps the time-of-day and weekday buckets (needed for affinity and for attributing reading to calendar weeks), and there is a 16-byte baseline block. The total is still under 1 KB.
 
-Other files the game keeps in `/.crosspoint/cultivation/`: `chronicle.txt`, `index.bin` and `pack_report.txt` (packs), `pending_scrolls.bin`, `pending_scrolls.rest` and `minted.bin` (scrolls), and `rumor.txt` (milestone 8: the day index on line 1 and that day's rumor on line 2, rewritten only when they change, for the sleep screen). Outside it: `/Chronicles/The Chronicle of <name>.txt`, written only when the player exports the Chronicle.
+Other files the game keeps in `/.crosspoint/cultivation/`: `chronicle.txt`, `index.bin` and `pack_report.txt` (packs), `pending_scrolls.bin`, `pending_scrolls.rest` and `minted.bin` (scrolls). v0.1.8 also wrote `rumor.txt` for the sleep screen; v0.1.9 no longer shows the rumor there and deletes the file on the next visit. Outside it: `/Chronicles/The Chronicle of <name>.txt`, written only when the player exports the Chronicle.
 
 ## Memory
 
@@ -143,7 +145,19 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 - **Great Perfection:** a flag on the Peak stage. Consolidation is +1 per whole half-hour of this character's reading time while it is set, up to 40, so no carry field is needed.
 - **Chronicle:** each attempt or entering Great Perfection appends one line (`log.breakthrough`, `log.failure`, `log.gp.enter`), seeded by realm and failures, written before the save and skipped if already there.
 - **Save:** no format change; the fields (failures, grades, consolidation, `kInGreatPerfection`, `kHalfStep`) were reserved in milestone 2.
-- **Not yet:** Tribulations (Core Formation) and Heart Demons (Nascent Soul), pills in the grade score, lifespan running out (rebirth).
+- **Not yet:** pills in the grade score, treasures and the wandering master's favour in trials, lifespan running out (rebirth).
+
+## Tribulations and Heart Demons (v0.1.9)
+
+Mechanics agreed with the user; the rules and their numbers are in `Trials.h`.
+- **When:** after Attempt on the Breakthrough screen, before the roll, for Core Formation (3 strikes), Nascent Soul (Heart Demon), Soul Transformation (5), Void Refinement (Heart Demon), Body Integration (7), Mahayana (Heart Demon) and Tribulation Transcendence (9). Losing is a failed attempt (25% of the bar, pity, Half-step); the key is kept. Winning goes on to the usual roll, which still spends the key only on success.
+- **Tribulation:** each strike's damage (a share of max HP: 25/30/35%, then 15-27%, 12-30%, 10-34%) is shown first. Answers: Endure (an equipped Body technique cuts it by 10-50% by tier), Turn it aside with an equipped Sword, Palm/Fist or Movement technique (half damage, each once per tribulation), Burn a scroll (no damage; the weakest unequipped scroll that is not the key). 0 HP loses. A Tribulation cannot start at 0 HP.
+- **HP** (user): heals 1 per minute read, never past max (Simulation `absorb()`); shown on the Cultivator screen's Stamina line and on the Breakthrough screen with the minutes to full.
+- **Heart Demon:** 3 scenes (origin, family, last failure or the years). Each: face it (40 + Dao Heart x 30 / 100 + Golden Core grade 0-20 + 10 with an equipped Mind technique, at most 95; seeded roll) or burn an unequipped Mind scroll (certain). Two scenes seen through wins, two fallen for loses.
+- **Resuming:** a trial under way is saved after every answer (`kInTrial` + `techniqueMeta` bytes 1-3). Back leaves it; the Cultivator screen then offers only "Continue the tribulation" / "Face the heart demon" and the Chronicle (no equipping, so "technique used" bits stay valid). Text is generated with stable picks, so a resumed strike reads the same.
+- **Chronicle:** `trib.gather`/`demon.gather` when it starts, `trib.burn` for each scroll burned, `trib.survive`/`demon.pass` or `trib.fail`/`demon.fail` at the end, then the breakthrough line. Screen text: `trib.strike`, `demon.origin.<origin>`, `demon.family`, `demon.failure`, `demon.years`.
+- **contentSeed kinds:** 71 scene roll, 72 screen text, 73 Chronicle lines.
+- **Balance:** `balance_sim.py` plays the trials with a cautious model (see `tools/cultivation/README.md`): 30 min/day 754 h -> 762 h, about half a lost trial and 11 burned scrolls per life.
 
 ## Technique Scrolls (milestone 7, the doc's build step 6)
 
@@ -155,11 +169,11 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 - **Names:** `{scroll.name} {scroll.kind.<kind>} {scroll.tier.<tier>}` from the packs, themed by element (`~water` ...), with stable picks seeded by `contentSeed(world, 61, title hash)`: the same book gets the same name all life, a different one in another life, and its title never contributes a word. Names are not saved; an SD pack that changes these lists renames scrolls.
 - **contentSeed kinds:** 60 kind roll, 61 name, 62 Chronicle lines.
 
-## Sleep screen, version line, Chronicle export (milestone 8, the doc's build step 7)
+## Sleep screen, version line, Chronicle export (v0.1.8, the doc's build step 7; trimmed in v0.1.9)
 
-- **Sleep screen:** Settings > Display > Sleep Screen > Wallpaper > "Cultivator" (opt-in; the setting is left as it was when the firmware is flashed). It draws a taiji (in code, no bitmap), the name, grade titles, realm and stage, the Qi bar with its percentage, the rumor ("Rumor of the day" when `rumor.txt` is from today, "Last rumor heard" otherwise) and the version line. It shows the character as of the last visit; reading since then is converted when the game is opened. Dark like CrossInk's other generated screens; light when the sleep cover filter is "Inverted". No character: CrossInk's default sleep screen. Memory: the ~1 KB `GameState` while drawing; no packs, no grammar engine.
+- **Sleep screen:** Settings > Display > Sleep Screen > Wallpaper > "Cultivator" (opt-in; the setting is left as it was when the firmware is flashed). It draws a taiji (in code, no bitmap), the name, grade titles, realm and stage, and "Path of Immortal Reading v0.1.9" at the bottom. v0.1.9 removed the Qi bar, the rumor and the CrossInk version and commit (user). It shows the character as of the last visit; reading since then is converted when the game is opened. Dark like CrossInk's other generated screens; light when the sleep cover filter is "Inverted". No character: CrossInk's default sleep screen. Memory: the ~1 KB `GameState` while drawing; no packs, no grammar engine.
 - **Grade titles:** Golden Core (9th grade ... 1st grade, Flawless) and Nascent Soul clarity (Hazy, Clear, Radiant, Dao-Imprinted) now have names, on the Cultivator screen, the sleep screen and the breakthrough outcome.
-- **Version line:** "CrossInk 1.6.1 · Immortal Reading M8 · <commit>" on the sleep screen, and on the Cultivator screen's name line (shortened to "Immortal Reading M8 · <commit>" or "M8 · <commit>" when the name is long). `CULTIVATION_GAME_VERSION` in `CultivationConfig.h`: bump it with each milestone.
+- **Version:** the game's own number (user, v0.1.9): 0.1.x per milestone (milestone 8 was v0.1.8), 0.2.0 when exploration and alchemy land, 1.0 when the doc's whole Mortal Plane is playable. `CULTIVATION_GAME_VERSION` in `CultivationConfig.h`. Shown as "v0.1.9" on the Cultivator screen's name line and on the sleep screen.
 - **Export:** Confirm in the Chronicle viewer copies `chronicle.txt` to `/Chronicles/The Chronicle of <name>.txt` (`chronicle::exportCopy`): 256-byte pieces through the stack, a `.tmp` first, then it replaces the old copy. Characters FAT cannot store become `_`. The copy is a normal TXT book (Browse Files; the Library once sorted by title); CrossInk's TXT reader records no reading stats, and its page cache is checked against the file size, so a later, longer export re-lays out correctly.
 - **Life log:** Core Formation has its own list, `log.core` (25 lines); Nascent Soul and later still use `log.any`.
 
@@ -170,7 +184,7 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 3. **Origin:** five origins with their birth line; the selected origin's gifts are shown under the list.
 4. **Awakening Test:** one destiny per screen. Previous and Next move between destinies seen so far, Next past the last one spends a reroll (3 per life), and Keep takes the destiny on screen. Destinies are a pure function of the world seed (MAC, creation day, life number), so leaving and re-entering shows the same ones.
 5. **Return summary** (milestone 5, after any visit with reading): how many seasons or months passed, realm, stage and age, the minutes, Qi and stones the visit brought, and the life-log lines. Next and Previous page through long logs; Continue or Back goes to the Cultivator screen.
-6. **Cultivator:** name with the version on the right, titles (Foundation, Golden Core and Nascent Soul grades, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate (with the manual's part), Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, and at the bottom a list of actions: Break through, Enter Great Perfection, Techniques, Read the Chronicle. Text above the list is cut to fit; the rumor keeps its room before the "no reading" note does.
+6. **Cultivator:** name with the version ("v0.1.9") on the right, titles (Foundation, Golden Core and Nascent Soul grades, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate (with the manual's part), Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, Stamina with HP on the right, and at the bottom a list of actions: Break through, Enter Great Perfection, Techniques, Read the Chronicle (during a trial: Continue the tribulation / Face the heart demon, and the Chronicle). Text above the list is cut to fit; the rumor keeps its room before the "no reading" note does.
 7. **Breakthrough:** the target realm, the chance and its parts, the key scroll that would be used (or the tier that is missing), what a failure costs. Attempt rolls.
 8. **Great Perfection:** what staying at the peak does. Enter enters it.
 9. **Outcome:** success or failure, the roll and the chance, the Chronicle line, the Foundation grade when one is formed and the key used up, or the next attempt's chance.
@@ -180,6 +194,7 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 13. **Techniques:** the equipped manual and the Qi rate, how many techniques are equipped, then the library (equipped first, then strongest first) with tier, element, kind, quality and tags (equipped, best manual), one page at a time.
 14. **A scroll:** name, tier, element, kind, quality and comprehension, hours read, what it does (manual Qi rate, root match) and which breakthroughs it can open as a key; Equip / Unequip and Sell.
 15. **Sell:** asks before selling, because a sold scroll's book cannot give another one in this life.
+16. **Trial** (v0.1.9): "Strike 2 of 5" or "Scene 1 of 3", what happened on the last one, the strike's or scene's text, HP and its bar with the coming bolt's damage (or the scenes seen through and fallen for), and the answers with their cost.
 
 Nothing is saved until a destiny is kept. If a damaged save is found, the new character's first save first moves it to `save.damaged.bin`.
 

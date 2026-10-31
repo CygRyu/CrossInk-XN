@@ -653,6 +653,94 @@ The {$scroll.name} has nothing more to teach you, and you burn it after the brea
 You break through on what the {$scroll.name} taught you, and its pages are worn too thin to read again.
 You burn the {$scroll.name} in the courtyard after the breakthrough; you know it by heart and need it no longer.
 
+# --- Tribulations and Heart Demons (v0.1.9) ---------------------------------
+# trib.strike and demon.* scenes are shown on the Trial screen (no season
+# label); the others are Chronicle lines. trib.burn has {$scroll.name}.
+
+[trib.gather]
+Clouds pile up over {name.mountain} for three days, and the farmers below drive their cattle indoors.
+You climb {name.mountain} alone to wait for the lightning, carrying a gourd of water and nothing else.
+The sky over {place.town} turns the colour of a bruise, and the shopkeepers put up their shutters at noon.
+You send your disciples down to {place.town} and sit on a bare rock to wait for the storm.
+
+[trib.strike]
+A bolt as thick as a temple pillar comes down on the rock where you sit.
+The lightning splits the pine beside you and sets the whole slope smoking.
+The strike hits the ground first and comes up through your legs.
+A white bolt lands so close that your ears ring and your eyebrows burn away.
+The clouds drop a fork of lightning that hits you in three places at once.
+The thunder arrives before the light, and the rock under you cracks in two.
+A bolt walks down the mountainside toward you, burning a line through the grass.
+The storm holds back for a long breath, then throws everything it has.
+
+[trib.survive]
+You walk down from {name.mountain} with your robe burned to rags and your hair standing on end.
+The last bolt passes, and you sit in the rain for an hour before you trust your legs.
+When the clouds break, the villagers below find you asleep on the scorched rock.
+
+[trib.fail]
+The lightning throws you off the rock, and a woodcutter finds you two days later in a gully.
+You wake in a farmer's hut below {name.mountain} with burns down one side and no memory of the last strike.
+The storm knocks you flat, and you spend a month learning to walk without a stick.
+
+[trib.burn]
+You throw the {$scroll.name} into the bolt's path, and the lightning takes the pages instead of you.
+You burn the {$scroll.name} to turn the strike, and its ashes blow away down the mountain.
+
+[demon.gather]
+You seal the door of your cave and wait for the faces you have been trying to forget.
+On the third night of seclusion the lamp gutters, and you are no longer alone in the room.
+You tell your disciples not to open the door whatever they hear, and sit down to face yourself.
+
+[demon.origin.farmer]
+Your father stands at the edge of the rented field and asks why you left him to bring in the harvest alone.
+The landlord's steward reads out your family's debts, and the sum is larger every time he starts again.
+Your younger brother, still twelve, asks you to come home because the ox has died.
+
+[demon.origin.clan]
+The elders of your fallen clan kneel in a row and ask why you have not yet avenged them.
+Your grandfather's sword lies broken across your knees, and the men who broke it are laughing in the doorway.
+The clan's ancestral hall burns again, and this time you are standing outside holding the torch.
+
+[demon.origin.orphan]
+A child in rags steals your purse in the market of {place.town}, and when the child turns round it has your face.
+You are seven again, sleeping under a cart, and the cart starts to move.
+The woman who left you in the alley comes back for you, and you cannot tell whether to go with her.
+
+[demon.origin.servant]
+The outer sect steward hands you two water buckets and tells you your cultivation was a dream.
+The disciples you once carried water for line the path and pour it out at your feet.
+You are on your knees scrubbing the training ground, and the stain will not come out.
+
+[demon.origin.herbalist]
+Your old master holds out a bowl of medicine and asks why the patient you treated died.
+The drying racks are full of herbs you cannot name, and someone outside is waiting for a cure.
+A child you once gave the wrong powder sits by the mortar and says nothing at all.
+
+[demon.family]
+Your mother, as she looked the year you left home, asks why you never wrote.
+Every friend you outlived sits at one long table, and there is no place set for you.
+Your first teacher sits by the stove and tells you that you have wasted his years.
+Someone you once promised to come back for waits on a bridge that rotted away fifty years ago.
+
+[demon.failure]
+You stand at the barrier of your last failed breakthrough, and your own voice tells you it will hold again.
+The cultivators who laughed at you in {place.town} are all here, and they have not stopped laughing.
+You watch yourself spit blood onto the floor of your room, over and over, once more each night.
+
+[demon.years]
+You count the years you have left, and the number goes down while you count.
+Your face in the water bowl is old and grey, and it asks what all the sitting was for.
+The village where you were born is a field now, and nobody there knows your name.
+
+[demon.pass]
+You come out of seclusion after nine days, eat a bowl of noodles and sleep for two more.
+The faces fade one by one, and when the last is gone you open the door and ask for tea.
+
+[demon.fail]
+Your disciples break down the door on the fifth day and find you talking to the wall.
+You come out of seclusion shaking, and for a month you will not sit alone in a dark room.
+
 # --- Sample event (exploration arrives in a later milestone) ---------------
 
 [ruin.desc]

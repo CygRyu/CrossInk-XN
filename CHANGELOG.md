@@ -18,6 +18,8 @@
 - Path of Immortal Reading (personal fork): the game shows which build is installed (CrossInk version, game version and commit) next to your name on the Cultivator screen and at the bottom of the Cultivator sleep screen.
 - Path of Immortal Reading (personal fork): Export in the Chronicle viewer saves a copy of your whole Chronicle as `/Chronicles/The Chronicle of <name>.txt`, which you can open in Browse Files, read like any TXT book or copy off the card. Exporting again replaces the copy.
 - Path of Immortal Reading (personal fork): 25 life-log lines of its own for Core Formation.
+- Path of Immortal Reading v0.1.9 (personal fork): Tribulations and Heart Demons. Breaking through into Core Formation, Soul Transformation, Body Integration and Tribulation Transcendence first calls down 3, 5, 7 or 9 lightning strikes: each shows its damage before you answer, and you can endure it, turn it aside with an equipped Sword, Palm or Movement technique, or burn a spare scroll to stop it. Nascent Soul, Void Refinement and Mahayana first bring a Heart Demon of three scenes from your own past, each a chance to see through it (better with a full Dao Heart, a good Golden Core and an equipped Mind technique), or burn a Mind scroll to pass it. Losing counts as a failed breakthrough; your key scroll is kept. You can leave in the middle and carry on later. HP now shows on the Cultivator screen and heals 1 per minute of reading.
+- Path of Immortal Reading v0.1.9 (personal fork): the game has its own version number, shown as "v0.1.9" next to your name and on the Cultivator sleep screen. The sleep screen is simpler: your name, titles, realm and stage, without the Qi bar, the rumor or the firmware build.
 
 ## [v1.6.1] - 2026-10-03
 

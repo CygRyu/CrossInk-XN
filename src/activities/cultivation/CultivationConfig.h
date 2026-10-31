@@ -10,6 +10,8 @@
 #define CROSSINK_CULTIVATION 0
 #endif
 
-// The game's own version, shown with CrossInk's version and the commit on the
-// Cultivator screen and the sleep screen. Bump it with each milestone.
-#define CULTIVATION_GAME_VERSION "M8"
+// The game's own version (user, v0.1.9): 0.1.x per milestone, 0.2.0 when
+// exploration and alchemy land, 1.0 when the doc's whole Mortal Plane is
+// playable. Shown on the Cultivator screen and the sleep screen. Milestone 8
+// was v0.1.8.
+#define CULTIVATION_GAME_VERSION "0.1.9"

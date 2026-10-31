@@ -122,6 +122,7 @@ struct AbsorbResult {
   uint8_t stagesGained = 0;
   uint32_t stonesGained = 0;
   uint8_t staminaGained = 0;        // after the bank cap
+  uint16_t hpGained = 0;            // v0.1.9: 1 HP per minute read, up to max HP
   uint8_t consolidationGained = 0;  // in Great Perfection only
   bool atBottleneck = false;        // full Peak bar: needs a breakthrough
 };

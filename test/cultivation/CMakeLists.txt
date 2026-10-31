@@ -44,6 +44,7 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/Breakthrough.cpp
   ${CULTIVATION_SRC}/Scrolls.cpp
   ${CULTIVATION_SRC}/ScrollNames.cpp
+  ${CULTIVATION_SRC}/Trials.cpp
 )
 
 add_executable(CultivationCoreTest
@@ -56,6 +57,7 @@ add_executable(CultivationCoreTest
   LifeLogTest.cpp
   BreakthroughTest.cpp
   ScrollsTest.cpp
+  TrialsTest.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp

@@ -82,6 +82,9 @@ struct Result {
 // spent, the key scroll (if one was needed) removed from the library. Failure: Half-step title, 25% of the bar lost,
 // never a stage; pity grows and Great Perfection (if entered) is kept.
 Result attempt(GameState& state);
+// A failed attempt's cost on its own (also for a lost Tribulation or Heart
+// Demon, milestone v0.1.9): 25% of the bar, failures + 1, Half-step.
+void failAttempt(GameState& state);
 
 // Grade score entering `targetRealm` (DOC: consolidation 0-40 + Dao Heart
 // 0-25 + pills 0-20 + technique element 0-15; the Fallen clan heir adds 5 to

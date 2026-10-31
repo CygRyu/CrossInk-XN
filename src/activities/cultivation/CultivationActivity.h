@@ -17,6 +17,7 @@
 #include "ScrollStore.h"
 #include "Scrolls.h"
 #include "Simulation.h"
+#include "Trials.h"
 #include "activities/Activity.h"
 
 // Path of Immortal Reading: character creation, the Return summary, the
@@ -60,11 +61,12 @@ class CultivationActivity final : public Activity {
     Techniques,    // the library
     ScrollDetail,  // one scroll: equip, unequip, sell
     SellConfirm,   // selling cannot be undone
+    Trial,         // a Tribulation strike or a Heart Demon scene (CultivationTrialScreens.cpp)
     Error
   };
   // What the Cultivator screen's list offers right now.
-  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Chronicle };
-  enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection };
+  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Chronicle, Trial };
+  enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
   void startVisit();
@@ -78,6 +80,15 @@ class CultivationActivity final : public Activity {
   void refreshActions();
   void runAction();
   void attemptBreakthrough();
+
+  // Tribulations and Heart Demons (CultivationTrialScreens.cpp)
+  void startTrial();
+  void openTrial();
+  void prepareTrialStep();
+  void answerTrial();
+  void trialLost();
+  void renderTrial(int x, int y, int width, int bottom);
+  void trialFlavor(const char* listKey, uint32_t seed, char* out, size_t len);
   void enterGreatPerfection();
   void recordOutcome(const char* listKey, uint32_t seed);
 
@@ -222,6 +233,15 @@ class CultivationActivity final : public Activity {
   OutcomeKind outcomeKind_ = OutcomeKind::BreakthroughSuccess;
   cultivation::breakthrough::Result outcome_;
   cultivation::lifelog::Line outcomeLine_;  // also written to the Chronicle; ~200 B
+
+  // The trial step on screen (~0.7 KB of members): its text, the result of
+  // the previous step, the answers and the scroll names they mention.
+  char trialText_[200] = {};
+  char trialLast_[160] = {};
+  char trialSummary_[120] = {};  // on the Outcome screen after a trial was won
+  cultivation::trials::Strike strike_;
+  char trialNames_[2 + cultivation::trials::kMaxTurnTechniques][cultivation::scrollnames::kNameSize] = {};
+  uint8_t trialChoices_ = 0;  // answers on screen
   bool justCreated_ = false;
   bool saveFailed_ = false;
 

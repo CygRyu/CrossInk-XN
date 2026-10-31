@@ -576,3 +576,41 @@ TEST_F(ChronicleTest, ExportWithoutAChronicleFails) {
   char path[96];
   EXPECT_FALSE(chronicle::exportCopy(s, path, sizeof(path)));
 }
+
+// v0.1.9: every Tribulation and Heart Demon list expands to complete sentences.
+TEST(LifeLog, TrialTextExpandsCleanly) {
+  BuiltinPacks packs;
+  GameState s = makeCharacter(Origin::HerbalistApprentice);
+  s.progress.realm = 3;
+  GrammarContext ctx;
+  ctx.values = gameValues(s);
+  const char* lists[] = {"trib.gather",
+                         "trib.strike",
+                         "trib.survive",
+                         "trib.fail",
+                         "demon.gather",
+                         "demon.origin.farmer",
+                         "demon.origin.clan",
+                         "demon.origin.orphan",
+                         "demon.origin.servant",
+                         "demon.origin.herbalist",
+                         "demon.family",
+                         "demon.failure",
+                         "demon.years",
+                         "demon.pass",
+                         "demon.fail"};
+  for (const char* key : lists) {
+    const uint32_t size = packs.grammar->entryCount(key, ctx);
+    EXPECT_GE(size, 2u) << key;
+    for (uint32_t entry = 0; entry < size; ++entry) {
+      for (uint32_t seed = 0; seed < 10; ++seed) {
+        packs.grammar->beginScene();
+        const std::string line = packs.grammar->expandEntry(key, entry, seed * 31u + entry, ctx);
+        EXPECT_EQ(packs.grammar->missing(), 0) << key << ": " << line;
+        EXPECT_EQ(line.find_first_of("{}[]|$\\"), std::string::npos) << line;
+        EXPECT_EQ(line.back(), '.') << line;
+        EXPECT_LT(line.size(), 170u) << line;
+      }
+    }
+  }
+}
