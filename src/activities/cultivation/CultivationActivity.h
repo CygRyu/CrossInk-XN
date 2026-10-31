@@ -7,10 +7,14 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 #include "Breakthrough.h"
+#include "Exploration.h"
+#include "ExploreText.h"
 #include "GameState.h"
 #include "Grammar.h"
+#include "Inventory.h"
 #include "LifeLog.h"
 #include "PackStore.h"
 #include "ScrollNames.h"
@@ -33,7 +37,9 @@
 // page history (~2 KB). Technique Scrolls add, only while their screen is
 // open: the visit's scroll news (~0.8 KB), the minting work list (~0.5 KB,
 // during the visit's start) and the library list with one page of names
-// (~1 KB). Everything else is a few hundred bytes of members.
+// (~1 KB). Exploration (v0.1.10) adds ~1.9 KB while its screens are open: the
+// open regions' names, the open map's layout and the last event's text.
+// Everything else is a few hundred bytes of members.
 class CultivationActivity final : public Activity {
  public:
   CultivationActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -62,10 +68,17 @@ class CultivationActivity final : public Activity {
     ScrollDetail,  // one scroll: equip, unequip, sell
     SellConfirm,   // selling cannot be undone
     Trial,         // a Tribulation strike or a Heart Demon scene (CultivationTrialScreens.cpp)
+    Regions,       // exploration (CultivationExploreScreens.cpp): the open regions and the bag
+    Map,           // one region's 6x6 map
+    Fight,         // a random encounter, a lair or the guardian
+    Merchant,      // a wandering merchant's stock
+    MerchantSell,  // selling items back at a third
+    Bag,           // items; tonics are drunk here
+    Talisman,      // which cleared region a Region Talisman reshapes
     Error
   };
   // What the Cultivator screen's list offers right now.
-  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Chronicle, Trial };
+  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Explore, Chronicle, Trial };
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -88,6 +101,8 @@ class CultivationActivity final : public Activity {
   void answerTrial();
   void trialLost();
   void renderTrial(int x, int y, int width, int bottom);
+  std::string trialRowTitle(int row) const;
+  std::string trialRowSubtitle(int row) const;
   void trialFlavor(const char* listKey, uint32_t seed, char* out, size_t len);
   void enterGreatPerfection();
   void recordOutcome(const char* listKey, uint32_t seed);
@@ -119,6 +134,41 @@ class CultivationActivity final : public Activity {
   void equipBetterManual();
   void prepareKeyName();
   void scrollAttributes(const cultivation::scrolls::Scroll& s, char* out, size_t len) const;
+
+  // Exploration (CultivationExploreScreens.cpp)
+  void openRegions();
+  void closeExplore();
+  void openMap(uint8_t region);
+  void refreshCursor();
+  void mapConfirm();
+  void showStep(const cultivation::explore::StepResult& r);
+  void openFight();
+  void answerFight();
+  void openMerchant(uint8_t tile);
+  void openBag(Screen returnTo);
+  void refreshBag();
+  void useBagItem();
+  void openTalisman();
+  void exploreChronicle(const char* listKey, uint8_t region, const char* beast, uint32_t extra);
+  void formatReward(const cultivation::explore::Reward& r, uint16_t hpLost, uint16_t hpHealed, char* out,
+                    size_t len) const;
+  bool handleExplore(bool back, bool confirm, bool up, bool down);  // true when the screen is an exploration one
+  void renderRegions(int x, int y, int width, int bottom);
+  void renderMap(int x, int y, int width, int bottom);
+  void renderFight(int x, int y, int width, int bottom);
+  void renderMerchant(int x, int y, int width, int bottom);
+  void renderSell(int x, int y, int width, int bottom);
+  void renderBag(int x, int y, int width, int bottom);
+  void renderTalisman(int x, int y, int width, int bottom);
+  void exploreLabels(const char*& confirmLabel, const char*& upLabel, const char*& downLabel) const;
+  void appendUpheavalLines(uint16_t reshaped);
+  int regionRows() const;  // regions, then the Bag, then the Region Talisman when one can be used
+  int fightRows() const;   // Fight, Slip away, and a tonic when one would help
+  bool canResolveHere() const;
+  void loadRegionNames();
+  const char* exploreTitle(char* buf, size_t len) const;  // the header's title on exploration screens
+  void drawMapTile(int x, int y, int cell, uint8_t tile) const;
+  void renderMapInfo(int x, int y, int width, int bottom);
 
   // Input per screen
   void handleList(int count, bool up, bool down);
@@ -228,7 +278,7 @@ class CultivationActivity final : public Activity {
   char notice_[200] = {};  // one line after selling, equipping, exporting the Chronicle ...
 
   // Cultivator actions and the last breakthrough or Great Perfection outcome.
-  Action actions_[4] = {};
+  Action actions_[5] = {};
   uint8_t actionCount_ = 0;
   OutcomeKind outcomeKind_ = OutcomeKind::BreakthroughSuccess;
   cultivation::breakthrough::Result outcome_;
@@ -240,8 +290,45 @@ class CultivationActivity final : public Activity {
   char trialLast_[160] = {};
   char trialSummary_[120] = {};  // on the Outcome screen after a trial was won
   cultivation::trials::Strike strike_;
-  char trialNames_[2 + cultivation::trials::kMaxTurnTechniques][cultivation::scrollnames::kNameSize] = {};
+  char trialNames_[cultivation::trials::kMaxStrikeOptions][cultivation::scrollnames::kNameSize] = {};
+  // v0.1.10: the rows on the trial screen. Strike answers (row i = strike
+  // option i), then a tonic between strikes; for a Heart Demon: face it,
+  // burn incense, burn a Mind scroll.
+  enum class TrialRow : uint8_t { Answer, Tonic, Face, Incense, BurnMind };
+  TrialRow trialRows_[cultivation::trials::kMaxStrikeOptions + 1] = {};
   uint8_t trialChoices_ = 0;  // answers on screen
+
+  // Exploration, only while its screens are open (~1.5 KB): region names
+  // for the list, the open map's layout (regenerated from the seed), the
+  // cursor, the last event's text, the merchant's stock and the bag's rows.
+  struct ExploreView {
+    static constexpr uint8_t kBagMax = static_cast<uint8_t>(cultivation::inventory::Item::Count);
+    static constexpr size_t kRegionNameSize = 64;
+    char regionNames[cultivation::explore::kRegionCount][kRegionNameSize] = {};
+    uint8_t walkable[cultivation::explore::kRegionCount] = {};  // charting goal per region, for the list
+    uint8_t regionCount = 0;                                    // regions open
+    cultivation::explore::Layout layout;
+    uint8_t region = 0;
+    bool mapOpen = false;
+    uint8_t cursorTiles[5] = {};
+    uint8_t cursorCount = 0;
+    uint8_t cursor = 0;
+    char beast[cultivation::exploretext::kNameSize] = {};
+    char fightText[200] = {};
+    char fightResult[160] = {};
+    char text[200] = {};     // the last thing that happened on the map
+    char numbers[200] = {};  // what it gave or cost
+    cultivation::explore::Stock stock;
+    uint8_t merchantTile = 0;
+    cultivation::inventory::Item bag[kBagMax] = {};
+    uint8_t bagCount = 0;
+    Screen bagReturn = Screen::Regions;
+    uint8_t talismanRegions[cultivation::explore::kRegionCount] = {};
+    uint8_t talismanCount = 0;
+    int regionsSelected = 0;
+  };
+  std::unique_ptr<ExploreView> explore_;
+  uint16_t upheavals_ = 0;  // regions reshaped this visit, for the life log
   bool justCreated_ = false;
   bool saveFailed_ = false;
 

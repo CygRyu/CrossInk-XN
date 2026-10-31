@@ -186,7 +186,7 @@ TEST(Trials, HeartDemonEndsAfterTwoWinsOrTwoLosses) {
     Progress p = Progress::Continue;
     int scenes = 0;
     while (p == Progress::Continue) {
-      const SceneResult r = answerScene(s, false);
+      const SceneResult r = answerScene(s, SceneAnswer::Face);
       ASSERT_LT(r.roll, 100);
       p = r.progress;
       ++scenes;
@@ -209,7 +209,7 @@ TEST(Trials, BurningAMindScrollPassesAScene) {
   addScroll(s, scrolls::Kind::Mind, 1, 3);   // the weaker Mind scroll: burned first
   ASSERT_TRUE(begin(s));
   EXPECT_EQ(burnableMindScroll(s), 2);
-  const SceneResult r = answerScene(s, true);
+  const SceneResult r = answerScene(s, SceneAnswer::BurnMind);
   EXPECT_TRUE(r.passed);
   EXPECT_TRUE(r.didBurn);
   EXPECT_EQ(r.burned.titleHash, 3u);
@@ -223,7 +223,7 @@ TEST(Trials, TheSameSceneAlwaysRollsTheSame) {
   GameState b = a;
   ASSERT_TRUE(begin(a));
   ASSERT_TRUE(begin(b));
-  EXPECT_EQ(answerScene(a, false).roll, answerScene(b, false).roll);
+  EXPECT_EQ(answerScene(a, SceneAnswer::Face).roll, answerScene(b, SceneAnswer::Face).roll);
 }
 
 TEST(Trials, NoTrialBeforeCoreFormation) {

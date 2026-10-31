@@ -231,6 +231,7 @@ void CultivationActivity::onEnter() {
 }
 
 void CultivationActivity::onExit() {
+  explore_.reset();
   library_.reset();
   news_.reset();
   chronicle_.reset();
@@ -301,6 +302,8 @@ void CultivationActivity::startVisit() {
   // Only the first time the bar fills in a realm: after a failed breakthrough,
   // refilling it is not news (found in the simulator).
   change.reachedBottleneck = !bottleneckBefore && atBottleneck(*state_) && state_->progress.failures == 0;
+  // v0.1.10: herbs regrow and cleared regions reshape on reading time.
+  upheavals_ = explore::tick(*state_);
   updateRumor();
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
@@ -312,7 +315,11 @@ void CultivationActivity::startVisit() {
   // The Chronicle is written before the save: if the save fails, the next
   // visit rebuilds the same lines and chronicle::appendVisit() skips them.
   const bool summary = visitSeconds_ > 0 && !visitReset_;
-  if (summary) writeLifeLog(change);
+  if (summary) {
+    writeLifeLog(change);
+  } else {
+    appendUpheavalLines(upheavals_);  // straight into the Chronicle
+  }
   // Books finished since the last visit become scrolls (Chronicle lines first,
   // like the life log). minted.bin and the pending list are only updated
   // once the save holds the new scrolls, so a failed save mints them again.
@@ -341,6 +348,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
     return;
   }
   lifelog::build(*lifeLog_, change, visit_.monthsPassed, *state_, grammar_.get());
+  appendUpheavalLines(upheavals_);  // Spatial Upheaval: after the visit's own lines
   if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
   chronicle::appendVisit(*lifeLog_);
   if (packs_) packs_->closeFile();
@@ -384,6 +392,7 @@ void CultivationActivity::refreshActions() {
     if (atBottleneck(*state_)) actions_[actionCount_++] = Action::Breakthrough;
     if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
     actions_[actionCount_++] = Action::Techniques;
+    actions_[actionCount_++] = Action::Explore;  // v0.1.10; says when the first region opens
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
   if (selected_ >= actionCount_) selected_ = 0;
@@ -402,6 +411,9 @@ void CultivationActivity::runAction() {
       return;
     case Action::Techniques:
       openTechniques();
+      return;
+    case Action::Explore:
+      openRegions();
       return;
     case Action::GreatPerfection:
       screen_ = Screen::GreatPerfection;
@@ -543,6 +555,8 @@ void CultivationActivity::loop() {
                     mappedInput.wasPressed(MappedInputManager::Button::Right);
   if (back) mappedInput.suppressNextBackRelease();
   if (confirm) mappedInput.suppressNextConfirmRelease();
+
+  if (handleExplore(back, confirm, up, down)) return;  // exploration screens (CultivationExploreScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -879,6 +893,11 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::BetterManual) title = tr(STR_CULT_BETTER_MANUAL);
   if (screen_ == Screen::Techniques || screen_ == Screen::ScrollDetail) title = tr(STR_CULT_TECHNIQUES);
   if (screen_ == Screen::SellConfirm) title = tr(STR_CULT_SELL);
+  char exploreTitleBuf[ExploreView::kRegionNameSize];
+  if (screen_ == Screen::Regions || screen_ == Screen::Map || screen_ == Screen::Fight || screen_ == Screen::Merchant ||
+      screen_ == Screen::MerchantSell || screen_ == Screen::Bag || screen_ == Screen::Talisman) {
+    title = exploreTitle(exploreTitleBuf, sizeof(exploreTitleBuf));
+  }
   char chronicleTitle[48];
   if (screen_ == Screen::Chronicle && chronicle_) {
     snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_TITLE_FORMAT),
@@ -993,6 +1012,34 @@ void CultivationActivity::render(RenderLock&&) {
       confirmLabel = tr(STR_CULT_SELL);
       upLabel = "";
       downLabel = "";
+      break;
+    case Screen::Regions:
+      renderRegions(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Map:
+      renderMap(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Fight:
+      renderFight(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Merchant:
+      renderMerchant(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::MerchantSell:
+      renderSell(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Bag:
+      renderBag(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Talisman:
+      renderTalisman(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
       break;
     case Screen::Error:
       drawWrapped(UI_10_FONT_ID, x, top, width, tr(STR_CULT_OUT_OF_MEMORY), 4);
@@ -1159,19 +1206,32 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   renderer.drawText(SMALL_FONT_ID, x + width - renderer.getTextWidth(SMALL_FONT_ID, percent), y, percent);
   y += renderer.getLineHeight(SMALL_FONT_ID) + metrics.verticalSpacing * 2;
 
+  // Short lines share a row, the second on the right (v0.1.10: the Explore
+  // row needed the room); a pair too wide for one row takes two.
+  const int rowStep = renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  auto pair = [&](const char* left, const char* right) {
+    renderer.drawText(UI_10_FONT_ID, x, y, left);
+    const int leftWidth = renderer.getTextWidth(UI_10_FONT_ID, left);
+    const int rightWidth = renderer.getTextWidth(UI_10_FONT_ID, right);
+    if (leftWidth + rightWidth + 16 > width) y += rowStep;
+    renderer.drawText(UI_10_FONT_ID, x + width - rightWidth, y, right);
+    y += rowStep;
+  };
+  char second[64];
+
   snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
            static_cast<unsigned>(realm.lifespanYears));
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  snprintf(second, sizeof(second), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
+  pair(line, second);
 
   snprintf(line, sizeof(line), tr(STR_CULT_ROOT_FORMAT), text(kElementNames[static_cast<int>(s.character.rootElement)]),
            static_cast<unsigned>(s.character.rootPurity));
   renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  y += rowStep;
 
   snprintf(line, sizeof(line), tr(STR_CULT_TALENT_FORMAT), text(kTalentNames[s.character.talent % kTalentCount]));
   renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  y += rowStep;
 
   const uint32_t rate = qiMultiplierPermille(s);
   if (scrolls::equippedManual(s) >= 0) {
@@ -1182,24 +1242,14 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   } else {
     formatRate(line, sizeof(line), rate);
   }
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  snprintf(second, sizeof(second), tr(STR_CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
+  pair(line, second);
 
-  snprintf(line, sizeof(line), tr(STR_CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
-
+  // HP on the Stamina line (v0.1.9: Tribulations spend it, reading heals it).
   snprintf(line, sizeof(line), tr(STR_CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
            static_cast<unsigned>(kStaminaCap));
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  // HP on the same line, on the right (v0.1.9: Tribulations spend it, reading heals it).
-  snprintf(line, sizeof(line), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
-  renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, line), y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
-
-  snprintf(line, sizeof(line), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
+  snprintf(second, sizeof(second), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+  pair(line, second);
 
   if (breakthrough::inGreatPerfection(s)) {
     snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
@@ -1227,6 +1277,12 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
     snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
     rumorReserve = static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, line, width, 5).size()) * smallLine +
                    metrics.verticalSpacing * 2;
+  }
+  // The missing-key line below needs its room too (v0.1.10: with Explore the
+  // busiest screen has five actions).
+  if (atBottleneck(s)) {
+    const breakthrough::Chance c = breakthrough::chanceFor(s);
+    if (c.needsKey && !c.hasKey) rumorReserve += smallLine + 4;
   }
 
   // What this visit brought.
@@ -1284,6 +1340,8 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
                        return tr(STR_CULT_ACTION_GREAT_PERFECTION);
                      case Action::Techniques:
                        return tr(STR_CULT_ACTION_TECHNIQUES);
+                     case Action::Explore:
+                       return tr(STR_CULT_ACTION_EXPLORE);
                      case Action::Chronicle:
                        return tr(STR_CULT_ACTION_CHRONICLE);
                      case Action::Trial:
@@ -1434,7 +1492,12 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.keyUsed && nameBuf_[0] != '\0') {
     snprintf(line, sizeof(line), tr(STR_CULT_KEY_USED_FORMAT), nameBuf_);
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  }
+  // v0.1.10: each realm opens the next region.
+  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.toRealm >= 1 &&
+      outcome_.toRealm <= explore::kRegionCount) {
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_REGION_OPENED), 3);
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughFailure || outcomeKind_ == OutcomeKind::TrialLost) {
     snprintf(line, sizeof(line), tr(STR_CULT_NEXT_CHANCE_FORMAT),

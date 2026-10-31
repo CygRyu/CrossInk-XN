@@ -23,9 +23,11 @@
 namespace cultivation {
 namespace lifelog {
 
-constexpr uint8_t kMaxSeasonLines = 6;              // DOC: "up to 6"
-constexpr uint8_t kMaxLines = kMaxSeasonLines + 2;  // + one stage line + one bottleneck line
-constexpr size_t kLineSize = 200;                   // "Winter, age 123. " plus a pack line (under 180 bytes)
+constexpr uint8_t kMaxSeasonLines = 6;    // DOC: "up to 6"
+constexpr uint8_t kMaxUpheavalLines = 2;  // v0.1.10: regions reshaped by Spatial Upheaval this visit
+// + one stage line + one bottleneck line + upheavals
+constexpr uint8_t kMaxLines = kMaxSeasonLines + 2 + kMaxUpheavalLines;
+constexpr size_t kLineSize = 200;  // "Winter, age 123. " plus a pack line (under 180 bytes)
 
 inline uint32_t seasonOf(const uint32_t ageMonths) { return ageMonths / 3; }
 inline uint32_t ageOfSeason(const uint32_t season) { return season / 4; }                        // years
@@ -57,7 +59,8 @@ struct Line {
 };
 
 // One visit's lines, in order: seasons, then a stage line, then a bottleneck
-// line. About 1.6 KB, so the activity allocates it for the summary only.
+// line, then any Spatial Upheaval lines (added by the activity). About 2 KB,
+// so the activity allocates it for the summary only.
 struct LifeLog {
   uint32_t monthsPassed = 0;
   uint32_t seasonsPassed = 0;

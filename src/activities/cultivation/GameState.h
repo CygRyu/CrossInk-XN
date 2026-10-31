@@ -94,7 +94,7 @@ struct ProgressBlock {
   static constexpr uint8_t kInTrial = 0x08;
 };
 
-// The save file, about 960 bytes. Blocks that later milestones fill in are
+// The save file, about 1.2 KB. Blocks that later milestones fill in are
 // reserved here at their full design-document size now, so adding their
 // meaning later never moves a byte or needs a format change: an all-zero
 // block must mean "empty" for every future field.
@@ -118,6 +118,12 @@ struct GameState {
   // used to turn a strike (bit per equipped technique, in library order),
   // byte 3 = Heart Demon scenes won (high nibble) and lost (low nibble).
   std::array<uint8_t, 4> techniqueMeta{};
+  // Save v3 (v0.1.10): exploration. Per region: charted and used-up tiles,
+  // reshape counter, flags, position, regrowth and clear times, merchant
+  // stock cycle and purchases; plus the encounter step counter and a fight
+  // waiting to be fought. Layout in Exploration.h. Terrain and content are
+  // regenerated from the world seed, never stored.
+  std::array<uint8_t, 200> exploration{};
 
   bool isCreated() const { return (character.flags & CharacterBlock::kCharacterCreated) != 0; }
   // Field by field, so no ~1 KB temporary GameState lands on the stack.
@@ -131,11 +137,12 @@ struct GameState {
 namespace save {
 
 constexpr uint16_t kMagic = 0x4950;  // "PI" when read as bytes 'P','I'
-constexpr uint16_t kSaveVersion = 2;
+constexpr uint16_t kSaveVersion = 3;
 constexpr size_t kHeaderSize = 10;
 constexpr size_t kPayloadSizeV1 = 945;
-constexpr size_t kPayloadSizeV2 = 949;  // + techniqueMeta (milestone 7)
-constexpr size_t kPayloadSize = kPayloadSizeV2;
+constexpr size_t kPayloadSizeV2 = 949;   // + techniqueMeta (milestone 7)
+constexpr size_t kPayloadSizeV3 = 1149;  // + exploration (v0.1.10)
+constexpr size_t kPayloadSize = kPayloadSizeV3;
 constexpr size_t kFileSize = kHeaderSize + kPayloadSize;
 
 constexpr char kDirectory[] = "/.crosspoint/cultivation";

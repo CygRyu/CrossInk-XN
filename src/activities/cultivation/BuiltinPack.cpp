@@ -741,7 +741,256 @@ The faces fade one by one, and when the last is gone you open the door and ask f
 Your disciples break down the door on the fifth day and find you talking to the wall.
 You come out of seclusion shaking, and for a month you will not sit alone in a dark room.
 
-# --- Sample event (exploration arrives in a later milestone) ---------------
+# --- Exploration (v0.1.10) -----------------------------------------------
+# Region names, beasts and guardians are themed by region slot (~marsh ...
+# ~ridge); the plain lists are the fallback. {$region.name} and
+# {$beast.name} are set by the exploration screens.
+
+[region.name]
+the [Grey|Long|Broken] Hills
+the [Old|Red|Stone] Valley
+
+[region.name~marsh]
+the Mistveil Marshes
+the [Reedwater|Black Mud|Heron] Marshes
+the [Sunken Ferry|Leech Pond|Drowned Mill] Fens
+
+[region.name~wastes]
+the Ember Wastes
+the [Cinder|Scorched|Red Dust] Wastes
+the [Ash|Dry Well] Plain
+
+[region.name~forest]
+the [Jade|Ashen|Old Pine] Forest
+the [Woodcutter's|Hanging Moss|Wolf] Forest
+the [Camphor|Black Bamboo] Woods
+
+[region.name~gorge]
+the [Thousand-Step|Iron Chain|Hanging Coffin] Gorge
+the [Echo|Split Rock] Gorge
+the [Narrow Sky|Rope Bridge] Canyon
+
+[region.name~snow]
+the [Cold Moon|White Crane|Frozen Bell] Peaks
+the [Glacier|Snowblind] Pass
+the [Ice Lotus|Hailstone] Heights
+
+[region.name~delta]
+the Ninefold River Delta
+the [Silt|Salt Reed|Willow] Delta
+the [Thousand Islet|Smugglers'] Shallows
+
+[region.name~volcano]
+the [Sulphur|Molten Bell|Red Furnace] Fields
+the [Smoking Crater|Brimstone] Slopes
+the [Burnt Shrine|Obsidian] Flats
+
+[region.name~battlefield]
+the [Old|Nameless|Ten Thousand Graves] Battlefield
+the [Broken Banner|Rusted Spear] Plain
+the [Bone|Iron Arrow] Field
+
+[region.name~salt]
+the Drifting Salt Flats
+the [White Crust|Mirror] Salt Desert
+the [Dead Caravan|Bitter Well] Sands
+
+[region.name~ridge]
+the [Cloudsea|Floating Stair] Ridge
+the [Nine Heavens|Thunderhead] Crest
+the [Crane-Back|Sky Ladder] Ridge
+
+[beast.region]
+a grey wolf
+a wild boar
+a mountain bandit with a rusty saber
+
+[beast.region~marsh]
+a marsh crocodile
+a swarm of blood leeches the size of fingers
+a rock python as thick as a man's thigh
+a heron-demon that has learned to wade like a man
+
+[beast.region~wastes]
+a pack of red jackals
+a scorpion as long as an ox cart
+a desert bandit on a starved horse
+a fire-backed lizard
+
+[beast.region~forest]
+a black ape
+a leopard
+a pack of grey wolves
+a bear that has eaten three woodcutters
+
+[beast.region~gorge]
+a cliff eagle with a three-yard wingspan
+a family of stone apes
+a road robber who waits at the rope bridge
+a horned goat that knocks travellers off ledges
+
+[beast.region~snow]
+a snow leopard
+a white bear
+a frost wolf pack
+a hermit who thinks you came to steal his ice lotus
+
+[beast.region~delta]
+a river crocodile
+a pair of water-snake demons
+smugglers who do not want to be seen
+a giant soft-shelled turtle
+
+[beast.region~volcano]
+a fire salamander
+a lava-scaled boar
+a sulphur toad that spits
+a miner driven mad by the fumes
+
+[beast.region~battlefield]
+a corpse-eating vulture flock
+a deserter in old armour who will not be taken alive
+a ghost-fox that lives among the graves
+a grave robber and his two sons
+
+[beast.region~salt]
+a salt scorpion
+a sand python
+caravan raiders on camels
+a salt-crusted ghoul that walks at night
+
+[beast.region~ridge]
+a thunder hawk
+a cloud leopard
+a rogue cultivator who robs pilgrims
+a white ape that guards a spirit spring
+
+[guardian.region]
+the bandit chief Iron Jaw Wu and his nephews
+
+[guardian.region~marsh]
+the Old Mother of the Marsh, a crocodile two hundred years old
+the leech-demon that drowned the ferry at Sunken Ferry
+
+[guardian.region~wastes]
+the Red Dust Bandit King and his twelve riders
+a scorpion queen with a shell like temple bronze
+
+[guardian.region~forest]
+the White-Browed Tiger that ate the magistrate's son
+the Woodcutters' Ghost, a black ape the size of a hut
+
+[guardian.region~gorge]
+Chain-Cutter Shen, who holds the Iron Chain bridge for tolls
+a roc that nests above the Hanging Coffins
+
+[guardian.region~snow]
+the Snow Bear of Frozen Bell, scarred by forty hunters
+Frost Matron Qiu, a cultivator who never came down from the pass
+
+[guardian.region~delta]
+the Flood Dragon-Turtle that sinks salt barges
+Pirate Chief Long Eel and his iron-hulled junk
+
+[guardian.region~volcano]
+the Red Furnace Salamander, its back still smoking
+Smith Zhuo, who forges demon blades in the crater
+
+[guardian.region~battlefield]
+the Headless General's last guard of forty dead men
+the Bone Marshal, a corpse cultivator in rusted armour
+
+[guardian.region~salt]
+the Mirror Sand King, a python sixty yards long
+the Caravan Eater, a ghoul that wears merchants' silks
+
+[guardian.region~ridge]
+the Thunder Roc of the Nine Heavens Crest
+Elder Gu of the Sky Ladder, who throws visitors off the ridge
+
+[explore.path]
+A footpath through {$region.name}, trodden by herb pickers.
+Nothing here but tracks and a cold fire pit.
+An empty stretch. Someone has cut a mark into a tree to find the way back.
+Wet ground and old cart ruts. Nobody passes this way often.
+
+[explore.herb]
+You dig up the herbs with your knife and wrap the roots in a wet cloth.
+Herbs grow thick in a shaded hollow. You take what is ripe.
+A patch of spirit grass, half eaten by deer. You take the rest.
+
+[explore.ore]
+A seam of ore shows in a fresh rockfall. You break off what you can carry.
+You chip ore out of an old miner's cut, abandoned with the tools still in it.
+
+[explore.ruin.won]
+In a collapsed shrine you find a lacquer box with Spirit Stones wrapped in oilcloth.
+Under the floor of a burned-out guardhouse lies a dead man's purse, still full.
+A robbers' storeroom in the hillside: the robbers are long gone, their stones are not.
+
+[explore.ruin.trap]
+A rotten beam gives way and you fall through the floor.
+The doorway was rigged with a crossbow. The bolt takes you in the shoulder.
+An old formation flares as you step inside and burns your hands.
+
+[explore.cave]
+Behind a curtain of roots, a dry cave with a sleeping mat and a sealed jar.
+A hermit's cave, empty for years. His things are still on the shelf.
+
+[explore.quiet]
+A spring under an old pine. You sit, breathe, and the aches ease.
+A ruined temple with one wall standing out of the wind. You rest there and your wounds close.
+
+[explore.quiet.full]
+A good place to rest, but you are not hurt. You note it for later.
+
+[explore.merchant]
+A pedlar has set out his mat under an awning. He does not ask where you are going.
+A travelling herb seller with a mule. Her prices are written on a board.
+
+[explore.fight.beast]
+{$beast.name.cap} blocks the way.
+On the path ahead, {$beast.name} has seen you first.
+You hear it before you see it: {$beast.name}.
+
+[explore.fight.lair]
+This is the lair of {$beast.name}, and it is home.
+Bones and torn cloth at the mouth of a den. {$beast.name.cap} comes out.
+
+[explore.fight.guardian]
+{$beast.name.cap}. Every herb picker in {$region.name} knows to stay away from here.
+At the heart of {$region.name} waits {$beast.name}.
+
+[explore.won]
+It is over in a few exchanges. You take what was left on the ground.
+Three blows settle it, and you sit down to catch your breath.
+{$beast.name.cap} breaks off and runs, leaving behind what it had collected.
+
+[explore.lost]
+You are thrown into the brush and crawl away bleeding.
+You take a bad wound to the side and fall back the way you came.
+You lose your footing, take a beating and only just get clear.
+
+[explore.slip]
+You back away slowly and it lets you go.
+You circle round through the undergrowth and leave it behind.
+
+[explore.line.guardian]
+In {$region.name} you fought {$beast.name} and walked away the winner.
+You beat {$beast.name}, and the herb pickers of {$region.name} drank to you that night.
+
+[explore.line.clear]
+You walked every path of {$region.name} and now know it like your own yard.
+By now you could draw {$region.name} from memory, every crag and spring of it.
+
+[explore.line.upheaval]
+The ground of {$region.name} heaved for three days; the old paths are gone and the herb pickers have to learn it again.
+Rockfalls closed the passes of {$region.name} and opened new ones; nobody's map is any good now.
+
+[explore.line.talisman]
+You burned a Region Talisman at the edge of {$region.name}, and by morning the paths had moved.
+
+# --- Sample event ---------------------------------------------------------
 
 [ruin.desc]
 a [collapsed|half-buried|burned-out] shrine

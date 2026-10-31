@@ -40,7 +40,7 @@ the ferry at {place.town} stopped running after the boatman was found with a swo
 | `{name.[m\|f]}` | a key built from parts: here `name.m` or `name.f` |
 | `\{`, `\[`, `\|` | the character itself |
 
-Game values: `$player.name`, `$player.realm` (or `$realm`), `$player.stage`, `$player.age`, `$player.element`, `$season` ("spring"), `$root.glow` and `$root.color` (the Awakening Test stone: "murky", "green"), `$past.pages`, `$past.books` and `$past.hours` (reading from before this life, with the noun: "48,210 pages", "1 book"); pronouns `$pro.they`, `$pro.them`, `$pro.their`, `$pro.theirs`, `$pro.themself` with matching verbs `$pro.is`, `$pro.was`, `$pro.has` ("{$pro.they.cap} {$pro.is} ready" gives "She is ready" or "They are ready"); titles `$title.senior` (Senior Brother / Sister / Sibling / Senior), `$title.sect` (Sect Master / Mistress / Head) and `$title.god` (Godking / Godqueen / Godsovereign); `$scroll.name`, a Technique Scroll's name, only in the `scroll.line.*` lists.
+Game values: `$player.name`, `$player.realm` (or `$realm`), `$player.stage`, `$player.age`, `$player.element`, `$season` ("spring"), `$root.glow` and `$root.color` (the Awakening Test stone: "murky", "green"), `$past.pages`, `$past.books` and `$past.hours` (reading from before this life, with the noun: "48,210 pages", "1 book"); pronouns `$pro.they`, `$pro.them`, `$pro.their`, `$pro.theirs`, `$pro.themself` with matching verbs `$pro.is`, `$pro.was`, `$pro.has` ("{$pro.they.cap} {$pro.is} ready" gives "She is ready" or "They are ready"); titles `$title.senior` (Senior Brother / Sister / Sibling / Senior), `$title.sect` (Sect Master / Mistress / Head) and `$title.god` (Godking / Godqueen / Godsovereign); `$scroll.name`, a Technique Scroll's name, only in the `scroll.line.*` lists; `$region.name` and `$beast.name` only in the exploration lists.
 
 After expanding, the engine tidies spacing ("word ," becomes "word,") and doubled articles ("the the river" becomes "the river"). Lists remember their recent picks (60% of the list, at most 16) and avoid repeating them.
 
@@ -118,6 +118,22 @@ Names should read like wuxia and xianxia manuals ("Moon-Severing Sword Canon", "
 | `trib.burn` | Chronicle: a scroll burned to stop a strike or pass a scene; `{$scroll.name}` is its name |
 
 Scenes are what the cultivator sees in seclusion: concrete people and places from their past, one sentence, present tense.
+
+## Exploration (v0.1.10)
+
+Region slots have a theme each, in order: `marsh`, `wastes`, `forest`, `gorge`, `snow`, `delta`, `volcano`, `battlefield`, `salt`, `ridge`. The themed lists use the theme layer, so `[region.name~marsh]` is the marsh slot's list and plain `[region.name]` is the fallback. Names are picked once per world and never change; a region keeps its name when it reshapes.
+
+| List | Used for |
+| --- | --- |
+| `region.name` (`~theme`) | a region's name, used inside sentences ("the Reedwater Marshes"; the screen capitalises it for titles) |
+| `beast.region` (`~theme`) | the beasts met on the region's paths and in its lairs, with an article ("a marsh crocodile") |
+| `guardian.region` (`~theme`) | the region's guardian; a new one after each reshape |
+| `explore.path`, `explore.herb`, `explore.ore`, `explore.ruin.won`, `explore.ruin.trap`, `explore.cave`, `explore.quiet`, `explore.quiet.full`, `explore.merchant` | the map: one line for what a step found (no season label) |
+| `explore.fight.beast`, `explore.fight.lair`, `explore.fight.guardian` | the Fight screen's line |
+| `explore.won`, `explore.lost`, `explore.slip` | after a fight, on the map |
+| `explore.line.guardian`, `explore.line.clear`, `explore.line.upheaval`, `explore.line.talisman` | Chronicle lines (the upheaval line also shows in the Return summary) |
+
+`{$region.name}` and `{$beast.name}` (the beast or guardian) are set in these lists only. Write beasts and guardians with their article and in lower case unless they are a name ("a white bear", "the Snow Bear of Frozen Bell"); use `{$beast.name.cap}` at the start of a sentence. Fight lines also fit bandits and robbers, so prefer "you" over "it" as the subject.
 
 ## Events
 

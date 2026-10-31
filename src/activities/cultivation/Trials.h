@@ -50,6 +50,10 @@ uint8_t strikesFor(uint8_t targetRealm);  // 0 when no Tribulation
 // Percent of max HP that strike `index` (0-based) of a Tribulation deals.
 uint8_t strikePercent(uint8_t strikes, uint8_t index);
 
+// The best equipped Body technique's cut on damage taken, 10-50% by tier (0 without one).
+// Tribulation strikes and lost exploration fights both use it.
+uint8_t bodyCutPercent(const GameState& state);
+
 bool inTrial(const GameState& state);
 uint8_t step(const GameState& state);  // strike or scene, 0-based
 // Begins the trial for the next realm (the breakthrough screen's Attempt).
@@ -60,7 +64,9 @@ void end(GameState& state);
 
 // --- Tribulation ----------------------------------------------------------------------
 
-enum class Answer : uint8_t { Endure, Turn, Burn };
+// Shield (v0.1.10): a Thunder-Warding Talisman takes the whole strike and is used up.
+enum class Answer : uint8_t { Endure, Turn, Burn, Shield };
+constexpr uint8_t kMaxStrikeOptions = 3 + kMaxTurnTechniques;  // Endure, Turns, Shield, Burn
 
 struct StrikeOption {
   Answer answer = Answer::Endure;
@@ -73,12 +79,13 @@ struct Strike {
   uint8_t count = 0;  // strikes in this Tribulation
   uint8_t percent = 0;
   uint16_t base = 0;  // damage before any answer
-  StrikeOption options[2 + kMaxTurnTechniques] = {};
+  StrikeOption options[kMaxStrikeOptions] = {};
   uint8_t optionCount = 0;
 };
 
 // The current strike and its answers, in display order: Endure, the unused
-// Turn techniques, Burn (the weakest unequipped scroll that is not the key).
+// Turn techniques, Shield (when a Thunder-Warding Talisman is held), Burn (the
+// weakest unequipped scroll that is not the key).
 Strike currentStrike(const GameState& state);
 
 enum class Progress : uint8_t { Continue, Won, Lost };
@@ -88,6 +95,7 @@ struct StrikeResult {
   uint16_t damage = 0;
   scrolls::Scroll burned;  // Burn: the scroll used up
   bool didBurn = false;
+  bool shielded = false;  // a Thunder-Warding Talisman took the strike
 };
 
 // Applies option `choice` of currentStrike(). Won: the caller rolls the
@@ -108,10 +116,14 @@ struct SceneResult {
   uint8_t chance = 0;
   scrolls::Scroll burned;
   bool didBurn = false;
+  bool incense = false;  // a Calm-Heart Incense was burned for this scene
 };
 
-// Faces the current scene (a seeded roll), or burns a Mind scroll to pass it.
-SceneResult answerScene(GameState& state, bool burnMindScroll);
+// Face: a seeded roll against sceneChance(). Incense (v0.1.10): the same roll
+// with +25 (at most 99), one Calm-Heart Incense used up. BurnMind: burns an
+// unequipped Mind scroll to pass for certain.
+enum class SceneAnswer : uint8_t { Face, BurnMind, Incense };
+SceneResult answerScene(GameState& state, SceneAnswer answer);
 
 }  // namespace trials
 }  // namespace cultivation

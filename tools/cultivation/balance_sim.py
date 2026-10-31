@@ -131,6 +131,19 @@ TUNING = {
                             9: [10, 13, 16, 19, 22, 25, 28, 31, 34]},
     "heart_demon_realms": (4, 6, 8),
     "heart_demon_base": 40,            # + Dao Heart x 30 / 100 + Golden Core grade 0..20 (+10 Mind technique: left out)
+    # v0.1.10 exploration (user-agreed): Spirit Stones buy trial items from wandering merchants. Exploration
+    # gives no Qi; its own stone and item finds are left out (a cautious model: reading income only). Before
+    # each trial the model passes a few merchants; each has an item in stock at the agreed rate.
+    "shop": True,
+    "pages_per_minute": 1.0,           # for the stone income (page part of decision 5B)
+    "item_price": {"thunder": 150, "incense": 120, "tonic_greater": 80},
+    "item_stock": {"thunder": 0.30, "incense": 0.30, "tonic_greater": 0.25},
+    "merchant_chances": 3,             # merchants passed (fresh stock) before each trial
+    "thunder_held_max": 2,
+    "incense_held_max": 2,
+    "tonic_held_max": 1,
+    "incense_bonus": 25,
+    "tonic_greater_heal": 50,          # % of max HP
     "dao_heart_full_hours": 15,        # decision 2B: Dao Heart 100 after 15 h read, never decays
     "flowing_water_unlock_night_h": 5,  # DOC
     "dao_time_of_day_unlock_any_h": 40,  # DOC
@@ -284,6 +297,12 @@ class Character:
         self.waiting_key = False        # full Peak bar, no key (only without pill keys)
         self.scrolls_burned = 0         # v0.1.9: spare scrolls burned in tribulations
         self.trials_lost = 0
+        self.stones = 0                 # v0.1.10: Spirit Stones (reading income only, see TUNING["shop"])
+        self.stones_spent = 0
+        self.thunder = 0                # Thunder-Warding Talismans held
+        self.incense = 0                # Calm-Heart Incense held
+        self.tonics = 0                 # Greater tonics held
+        self.items_used = 0
         self.hours = 0.0               # all reading hours (drives age)
         self.qual_minutes_week = 0.0
         self.bucket_h = [0.0] * 4
@@ -418,17 +437,53 @@ class Character:
         fits = [i for i, t in enumerate(self.spare_scrolls) if t >= need]
         return min(fits, key=lambda i: self.spare_scrolls[i]) if fits else None
 
+    def shop(self, strikes, heart_demon: bool):
+        """v0.1.10: before a trial, buy what the coming trial needs from the merchants passed."""
+        t = TUNING
+        if not t["shop"]:
+            return
+        price = t["item_price"]
+        for _ in range(t["merchant_chances"]):
+            wants = []
+            if strikes:
+                wants += [("thunder", "thunder_held_max"), ("tonic_greater", "tonic_held_max")]
+            if heart_demon:
+                wants += [("incense", "incense_held_max")]
+            for item, cap in wants:
+                held = {"thunder": self.thunder, "incense": self.incense, "tonic_greater": self.tonics}[item]
+                in_stock = self.rng.random() < t["item_stock"][item]
+                if not in_stock or held >= t[cap] or self.stones < price[item]:
+                    continue
+                self.stones -= price[item]
+                self.stones_spent += price[item]
+                if item == "thunder":
+                    self.thunder += 1
+                elif item == "incense":
+                    self.incense += 1
+                else:
+                    self.tonics += 1
+
     def pass_trial(self, target: int) -> bool:
         """The Tribulation or Heart Demon before the roll (firmware Trials.cpp), with the cautious model."""
         t = TUNING
         if not t["trials"]:
             return True
         strikes = t["tribulation_strikes"].get(target)
+        self.shop(strikes, target in t["heart_demon_realms"])
         if strikes:
             hp = 100
             for pct in strikes:
                 if pct < hp:
                     hp -= pct
+                    continue
+                if self.thunder:   # v0.1.10: a Thunder-Warding Talisman takes the whole strike
+                    self.thunder -= 1
+                    self.items_used += 1
+                    continue
+                if self.tonics and hp + t["tonic_greater_heal"] > pct:   # a Greater tonic between strikes
+                    self.tonics -= 1
+                    self.items_used += 1
+                    hp = min(100, hp + t["tonic_greater_heal"]) - pct
                     continue
                 key = self.scroll_key(target)
                 spare = [i for i in range(len(self.spare_scrolls)) if i != key]
@@ -443,7 +498,12 @@ class Character:
             chance = min(95.0, t["heart_demon_base"] + 30 * self.dao_heart / 100 + core_bonus)
             won = lost = 0
             while won < 2 and lost < 2:
-                if self.rng.random() * 100 < chance:
+                scene = chance
+                if self.incense:   # v0.1.10: Calm-Heart Incense, +25 to one scene (at most 99)
+                    self.incense -= 1
+                    self.items_used += 1
+                    scene = min(99.0, chance + t["incense_bonus"])
+                if self.rng.random() * 100 < scene:
                     won += 1
                 else:
                     lost += 1
@@ -482,6 +542,7 @@ class Character:
         room = t["stamina_cap"] - self.stamina_bank
         self.stamina_lost_to_cap += max(0, gained - room)
         self.stamina_bank = min(t["stamina_cap"], self.stamina_bank + gained)
+        self.stones += stones_for_visit(minutes, minutes * t["pages_per_minute"])
 
         left = minutes
         while left > 1e-9 and not self.done:
@@ -742,9 +803,23 @@ def fairness(runs: int, seed: int, gp_linger: float, w):
         w(f"    {cmp[k].name:<38}{earned:>6.1f}/week earned\n")
 
     cs = res["30/day"]["chars"]
-    w(f"  Trials (v0.1.9, cautious model: endure, burn a spare scroll only to survive): 30 min/day loses "
-      f"{statistics.mean(c.trials_lost for c in cs):.2f} trials and burns "
-      f"{statistics.mean(c.scrolls_burned for c in cs):.1f} scrolls over the Mortal Plane (mean)\n")
+    saved_shop = TUNING["shop"]
+    TUNING["shop"] = False
+    try:
+        bare = summarize(simulate(PROFILES["30/day"], "modeled", runs, seed, gp_linger))["chars"]
+    finally:
+        TUNING["shop"] = saved_shop
+    w(f"  Trials (cautious model: endure, burn a spare scroll only to survive), 30 min/day, over the Mortal "
+      f"Plane (mean):\n")
+    w(f"    without merchant items (v0.1.9): {statistics.mean(c.trials_lost for c in bare):.2f} trials lost, "
+      f"{statistics.mean(c.scrolls_burned for c in bare):.1f} scrolls burned, "
+      f"{statistics.median(c.records[-1].end_hours for c in bare if c.done):.0f} h\n")
+    w(f"    with merchant items (v0.1.10):   {statistics.mean(c.trials_lost for c in cs):.2f} trials lost, "
+      f"{statistics.mean(c.scrolls_burned for c in cs):.1f} scrolls burned, "
+      f"{statistics.median(c.records[-1].end_hours for c in cs if c.done):.0f} h; "
+      f"{statistics.mean(c.items_used for c in cs):.1f} items used, "
+      f"{statistics.mean(c.stones_spent for c in cs):,.0f} of "
+      f"{statistics.mean(c.stones_spent + c.stones for c in cs):,.0f} stones spent\n")
     w("  Keys (milestone 7: a scroll of the tier, from any realm, spent on success):\n")
     for label, pills, median in (("with pill keys (alchemy, later)", True, 9.0),
                                  ("scrolls only, typical books (9 h)", False, 9.0),

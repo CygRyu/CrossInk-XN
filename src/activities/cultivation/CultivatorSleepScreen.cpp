@@ -21,6 +21,19 @@ namespace cultivation {
 namespace sleepscreen {
 namespace {
 
+int drawCenteredWrapped(const GfxRenderer& renderer, const int fontId, const int y, const int width, const char* text,
+                        const int maxLines, const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
+  const auto lines = renderer.wrappedText(fontId, text, width, maxLines, style);
+  int at = y;
+  for (const auto& line : lines) {
+    renderer.drawCenteredText(fontId, at, line.c_str(), true, style);
+    at += renderer.getLineHeight(fontId);
+  }
+  return at;
+}
+
+}  // namespace
+
 // The taiji, drawn pixel by pixel (DOC: icons are simple 1-bit figures; this
 // one needs no bitmap in flash). Black half on the right, with the two small
 // circles and their dots, and an outline so the white half shows.
@@ -44,19 +57,6 @@ void drawTaiji(const GfxRenderer& renderer, const int cx, const int cy, const in
     }
   }
 }
-
-int drawCenteredWrapped(const GfxRenderer& renderer, const int fontId, const int y, const int width, const char* text,
-                        const int maxLines, const EpdFontFamily::Style style = EpdFontFamily::REGULAR) {
-  const auto lines = renderer.wrappedText(fontId, text, width, maxLines, style);
-  int at = y;
-  for (const auto& line : lines) {
-    renderer.drawCenteredText(fontId, at, line.c_str(), true, style);
-    at += renderer.getLineHeight(fontId);
-  }
-  return at;
-}
-
-}  // namespace
 
 bool render(GfxRenderer& renderer, const bool invert) {
   auto state = makeUniqueNoThrow<GameState>();

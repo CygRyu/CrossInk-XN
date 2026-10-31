@@ -3,6 +3,7 @@
 #if CROSSINK_CULTIVATION
 
 #include "Breakthrough.h"
+#include "Inventory.h"
 #include "Rng.h"
 #include "Simulation.h"
 #include "Trials.h"
@@ -82,6 +83,19 @@ uint8_t strikePercent(const uint8_t strikes, const uint8_t index) {
   return table[index < size ? index : size - 1];
 }
 
+uint8_t bodyCutPercent(const GameState& s) {
+  uint8_t cut = 0;
+  const uint8_t n = scrolls::count(s);
+  for (uint8_t i = 0; i < n; ++i) {
+    const scrolls::Scroll sc = scrolls::get(s, i);
+    if ((sc.flags & scrolls::Scroll::kEquippedTechnique) != 0 && sc.kind == scrolls::Kind::Body) {
+      const uint8_t c = kBodyCut[static_cast<int>(scrolls::tierOf(sc))];
+      if (c > cut) cut = c;
+    }
+  }
+  return cut;
+}
+
 bool inTrial(const GameState& s) { return (s.progress.progressFlags & ProgressBlock::kInTrial) != 0; }
 
 uint8_t step(const GameState& s) { return s.techniqueMeta[1]; }
@@ -114,15 +128,8 @@ Strike currentStrike(const GameState& s) {
   st.base = ceilPercent(s.progress.hpMax, st.percent);
 
   // Endure, cut by the best equipped Body technique.
-  uint8_t cut = 0;
+  const uint8_t cut = bodyCutPercent(s);
   const uint8_t n = scrolls::count(s);
-  for (uint8_t i = 0; i < n; ++i) {
-    const scrolls::Scroll sc = scrolls::get(s, i);
-    if ((sc.flags & scrolls::Scroll::kEquippedTechnique) != 0 && sc.kind == scrolls::Kind::Body) {
-      const uint8_t c = kBodyCut[static_cast<int>(scrolls::tierOf(sc))];
-      if (c > cut) cut = c;
-    }
-  }
   st.options[st.optionCount++] = {Answer::Endure, -1, ceilPercent(st.base, 100u - cut)};
 
   // Turn, once per equipped Sword, Palm/Fist or Movement technique.
@@ -135,6 +142,8 @@ Strike currentStrike(const GameState& s) {
     if (used || !canTurn(sc.kind)) continue;
     st.options[st.optionCount++] = {Answer::Turn, static_cast<int16_t>(i), ceilPercent(st.base, 50)};
   }
+
+  if (inventory::count(s, inventory::Item::ThunderTalisman) > 0) st.options[st.optionCount++] = {Answer::Shield, -1, 0};
 
   const int burn = burnCandidate(s, false);
   if (burn >= 0) st.options[st.optionCount++] = {Answer::Burn, static_cast<int16_t>(burn), 0};
@@ -158,6 +167,9 @@ StrikeResult answerStrike(GameState& s, const uint8_t choice) {
   } else if (o.answer == Answer::Burn) {
     r.burned = scrolls::removeAt(s, static_cast<uint8_t>(o.slot));
     r.didBurn = true;
+  } else if (o.answer == Answer::Shield) {
+    if (!inventory::remove(s, inventory::Item::ThunderTalisman)) return StrikeResult{};
+    r.shielded = true;
   }
 
   ProgressBlock& p = s.progress;
@@ -200,11 +212,17 @@ int burnableMindScroll(const GameState& s) { return burnCandidate(s, true); }
 uint8_t scenesLost(const GameState& s) { return s.techniqueMeta[3] & 0x0F; }
 uint8_t scenesWon(const GameState& s) { return static_cast<uint8_t>(s.techniqueMeta[3] >> 4); }
 
-SceneResult answerScene(GameState& s, const bool burnMindScroll) {
+SceneResult answerScene(GameState& s, const SceneAnswer answer) {
   SceneResult r;
   if (!inTrial(s) || kindFor(targetOf(s)) != Kind::HeartDemon) return r;
   r.chance = sceneChance(s);
-  if (burnMindScroll) {
+  if (answer == SceneAnswer::Incense) {
+    if (!inventory::remove(s, inventory::Item::CalmIncense)) return r;
+    r.incense = true;
+    const uint32_t c = r.chance + static_cast<uint32_t>(inventory::kIncenseBonus);
+    r.chance = static_cast<uint8_t>(c > 99 ? 99 : c);
+  }
+  if (answer == SceneAnswer::BurnMind) {
     const int slot = burnableMindScroll(s);
     if (slot < 0) return r;
     r.burned = scrolls::removeAt(s, static_cast<uint8_t>(slot));

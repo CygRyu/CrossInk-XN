@@ -27,6 +27,9 @@ constexpr char kOldRumorPath[] = "/.crosspoint/cultivation/rumor.txt";
 // drawing nothing, when there is no character; the caller then falls back to
 // CrossInk's default sleep screen. The caller pushes the buffer to the display.
 bool render(GfxRenderer& renderer, bool invert);
+// The taiji of radius r centred on (cx, cy), pixel by pixel, outlined so the
+// white half shows. Also the player's marker on the exploration map (v0.1.10).
+void drawTaiji(const GfxRenderer& renderer, int cx, int cy, int r);
 #endif
 
 }  // namespace sleepscreen

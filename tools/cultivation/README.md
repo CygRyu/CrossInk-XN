@@ -99,6 +99,20 @@ The simulator now plays the trial before each roll that has one (Core Formation,
 
 Nothing was re-tuned. Real players who turn strikes with techniques burn fewer scrolls.
 
+### v0.1.10: Exploration, Spirit Stones and merchant items
+
+Exploration gives no Qi, so it changes no reading-hour targets by itself. What it adds is a use for Spirit Stones: wandering merchants sell Thunder-Warding Talismans (150 stones, take one whole strike), Calm-Heart Incense (120, +25 to one Heart Demon scene) and tonics (Greater: 80, heals 50% of max HP). The simulator now counts stones from reading (decision 5B, 1 page a minute) and, before each trial, passes 3 merchants whose stock has each item at the agreed rate (30% / 30% / 25%); it buys what the coming trial needs, holding at most 2 talismans, 2 incense and 1 tonic. In the trial it uses a talisman before burning a scroll, then a tonic, and burns incense on Heart Demon scenes. Stones and items found while exploring are left out, so the model is cautious.
+
+| 30 min/day (300 characters) | Without items (v0.1.9) | With items (v0.1.10) |
+| --- | --- | --- |
+| Trials lost per life (mean) | 0.49 | 0.30 |
+| Scrolls burned in tribulations per life (mean) | 11.3 | 3.4 |
+| Mortal Plane, reading hours (median) | 762 h | 774 h (within run-to-run noise: the item rolls shift the random sequence) |
+| Stones spent on items / earned | - | about 1,400 of 70,000 |
+| Spread of habits vs evening-only | within 1.7% | within 1.9% |
+
+Nothing was re-tuned. Stones pile up: the merchants' items are cheap next to a life's income, so alchemy (v0.2.0) is where most stones should go.
+
 ### Earlier findings (doc rules, before the decisions)
 
 These came straight from the document's rules and led to the decisions above:
