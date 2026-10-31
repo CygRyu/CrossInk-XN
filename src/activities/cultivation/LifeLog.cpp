@@ -186,6 +186,9 @@ SeasonPick seasonPick(const GameState& state, const uint32_t season, const Gramm
     } else if (realm == 2 && has("log.foundation")) {
       key = "log.foundation";
       slot = Slot::Realm;
+    } else if (realm == 3 && has("log.core")) {
+      key = "log.core";
+      slot = Slot::Realm;
     }
   }
   if (key == nullptr) {
@@ -193,7 +196,7 @@ SeasonPick seasonPick(const GameState& state, const uint32_t season, const Gramm
     key = "log.any";
     slot = Slot::Any;
     // Realms without lists of their own use log.any every season.
-    everySeason = realm > 2;
+    everySeason = realm > 3;
   }
   pick.key = key;
 

@@ -52,5 +52,15 @@ bool appendLines(const lifelog::Line* lines, uint8_t count);
 // The age in a season line ("Spring, age 17. ..."), or -1 if `line` is not one.
 int32_t ageInLine(const char* line);
 
+// Export (user request): a copy of the whole Chronicle in a folder the
+// player can see, "/Chronicles/The Chronicle of <name>.txt", replacing the
+// previous copy. Copied in 256-byte pieces through the stack, never held in
+// RAM; written to a .tmp first, so a failed copy leaves the old export. The
+// name's characters that FAT cannot store (\ / : * ? " < > |) become '_'.
+// Writes the path into `pathOut` and returns true on success.
+constexpr char kExportDirectory[] = "/Chronicles";
+bool exportCopy(const GameState& state, char* pathOut, size_t pathLen);
+void exportPath(const GameState& state, char* out, size_t len);
+
 }  // namespace chronicle
 }  // namespace cultivation

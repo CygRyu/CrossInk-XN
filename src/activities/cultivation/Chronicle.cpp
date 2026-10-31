@@ -198,6 +198,57 @@ bool appendLines(const lifelog::Line* lines, const uint8_t count) {
   return ok;
 }
 
+void exportPath(const GameState& state, char* out, const size_t len) {
+  char name[kNameMaxBytes + 1];
+  memcpy(name, state.character.name.data(), kNameMaxBytes);
+  name[kNameMaxBytes] = '\0';
+  for (char* c = name; *c != '\0'; ++c) {
+    if (strchr("\\/:*?\"<>|", *c) != nullptr || static_cast<unsigned char>(*c) < 0x20) *c = '_';
+  }
+  if (name[0] == '\0' || strspn(name, " .") == strlen(name)) snprintf(name, sizeof(name), "%s", "Nameless");
+  snprintf(out, len, "%s/The Chronicle of %s.txt", kExportDirectory, name);
+}
+
+bool exportCopy(const GameState& state, char* pathOut, const size_t pathLen) {
+  char path[96];
+  exportPath(state, path, sizeof(path));
+  if (pathOut != nullptr && pathLen > 0) snprintf(pathOut, pathLen, "%s", path);
+  char tmpPath[104];
+  snprintf(tmpPath, sizeof(tmpPath), "%s.tmp", path);
+
+  FsFile in;
+  if (!Storage.openFileForRead("CULT", kPath, in)) return false;
+  Storage.mkdir(kExportDirectory);
+  if (Storage.exists(tmpPath)) Storage.remove(tmpPath);
+  FsFile out;
+  if (!Storage.openFileForWrite("CULT", tmpPath, out)) {
+    in.close();
+    LOG_ERR("CULT", "Could not create %s", tmpPath);
+    return false;
+  }
+  const size_t total = in.fileSize();
+  uint8_t buf[256];
+  bool ok = true;
+  size_t copied = 0;
+  while (ok) {
+    const int got = in.read(buf, sizeof(buf));
+    if (got <= 0) break;
+    ok = out.write(buf, static_cast<size_t>(got)) == static_cast<size_t>(got);
+    copied += static_cast<size_t>(got);
+  }
+  in.close();
+  ok = out.close() && ok && copied == total;
+  if (ok && Storage.exists(path)) ok = Storage.remove(path);
+  if (ok) ok = Storage.rename(tmpPath, path);
+  if (!ok) {
+    LOG_ERR("CULT", "Exporting the Chronicle to %s failed", path);
+    if (Storage.exists(tmpPath)) Storage.remove(tmpPath);
+    return false;
+  }
+  LOG_INF("CULT", "Chronicle exported to %s (%lu bytes)", path, static_cast<unsigned long>(copied));
+  return true;
+}
+
 }  // namespace chronicle
 }  // namespace cultivation
 

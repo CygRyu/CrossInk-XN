@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include <AppVersion.h>
 #include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <I18n.h>
@@ -19,6 +20,7 @@
 #include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
+#include "CultivatorSleepScreen.h"
 #include "GameValues.h"
 #include "MappedInputManager.h"
 #include "Rng.h"
@@ -69,6 +71,12 @@ static const StrId kElementColors[static_cast<int>(Element::Count)] = {
 static const StrId kFoundationGrades[5] = {StrId::STR_CULT_FOUNDATION_1, StrId::STR_CULT_FOUNDATION_2,
                                            StrId::STR_CULT_FOUNDATION_3, StrId::STR_CULT_FOUNDATION_4,
                                            StrId::STR_CULT_FOUNDATION_5};
+static const StrId kCoreGrades[10] = {StrId::STR_CULT_CORE_1, StrId::STR_CULT_CORE_2, StrId::STR_CULT_CORE_3,
+                                      StrId::STR_CULT_CORE_4, StrId::STR_CULT_CORE_5, StrId::STR_CULT_CORE_6,
+                                      StrId::STR_CULT_CORE_7, StrId::STR_CULT_CORE_8, StrId::STR_CULT_CORE_9,
+                                      StrId::STR_CULT_CORE_10};
+static const StrId kSoulClarities[4] = {StrId::STR_CULT_SOUL_1, StrId::STR_CULT_SOUL_2, StrId::STR_CULT_SOUL_3,
+                                        StrId::STR_CULT_SOUL_4};
 constexpr uint32_t kKindOutcomeLine = 56;  // contentSeed kinds: 55 is the breakthrough roll
 constexpr uint32_t kKindGreatPerfectionLine = 57;
 
@@ -133,6 +141,50 @@ namespace ui {
 const char* realmName(const uint8_t realm) { return text(kRealmNames[realm < kMortalRealmCount ? realm : 0]); }
 const char* elementName(const Element e) {
   return text(kElementNames[static_cast<int>(e) < static_cast<int>(Element::Count) ? static_cast<int>(e) : 2]);
+}
+const char* gradeName(const breakthrough::GradeKind kind, const uint8_t grade) {
+  switch (kind) {
+    case breakthrough::GradeKind::Foundation:
+      return grade >= 1 && grade <= 5 ? text(kFoundationGrades[grade - 1]) : "";
+    case breakthrough::GradeKind::Core:
+      return grade >= 1 && grade <= 10 ? text(kCoreGrades[grade - 1]) : "";
+    case breakthrough::GradeKind::Soul:
+      return grade >= 1 && grade <= 4 ? text(kSoulClarities[grade - 1]) : "";
+    default:
+      return "";
+  }
+}
+void formatTitles(const GameState& s, char* out, const size_t len) {
+  if (len == 0) return;
+  out[0] = '\0';
+  const ProgressBlock& p = s.progress;
+  auto add = [&](const char* title) {
+    if (title == nullptr || title[0] == '\0') return;
+    const size_t used = strlen(out);
+    snprintf(out + used, len - used, "%s%s", used > 0 ? ", " : "", title);
+  };
+  add(gradeName(breakthrough::GradeKind::Foundation, p.foundationGrade));
+  add(gradeName(breakthrough::GradeKind::Core, p.coreGrade));
+  add(gradeName(breakthrough::GradeKind::Soul, p.soulClarity));
+  if (breakthrough::isHalfStep(s) && p.realm + 1 < kMortalRealmCount) {
+    char halfStep[64];
+    snprintf(halfStep, sizeof(halfStep), tr(STR_CULT_HALF_STEP_FORMAT), text(kRealmNames[p.realm + 1]));
+    add(halfStep);
+  }
+}
+void stageName(const GameState& s, char* out, const size_t len) {
+  const ProgressBlock& p = s.progress;
+  if (breakthrough::inGreatPerfection(s)) {
+    snprintf(out, len, "%s", tr(STR_CULT_GREAT_PERFECTION));
+  } else if (realmInfo(p.realm).layered) {
+    snprintf(out, len, tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
+  } else {
+    snprintf(out, len, "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
+  }
+}
+void versionLine(char* out, const size_t len) {
+  snprintf(out, len, tr(STR_CULT_VERSION_FORMAT), AppVersion::version(), CULTIVATION_GAME_VERSION,
+           AppVersion::gitSha());
 }
 void formatPermille(char* buf, const size_t len, const uint32_t permille) {
   snprintf(buf, len, "x%u.%02u", static_cast<unsigned>(permille / 1000), static_cast<unsigned>((permille % 1000) / 10));
@@ -223,6 +275,8 @@ void CultivationActivity::updateRumor() {
   packs_->closeFile();
   if (grammar_->missing() > 0) {
     LOG_ERR("CULT", "Rumor had %u missing key(s)", grammar_->missing());
+  } else {
+    sleepscreen::storeRumor(day, rumor_);  // for the Cultivator sleep screen; written only when it changes
   }
 }
 
@@ -315,6 +369,7 @@ void CultivationActivity::openChronicle() {
   }
   {
     RenderLock lock(*this);
+    notice_[0] = '\0';
     chronicle_ = std::move(view);
     screen_ = Screen::Chronicle;
   }
@@ -550,8 +605,21 @@ void CultivationActivity::loop() {
       ChronicleView& v = *chronicle_;
       if (back) {
         closeChronicle();
-      } else if ((down || confirm) && v.more) {
+      } else if (confirm) {
+        // Export (user request): a copy the player can see and copy off the card.
+        // Under the render lock: the page being drawn reads the same file.
         RenderLock lock(*this);
+        char path[96];
+        const bool ok = chronicle::exportCopy(*state_, path, sizeof(path));
+        if (ok) {
+          snprintf(notice_, sizeof(notice_), tr(STR_CULT_EXPORTED_FORMAT), path);
+        } else {
+          snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_EXPORT_FAILED));
+        }
+        requestUpdate();
+      } else if (down && v.more) {
+        RenderLock lock(*this);
+        notice_[0] = '\0';
         if (v.depth + 1 < ChronicleView::kHistory) {
           ++v.depth;
         } else {  // forget the oldest page
@@ -562,6 +630,7 @@ void CultivationActivity::loop() {
         requestUpdate();
       } else if (up && v.depth > 0) {
         RenderLock lock(*this);
+        notice_[0] = '\0';
         --v.depth;
         --v.pageNumber;
         requestUpdate();
@@ -848,7 +917,7 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Chronicle:
       renderChronicle(x, top, width, bottom);
-      confirmLabel = "";
+      confirmLabel = tr(STR_CULT_EXPORT);
       upLabel = chronicle_ && chronicle_->depth > 0 ? tr(STR_CULT_PREVIOUS) : "";
       downLabel = chronicle_ && chronicle_->more ? tr(STR_CULT_NEXT) : "";
       break;
@@ -984,16 +1053,7 @@ void CultivationActivity::renderAwakening(const int x, int y, const int width) {
 }
 
 // "Layer 4", "Peak" or "Great Perfection".
-void CultivationActivity::stageText(char* out, const size_t len) const {
-  const ProgressBlock& p = state_->progress;
-  if (breakthrough::inGreatPerfection(*state_)) {
-    snprintf(out, len, "%s", tr(STR_CULT_GREAT_PERFECTION));
-  } else if (realmInfo(p.realm).layered) {
-    snprintf(out, len, tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
-  } else {
-    snprintf(out, len, "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
-  }
-}
+void CultivationActivity::stageText(char* out, const size_t len) const { ui::stageName(*state_, out, len); }
 
 void CultivationActivity::renderCultivator(const int x, int y, const int width, const int bottom) {
   const auto& metrics = UITheme::getInstance().getMetrics();
@@ -1005,22 +1065,34 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   char name[kNameMaxBytes + 1];
   nameOf(s, name);
   renderer.drawText(UI_12_FONT_ID, x, y, name, true, EpdFontFamily::BOLD);
+  // The build on the name's line, right-aligned, so builds can be told apart
+  // (user request); shortened to the game version and commit if the name is long.
+  {
+    char version[96];
+    ui::versionLine(version, sizeof(version));
+    const int nameWidth = renderer.getTextWidth(UI_12_FONT_ID, name, EpdFontFamily::BOLD);
+    if (nameWidth + renderer.getTextWidth(SMALL_FONT_ID, version) + 16 > width) {
+      snprintf(version, sizeof(version), tr(STR_CULT_VERSION_SHORT_FORMAT), CULTIVATION_GAME_VERSION,
+               AppVersion::gitSha());
+    }
+    if (nameWidth + renderer.getTextWidth(SMALL_FONT_ID, version) + 16 > width) {
+      snprintf(version, sizeof(version), "%s · %s", CULTIVATION_GAME_VERSION, AppVersion::gitSha());
+    }
+    const int versionWidth = renderer.getTextWidth(SMALL_FONT_ID, version);
+    if (nameWidth + versionWidth + 16 <= width) {
+      const int baseline = renderer.getLineHeight(UI_12_FONT_ID) - renderer.getLineHeight(SMALL_FONT_ID);
+      renderer.drawText(SMALL_FONT_ID, x + width - versionWidth, y + baseline, version);
+    }
+  }
   y += renderer.getLineHeight(UI_12_FONT_ID) + 4;
 
-  // Titles: the Foundation grade once formed, and "Half-step <next realm>"
-  // after a failed breakthrough (DOC: grades are shown as titles).
-  char titles[96] = {};
-  if (p.foundationGrade >= 1 && p.foundationGrade <= 5) {
-    snprintf(titles, sizeof(titles), "%s", text(kFoundationGrades[p.foundationGrade - 1]));
-  }
-  if (breakthrough::isHalfStep(s) && p.realm + 1 < kMortalRealmCount) {
-    char halfStep[64];
-    snprintf(halfStep, sizeof(halfStep), tr(STR_CULT_HALF_STEP_FORMAT), text(kRealmNames[p.realm + 1]));
-    const size_t used = strlen(titles);
-    snprintf(titles + used, sizeof(titles) - used, "%s%s", used > 0 ? ", " : "", halfStep);
-  }
+  // Titles: the grades formed so far, and "Half-step <next realm>" after a
+  // failed breakthrough (DOC: grades are shown as titles).
+  char titles[160];
+  ui::formatTitles(s, titles, sizeof(titles));
   if (titles[0] != '\0') {
-    renderer.drawText(SMALL_FONT_ID, x, y, titles);
+    const std::string fitted = renderer.truncatedText(SMALL_FONT_ID, titles, width);
+    renderer.drawText(SMALL_FONT_ID, x, y, fitted.c_str());
     y += renderer.getLineHeight(SMALL_FONT_ID) + 4;
   }
 
@@ -1283,10 +1355,12 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
   if (outcomeLine_.text[0] != '\0') {
     y = drawWrapped(UI_10_FONT_ID, x, y, width, outcomeLine_.text, 6) + metrics.verticalSpacing;
   }
-  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.gradeKind == breakthrough::GradeKind::Foundation &&
-      outcome_.grade >= 1 && outcome_.grade <= 5) {
-    snprintf(line, sizeof(line), tr(STR_CULT_FOUNDATION_FORMED_FORMAT), text(kFoundationGrades[outcome_.grade - 1]),
-             static_cast<unsigned>(outcome_.gradeScore));
+  const char* formed = ui::gradeName(outcome_.gradeKind, outcome_.grade);
+  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && formed[0] != '\0') {
+    snprintf(line, sizeof(line),
+             outcome_.gradeKind == breakthrough::GradeKind::Foundation ? tr(STR_CULT_FOUNDATION_FORMED_FORMAT)
+                                                                       : tr(STR_CULT_GRADE_FORMED_FORMAT),
+             formed, static_cast<unsigned>(outcome_.gradeScore));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.keyUsed && nameBuf_[0] != '\0') {
@@ -1388,9 +1462,15 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
 // paragraph is read into a 256-byte stack buffer, wrapped and drawn. Headings
 // ("Age 17", "Life 1: ...") are bold. Reading it records no reading stats:
 // it is the game's own screen, not CrossInk's reader.
-void CultivationActivity::renderChronicle(const int x, int y, const int width, const int bottom) {
+void CultivationActivity::renderChronicle(const int x, int y, const int width, int bottom) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   if (!chronicle_) return;
+  if (notice_[0] != '\0') {  // after an export: where the copy went, under the page
+    const auto lines = renderer.wrappedText(SMALL_FONT_ID, notice_, width, 3);
+    const int noticeTop = bottom - static_cast<int>(lines.size()) * renderer.getLineHeight(SMALL_FONT_ID);
+    drawWrapped(SMALL_FONT_ID, x, noticeTop, width, notice_, 3);
+    bottom = noticeTop - metrics.verticalSpacing;
+  }
   ChronicleView& v = *chronicle_;
   v.more = false;
   v.next = v.starts[v.depth];

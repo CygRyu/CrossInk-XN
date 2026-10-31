@@ -85,6 +85,9 @@ bool isWebEnumOptionAvailable(const SettingInfo& setting, size_t optionIndex) {
       const uint8_t raw = setting.enumRawValues[optionIndex];
       if (raw == CrossPointSettings::READING_STATS_SLEEP || raw == CrossPointSettings::MINIMAL_STATS_SLEEP)
         return false;
+#if CROSSINK_CULTIVATION
+      if (raw == CrossPointSettings::CULTIVATOR_SLEEP) return false;
+#endif
     }
   }
   if (option == StrId::STR_TOGGLE_TOUCHSCREEN && !gpio.hasTouch()) return false;

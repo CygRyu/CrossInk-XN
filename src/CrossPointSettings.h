@@ -10,6 +10,7 @@
 #include <mutex>
 
 #include "ReaderFontSizeStep.h"
+#include "activities/cultivation/CultivationConfig.h"
 #include "util/ReaderStatusBarConfig.h"
 
 class CrossPointSettings : public PersistableStore<CrossPointSettings> {
@@ -37,6 +38,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     QUICK_RESUME = 9,
     MINIMAL_STATS_SLEEP = 10,
     DASHBOARD_SLEEP = 11,
+#if CROSSINK_CULTIVATION
+    CULTIVATOR_SLEEP = 12,  // Path of Immortal Reading (personal fork)
+#endif
     SLEEP_SCREEN_MODE_COUNT
   };
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };

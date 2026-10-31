@@ -130,7 +130,7 @@ class CultivationActivity final : public Activity {
   void renderGreatPerfection(int x, int y, int width);
   void renderOutcome(int x, int y, int width);
   void stageText(char* out, size_t len) const;
-  void renderChronicle(int x, int y, int width, int bottom);
+  void renderChronicle(int x, int y, int width, int bottom);  // bottom shrinks for an export notice
   void renderScrollNews(int x, int y, int width, int bottom);
   void renderBetterManual(int x, int y, int width);
   void renderTechniques(int x, int y, int width, int bottom);
@@ -214,7 +214,7 @@ class CultivationActivity final : public Activity {
   DetailAction detailActions_[2] = {};
   uint8_t detailActionCount_ = 0;
   char nameBuf_[cultivation::scrollnames::kNameSize] = {};  // key, better manual or selected scroll
-  char notice_[200] = {};                                   // one line after selling, equipping ...
+  char notice_[200] = {};  // one line after selling, equipping, exporting the Chronicle ...
 
   // Cultivator actions and the last breakthrough or Great Perfection outcome.
   Action actions_[4] = {};

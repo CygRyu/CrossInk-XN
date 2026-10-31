@@ -24,7 +24,8 @@ Personal-fork game built to `CrossInk_Cultivation_Game___Design_Document.md`. Ev
 | `ScrollStore.{h,cpp}` | The hook's `pending_scrolls.bin` (replayed marks and unmarks) and `minted.bin` (books this life already turned into a scroll) |
 | `ScrollNames.{h,cpp}` | Scroll names from the packs (stable picks, the element as theme) and scroll Chronicle lines |
 | `CultivationHooks.{h,cpp}` | Device: the one call CrossInk makes when a book is marked finished or unfinished |
-| `CultivationUi.h` | Text helpers shared by the screen files |
+| `CultivationUi.h` | Text helpers shared by the screen files (names, grade titles, stage, version line) |
+| `CultivatorSleepScreen.{h,cpp}` | The "Cultivator" sleep screen and the `rumor.txt` it reads |
 | `CultivationActivity.{h,cpp}` | The screens: name, gender, origin, Awakening Test, Return summary, Cultivator, breakthroughs, Chronicle |
 | `CultivationScrollScreens.cpp` | The Technique Scroll screens and minting at the start of a visit (members of `CultivationActivity`) |
 
@@ -36,6 +37,8 @@ Hooks outside this folder (all inside `#if CROSSINK_CULTIVATION`):
   - `src/activities/reader/XtcReaderActivity.cpp` (`setBookCompleted`, same);
   - `src/activities/reader/BookStatsActivity.cpp` (`saveStats`: completion edited on the stats screen only becomes real when it is saved, and a cancelled date edit never is, so the hook compares with the saved file there instead of in `applyCompletedState`);
   - `src/activities/home/BookActions.cpp` (`toggleBookCompleted`, inside `if (trackStats)`).
+- Milestone 8, the "Cultivator" sleep screen choice (`CULTIVATOR_SLEEP = 12`): `src/CrossPointSettings.h` (the enum value), `src/CrossPointSettings.cpp` (its stored value, 12; firmware without the game reads 12 as unknown and uses Dark), `src/SettingsList.h` (the option in Settings > Display > Sleep Screen > Wallpaper, hidden like the stats screens when reading stats are off), `src/network/CrossPointWebServer.cpp` (the same hiding in the web settings), `src/activities/boot_sleep/SleepActivity.cpp` (the `switch` case, and `rendersBeforeExit()`: the screen reads only the game's own files). If upstream CrossInk ever adds a 13th sleep screen, the merge conflicts at these lines; give the game's value the next free number then.
+- `platformio.ini` `[env:cultivation]`: `-DCROSSINK_VERSION` from `[crossink] version`, because `scripts/git_branch.py` only sets it for the stock environments (the game build said "dev"). The commit comes from that script's `CROSSINK_GIT_SHA`, already set for every environment, through `AppVersion::gitSha()`.
   The design document named the helper with `(cachePath, completed)`; it takes the title (the scroll's identity is a hash of the title) and the book's stats object the caller already holds, so the hook reads nothing from the card.
 - `lib/I18n/translations/english.yaml`: the `STR_CULT_*` block at the end. Other languages fall back to English. The strings are compiled into every build, game or not: about 6 KB of flash (1.7 KB of text plus a 2-byte index per language), and no RAM.
 
@@ -60,6 +63,8 @@ Technique Scrolls (milestone 7) fill the reserved 513-byte block with no format 
 Rules: append-only. A new field goes at the end, `kSaveVersion` and `kPayloadSize` go up, and older saves load with the new field at its default. All-zero must mean "empty" for every reserved byte, so later milestones can give meaning to reserved bytes without a format change. A newer save loads its known prefix in older firmware (and that firmware writes back only what it knows).
 
 Differences from the design document's budget: the stats snapshot is 68 bytes instead of 24, because it also keeps the time-of-day and weekday buckets (needed for affinity and for attributing reading to calendar weeks), and there is a 16-byte baseline block. The total is still under 1 KB.
+
+Other files the game keeps in `/.crosspoint/cultivation/`: `chronicle.txt`, `index.bin` and `pack_report.txt` (packs), `pending_scrolls.bin`, `pending_scrolls.rest` and `minted.bin` (scrolls), and `rumor.txt` (milestone 8: the day index on line 1 and that day's rumor on line 2, rewritten only when they change, for the sleep screen). Outside it: `/Chronicles/The Chronicle of <name>.txt`, written only when the player exports the Chronicle.
 
 ## Memory
 
@@ -150,6 +155,14 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 - **Names:** `{scroll.name} {scroll.kind.<kind>} {scroll.tier.<tier>}` from the packs, themed by element (`~water` ...), with stable picks seeded by `contentSeed(world, 61, title hash)`: the same book gets the same name all life, a different one in another life, and its title never contributes a word. Names are not saved; an SD pack that changes these lists renames scrolls.
 - **contentSeed kinds:** 60 kind roll, 61 name, 62 Chronicle lines.
 
+## Sleep screen, version line, Chronicle export (milestone 8, the doc's build step 7)
+
+- **Sleep screen:** Settings > Display > Sleep Screen > Wallpaper > "Cultivator" (opt-in; the setting is left as it was when the firmware is flashed). It draws a taiji (in code, no bitmap), the name, grade titles, realm and stage, the Qi bar with its percentage, the rumor ("Rumor of the day" when `rumor.txt` is from today, "Last rumor heard" otherwise) and the version line. It shows the character as of the last visit; reading since then is converted when the game is opened. Dark like CrossInk's other generated screens; light when the sleep cover filter is "Inverted". No character: CrossInk's default sleep screen. Memory: the ~1 KB `GameState` while drawing; no packs, no grammar engine.
+- **Grade titles:** Golden Core (9th grade ... 1st grade, Flawless) and Nascent Soul clarity (Hazy, Clear, Radiant, Dao-Imprinted) now have names, on the Cultivator screen, the sleep screen and the breakthrough outcome.
+- **Version line:** "CrossInk 1.6.1 · Immortal Reading M8 · <commit>" on the sleep screen, and on the Cultivator screen's name line (shortened to "Immortal Reading M8 · <commit>" or "M8 · <commit>" when the name is long). `CULTIVATION_GAME_VERSION` in `CultivationConfig.h`: bump it with each milestone.
+- **Export:** Confirm in the Chronicle viewer copies `chronicle.txt` to `/Chronicles/The Chronicle of <name>.txt` (`chronicle::exportCopy`): 256-byte pieces through the stack, a `.tmp` first, then it replaces the old copy. Characters FAT cannot store become `_`. The copy is a normal TXT book (Browse Files; the Library once sorted by title); CrossInk's TXT reader records no reading stats, and its page cache is checked against the file size, so a later, longer export re-lays out correctly.
+- **Life log:** Core Formation has its own list, `log.core` (25 lines); Nascent Soul and later still use `log.any`.
+
 ## Screens (milestone 3)
 
 1. **Name:** type it with the CrossInk keyboard, or Suggest (generated from the world seed). Names are trimmed and must be 1–20 characters the UI font can draw.
@@ -157,11 +170,11 @@ Pack format and grammar syntax for authors: `tools/cultivation/PACKS.md`.
 3. **Origin:** five origins with their birth line; the selected origin's gifts are shown under the list.
 4. **Awakening Test:** one destiny per screen. Previous and Next move between destinies seen so far, Next past the last one spends a reroll (3 per life), and Keep takes the destiny on screen. Destinies are a pure function of the world seed (MAC, creation day, life number), so leaving and re-entering shows the same ones.
 5. **Return summary** (milestone 5, after any visit with reading): how many seasons or months passed, realm, stage and age, the minutes, Qi and stones the visit brought, and the life-log lines. Next and Previous page through long logs; Continue or Back goes to the Cultivator screen.
-6. **Cultivator:** name, titles (Foundation grade, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate (with the manual's part), Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, and at the bottom a list of actions: Break through, Enter Great Perfection, Techniques, Read the Chronicle. Text above the list is cut to fit; the rumor keeps its room before the "no reading" note does.
+6. **Cultivator:** name with the version on the right, titles (Foundation, Golden Core and Nascent Soul grades, Half-step), realm and stage ("Great Perfection" when entered), Qi bar with the Qi amount and percentage on one line, age and lifespan, root, talent, Qi rate (with the manual's part), Spirit Stones, Stamina, Dao Heart, consolidation in Great Perfection, origin gifts the one time they are granted, a bottleneck notice (naming the missing key when one is needed), the rumor of the day, a notice when an SD pack has problems, and at the bottom a list of actions: Break through, Enter Great Perfection, Techniques, Read the Chronicle. Text above the list is cut to fit; the rumor keeps its room before the "no reading" note does.
 7. **Breakthrough:** the target realm, the chance and its parts, the key scroll that would be used (or the tier that is missing), what a failure costs. Attempt rolls.
 8. **Great Perfection:** what staying at the peak does. Enter enters it.
 9. **Outcome:** success or failure, the roll and the chance, the Chronicle line, the Foundation grade when one is formed and the key used up, or the next attempt's chance.
-10. **Chronicle:** the Chronicle one page at a time, from the beginning; Next and Previous turn pages, Back returns.
+10. **Chronicle:** the Chronicle one page at a time, from the beginning; Next and Previous turn pages, Export saves a copy to `/Chronicles/` (a notice under the page says where), Back returns.
 11. **Technique Scrolls** (after the Return summary, or straight after opening the game when a book was finished without new reading): each new, improved, unchanged or sold scroll with its tier, element, kind and quality, and books that gave nothing with the reason. Up to 8 entries over as many pages as needed; more are counted ("N more are in the Chronicle"), automatic sales past 8 get their own total line.
 12. **A better manual:** when a new manual beats the equipped one (or none is equipped): the Qi rate now and with it. Equip, or Back to keep things as they are.
 13. **Techniques:** the equipped manual and the Qi rate, how many techniques are equipped, then the library (equipped first, then strongest first) with tier, element, kind, quality and tags (equipped, best manual), one page at a time.

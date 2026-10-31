@@ -62,6 +62,10 @@ constexpr uint8_t SLEEP_SCREEN_STORAGE_ORDER[] = {
     static_cast<uint8_t>(CrossPointSettings::QUICK_RESUME),
     static_cast<uint8_t>(CrossPointSettings::MINIMAL_STATS_SLEEP),
     static_cast<uint8_t>(CrossPointSettings::DASHBOARD_SLEEP),
+#if CROSSINK_CULTIVATION
+    // Stored as 12; firmware without the game reads 12 as an unknown value and uses Dark.
+    static_cast<uint8_t>(CrossPointSettings::CULTIVATOR_SLEEP),
+#endif
 };
 constexpr uint8_t SLEEP_SCREEN_STORAGE_ORDER_COUNT =
     sizeof(SLEEP_SCREEN_STORAGE_ORDER) / sizeof(SLEEP_SCREEN_STORAGE_ORDER[0]);

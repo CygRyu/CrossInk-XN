@@ -37,11 +37,15 @@
 #include "ImageFolderIndex.h"
 #include "RecentBooksStore.h"
 #include "SleepCoverAssets.h"
+#include "activities/cultivation/CultivationConfig.h"
 #include "activities/reader/ReaderUtils.h"
 #include "components/UITheme.h"
 #include "components/themes/dashboard/DashboardTheme.h"
 #include "components/themes/minimal/MinimalTheme.h"
 #include "fontIds.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivatorSleepScreen.h"
+#endif
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
 
@@ -582,6 +586,15 @@ void SleepActivity::onEnter() {
       return renderMinimalStatsSleepScreen();
     case (CrossPointSettings::SLEEP_SCREEN_MODE::DASHBOARD_SLEEP):
       return renderDashboardSleepScreen();
+#if CROSSINK_CULTIVATION
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_SLEEP):
+      // Dark like the other generated screens unless the inverted filter is chosen.
+      if (!cultivation::sleepscreen::render(renderer, !sleepCoverFilterInvertsGeneratedScreen())) {
+        return renderDefaultSleepScreen();  // no character yet
+      }
+      renderer.displayBuffer(HalDisplay::HALF_REFRESH, TURN_OFF_SCREEN_AFTER_SLEEP_REFRESH);
+      return;
+#endif
     default:
       return renderDefaultSleepScreen();
   }
@@ -600,6 +613,9 @@ bool SleepActivity::rendersBeforeExit() const {
     case CrossPointSettings::SLEEP_SCREEN_MODE::LIGHT:
     case CrossPointSettings::SLEEP_SCREEN_MODE::BLANK:
     case CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM:
+#if CROSSINK_CULTIVATION
+    case CrossPointSettings::SLEEP_SCREEN_MODE::CULTIVATOR_SLEEP:  // reads only the game's own save
+#endif
       return true;
     case CrossPointSettings::SLEEP_SCREEN_MODE::COVER:
     case CrossPointSettings::SLEEP_SCREEN_MODE::COVER_CUSTOM: {

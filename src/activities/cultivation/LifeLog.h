@@ -73,7 +73,8 @@ void build(LifeLog& log, const VisitChange& change, uint32_t monthsPassed, const
 // the season alone pick the list: "log.any" 30% of the time, Great Perfection
 // or Half-step lines 35% of the rest while in that state, otherwise the realm's own list
 // (Body Tempering: the origin's list 3 in 7, else "log.body"; Qi
-// Condensation "log.qi"; Foundation "log.foundation"; later realms "log.any").
+// Condensation "log.qi"; Foundation "log.foundation"; Core Formation
+// "log.core"; later realms "log.any").
 // The entry is the list's next one in a fixed shuffled order per world, so a
 // list's entries are all used before any repeats, whatever the state does.
 struct SeasonPick {

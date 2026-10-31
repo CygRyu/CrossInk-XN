@@ -212,6 +212,14 @@ TEST(LifeLog, GreatPerfectionAndHalfStepHaveTheirOwnLines) {
   lists.clear();
   for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
   EXPECT_EQ(lists, (std::set<std::string>{"log.foundation", "log.any"}));
+  s.progress.realm = 3;  // milestone 8: Core Formation has its own lines
+  lists.clear();
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
+  EXPECT_EQ(lists, (std::set<std::string>{"log.core", "log.any"}));
+  s.progress.realm = 4;
+  lists.clear();
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
+  EXPECT_EQ(lists, (std::set<std::string>{"log.any"}));
 }
 
 // Within a realm, each list is used up before any of its entries repeats,
@@ -219,7 +227,7 @@ TEST(LifeLog, GreatPerfectionAndHalfStepHaveTheirOwnLines) {
 TEST(LifeLog, NoEntryRepeatsBeforeItsListIsUsedUp) {
   BuiltinPacks packs;
   GrammarContext ctx;
-  for (uint8_t realm = 0; realm < 4; ++realm) {
+  for (uint8_t realm = 0; realm < 5; ++realm) {
     GameState s = makeCharacter(Origin::StreetOrphan);
     s.progress.realm = realm;
     // From season 0, so that runs line up with the lists' own counts.
@@ -333,11 +341,11 @@ TEST(LifeLog, BuiltinLinesExpandCleanly) {
   BuiltinPacks packs;
   std::set<std::string> distinct;
   for (int o = 0; o < static_cast<int>(Origin::Count); ++o) {
-    for (uint8_t variant = 0; variant < 9; ++variant) {
+    for (uint8_t variant = 0; variant < 12; ++variant) {
       GameState s = makeCharacter(static_cast<Origin>(o), 48210);
-      s.progress.realm = variant % 3;  // Body Tempering, Qi Condensation, Foundation
-      if (variant / 3 == 1) s.progress.progressFlags = ProgressBlock::kInGreatPerfection;
-      if (variant / 3 == 2) s.progress.progressFlags = ProgressBlock::kHalfStep;
+      s.progress.realm = variant % 4;  // Body Tempering, Qi Condensation, Foundation, Core Formation
+      if (variant / 4 == 1) s.progress.progressFlags = ProgressBlock::kInGreatPerfection;
+      if (variant / 4 == 2) s.progress.progressFlags = ProgressBlock::kHalfStep;
       for (uint32_t start = 192; start < 192 + 120; start += 3) {
         VisitChange v = seasons(start, start + 18);
         v.stagesGained = 1;
@@ -504,4 +512,67 @@ TEST(GameValues, PastLifeCountsReadNaturally) {
   ASSERT_TRUE(lookupGameValue(s, "season", 6, out, sizeof(out)));
   EXPECT_STREQ(out, "spring");
   EXPECT_TRUE(isGameValueName("root.color", 10));
+}
+
+// Milestone 8: every Core Formation line, each entry expanded many times.
+TEST(LifeLog, CoreFormationLinesExpandCleanly) {
+  BuiltinPacks packs;
+  GameState s = makeCharacter(Origin::SectServant);
+  s.progress.realm = 3;
+  GrammarContext ctx;
+  ctx.values = gameValues(s);
+  const uint32_t size = packs.grammar->entryCount("log.core", ctx);
+  EXPECT_GE(size, 25u);
+  for (uint32_t entry = 0; entry < size; ++entry) {
+    for (uint32_t seed = 0; seed < 20; ++seed) {
+      packs.grammar->beginScene();
+      const std::string line = packs.grammar->expandEntry("log.core", entry, seed * 7919u + entry, ctx);
+      EXPECT_EQ(packs.grammar->missing(), 0) << line;
+      EXPECT_EQ(line.find_first_of("{}[]|$\\"), std::string::npos) << line;
+      EXPECT_EQ(line.back(), '.') << line;
+      EXPECT_LT(line.size(), 170u) << line;
+      EXPECT_EQ(line.find("Spirit Stone"), std::string::npos) << line;
+    }
+  }
+}
+
+// --- Export (milestone 8) -----------------------------------------------------------
+
+TEST_F(ChronicleTest, ExportCopiesTheWholeFileUnderTheCharactersName) {
+  GameState s = makeCharacter();
+  std::string big;
+  for (int i = 0; i < 400; ++i) big += "Spring, age 17. Line " + std::to_string(i) + " of the Chronicle.\n";
+  Storage.put(chronicle::kPath, big);
+  char path[96];
+  ASSERT_TRUE(chronicle::exportCopy(s, path, sizeof(path)));
+  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Lin Yue.txt");
+  const auto* copy = Storage.bytesOf(path);
+  ASSERT_NE(copy, nullptr);
+  EXPECT_EQ(std::string(copy->begin(), copy->end()), big);
+  EXPECT_FALSE(Storage.exists("/Chronicles/The Chronicle of Lin Yue.txt.tmp"));
+
+  // A second export replaces the first.
+  Storage.put(chronicle::kPath, "Short now.\n");
+  ASSERT_TRUE(chronicle::exportCopy(s, path, sizeof(path)));
+  copy = Storage.bytesOf(path);
+  EXPECT_EQ(std::string(copy->begin(), copy->end()), "Short now.\n");
+}
+
+TEST_F(ChronicleTest, ExportNamesAreSafeForTheCard) {
+  GameState s = makeCharacter();
+  const char odd[] = "Mo:Yan/Who?*";
+  s.character.name.fill(0);
+  memcpy(s.character.name.data(), odd, sizeof(odd) - 1);
+  char path[96];
+  chronicle::exportPath(s, path, sizeof(path));
+  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Mo_Yan_Who__.txt");
+  s.character.name.fill(0);
+  chronicle::exportPath(s, path, sizeof(path));
+  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Nameless.txt");
+}
+
+TEST_F(ChronicleTest, ExportWithoutAChronicleFails) {
+  GameState s = makeCharacter();
+  char path[96];
+  EXPECT_FALSE(chronicle::exportCopy(s, path, sizeof(path)));
 }

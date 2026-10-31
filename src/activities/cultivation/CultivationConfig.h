@@ -9,3 +9,7 @@
 #ifndef CROSSINK_CULTIVATION
 #define CROSSINK_CULTIVATION 0
 #endif
+
+// The game's own version, shown with CrossInk's version and the commit on the
+// Cultivator screen and the sleep screen. Bump it with each milestone.
+#define CULTIVATION_GAME_VERSION "M8"

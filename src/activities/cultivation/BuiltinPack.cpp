@@ -279,6 +279,33 @@ A wounded beast tamer begs for shelter at your cave, and you hide him from the m
 You copy a manual for the sect library and are allowed to keep a copy for yourself.
 Your first teacher from your mortal days dies in {place.town}, and you pay for the funeral.
 
+[log.core]
+The {sect.name} makes you an elder, and the first thing the steward hands you is a list of debts.
+You take three disciples of your own and send the laziest one home to {place.town} within a month.
+A county magistrate in {place.town} asks you to find who poisoned his well, and you find it was his brother.
+You fly from {name.mountain} to {place.town} in a single morning and walk the last mile so as not to frighten the farmers.
+The {sect.name} sends you to negotiate a boundary with a rival sect, and you come back with half the valley.
+A rogue cultivator of your own realm challenges you at the market in {place.town}, and you break his sword at the hilt.
+You spend the {$season} in closed-door cultivation, and your disciples sell your vegetable garden while you are gone.
+An old woman in {place.town} remembers you as a boy carrying water, and you sit with her for a whole afternoon.
+You kill {beast.a} that has eaten [six|nine|eleven] villagers below {name.mountain} and give its hide to the headman.
+The sect council argues for nine days over a disciple's punishment, and you vote to let him go home.
+A merchant guild offers you [five hundred|a thousand] taels a year to sit on its board, and you refuse in front of witnesses.
+You find one of your disciples stealing pills from the alchemy hall and make him pay it back by working in the kitchens.
+A demonic sect burns a ferry town on the river, and you lead forty disciples to hunt them through the marshes.
+You recover a stolen sword manual for the {sect.name} and get a jade token you never use.
+You attend the funeral of an elder who taught you the sword, and the sect argues over his cave before he is buried.
+A young cultivator from {place.town} follows you for three days asking to be your disciple, and on the fourth you agree.
+You refine a flying sword from star iron, and this one does not bend.
+You settle a blood feud between two clans in {place.town} by making both patriarchs eat at the same table.
+You lose a duel of formations to an old woman selling dumplings and buy her whole stall out of respect.
+The emperor's envoy asks the {sect.name} for a cultivator to guard the border, and the council sends you.
+You spend [a month|two months|half a year] teaching outer disciples to breathe properly, and most of them still do it wrong.
+A rival elder spreads word that your core is cracked, and you answer by sparring with him in front of the whole sect.
+You buy back the land your family farmed when you were a child and give it to the tenants who work it.
+You pull an injured disciple out of a collapsed mine on {name.mountain} and carry him back on your shoulders.
+A letter from {place.town} tells you your oldest friend from the village has died of old age, and you go to the burial.
+
 [log.gp]
 You spend the {$season} sitting in a cold spring on {name.mountain}, letting your Qi settle.
 You go over the same breathing method every morning until you can run it without thinking.

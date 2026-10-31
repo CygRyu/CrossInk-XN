@@ -63,7 +63,8 @@ Within a realm, each list's sentences are used once each, in an order shuffled p
 | `log.body.farmer`, `log.body.clan`, `log.body.orphan`, `log.body.servant`, `log.body.herbalist` | Body Tempering, that origin only |
 | `log.qi` | Qi Condensation |
 | `log.foundation` | Foundation Establishment |
-| `log.any` | every realm; the only list after Foundation Establishment for now |
+| `log.core` | Core Formation |
+| `log.any` | every realm; the only list after Core Formation for now |
 | `log.gp` | seasons spent in Great Perfection (mixed with the realm's lists) |
 | `log.halfstep` | seasons after a failed breakthrough, until the next success |
 | `log.stage` | the visit gained stages; use `{$player.realm}, {$player.stage}` ("Body Tempering, Layer 4") |
