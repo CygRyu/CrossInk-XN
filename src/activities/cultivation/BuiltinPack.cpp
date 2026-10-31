@@ -803,7 +803,7 @@ the [Crane-Back|Sky Ladder] Ridge
 [beast.region]
 a grey wolf
 a wild boar
-a mountain bandit with a rusty saber
+a rock python
 
 [beast.region~marsh]
 a marsh crocodile
@@ -814,8 +814,8 @@ a heron-demon that has learned to wade like a man
 [beast.region~wastes]
 a pack of red jackals
 a scorpion as long as an ox cart
-a desert bandit on a starved horse
 a fire-backed lizard
+a vulture that follows travellers for days
 
 [beast.region~forest]
 a black ape
@@ -826,87 +826,212 @@ a bear that has eaten three woodcutters
 [beast.region~gorge]
 a cliff eagle with a three-yard wingspan
 a family of stone apes
-a road robber who waits at the rope bridge
 a horned goat that knocks travellers off ledges
+a rock python sunning itself on the path
 
 [beast.region~snow]
 a snow leopard
 a white bear
 a frost wolf pack
-a hermit who thinks you came to steal his ice lotus
+an old yak bull that will not give way
 
 [beast.region~delta]
 a river crocodile
 a pair of water-snake demons
-smugglers who do not want to be seen
 a giant soft-shelled turtle
+a herd of water buffalo gone wild
 
 [beast.region~volcano]
 a fire salamander
 a lava-scaled boar
 a sulphur toad that spits
-a miner driven mad by the fumes
+a pack of ash wolves
 
 [beast.region~battlefield]
 a corpse-eating vulture flock
-a deserter in old armour who will not be taken alive
 a ghost-fox that lives among the graves
-a grave robber and his two sons
+a pack of dogs grown fat on the dead
+a wild horse still wearing a cavalry saddle
 
 [beast.region~salt]
 a salt scorpion
 a sand python
-caravan raiders on camels
-a salt-crusted ghoul that walks at night
+a pack of white jackals
+a lizard that buries itself in the crust
 
 [beast.region~ridge]
 a thunder hawk
 a cloud leopard
-a rogue cultivator who robs pilgrims
 a white ape that guards a spirit spring
+a pair of mountain goats with iron horns
 
-[guardian.region]
-the bandit chief Iron Jaw Wu and his nephews
+[bandit.region]
+a mountain bandit with a rusty saber
+three highwaymen who want your boots and your purse
+a toll collector who answers to no magistrate
 
-[guardian.region~marsh]
+[bandit.region~marsh]
+a reed cutter who robs boats on the side
+two smugglers poling a flat boat of salt
+
+[bandit.region~wastes]
+a desert bandit on a starved horse
+four riders who have not been paid by their chief
+a well keeper who charges by the cup and by the blade
+
+[bandit.region~forest]
+a charcoal burner's gang who rob the timber carts
+a deserter living off the woodcutters
+
+[bandit.region~gorge]
+a road robber who waits at the rope bridge
+a gang that rolls rocks onto the caravans below
+a one-eyed toll man and his two cousins
+
+[bandit.region~delta]
+smugglers who do not want to be seen
+river pirates in a stolen customs boat
+a ferryman who takes you halfway and then names his price
+
+[bandit.region~volcano]
+a miner driven mad by the fumes
+claim jumpers who say this seam is theirs
+
+[bandit.region~battlefield]
+a deserter in old armour who will not be taken alive
+a grave robber and his two sons
+scavengers stripping the dead of buckles and arrowheads
+
+[bandit.region~salt]
+caravan raiders on camels
+salt thieves who cut the brand off the blocks
+
+[cultivator.region]
+a rogue cultivator who robs travellers for their pills
+an outer disciple of the Azure Cloud Sect, looking for a fight to report
+a wandering swordsman who wants to test his new technique
+
+[cultivator.region~snow]
+a hermit who thinks you came to steal his ice lotus
+a Frost Pavilion disciple sent to bring back a deserter
+a cultivator in white who walks barefoot on the ice
+
+[cultivator.region~volcano]
+a fire-path cultivator tempering his body in the vents
+a smith's apprentice from the crater forge with a half-made blade
+
+[cultivator.region~ridge]
+a rogue cultivator who robs pilgrims
+a Sky Ladder disciple guarding the steps for his elder
+a sword cultivator who has sat on this rock for nine days
+
+[spirit.region]
+the ghost of a herb picker who fell here
+a hungry ghost with a rope still round its neck
+
+[spirit.region~marsh]
+a drowned ferryman who still asks for the fare
+the will-o'-wisp that led the salt barge into the reeds
+
+[spirit.region~battlefield]
+a dead soldier who still stands his watch
+the ghost of a general's standard-bearer
+a corpse that rose when the moon came out
+
+[spirit.region~salt]
+a salt-crusted ghoul that walks at night
+the ghost of a caravan master buried with his ledger
+
+[spirit.region~ridge]
+the ghost of a disciple who fell from the Sky Ladder
+
+[guardian.beast]
+a tiger that has taken a village's whole herd
+a python as long as a village street
+
+[guardian.beast~marsh]
 the Old Mother of the Marsh, a crocodile two hundred years old
 the leech-demon that drowned the ferry at Sunken Ferry
 
-[guardian.region~wastes]
-the Red Dust Bandit King and his twelve riders
+[guardian.beast~wastes]
 a scorpion queen with a shell like temple bronze
+the Red Sand Wyrm that swallows camels whole
 
-[guardian.region~forest]
+[guardian.beast~forest]
 the White-Browed Tiger that ate the magistrate's son
 the Woodcutters' Ghost, a black ape the size of a hut
 
-[guardian.region~gorge]
-Chain-Cutter Shen, who holds the Iron Chain bridge for tolls
+[guardian.beast~gorge]
 a roc that nests above the Hanging Coffins
+the Stone Ape King and his forty grandsons
 
-[guardian.region~snow]
+[guardian.beast~snow]
 the Snow Bear of Frozen Bell, scarred by forty hunters
-Frost Matron Qiu, a cultivator who never came down from the pass
+the Ice Python under the Frozen Bell pass
 
-[guardian.region~delta]
+[guardian.beast~delta]
 the Flood Dragon-Turtle that sinks salt barges
+a river crocodile that has eaten two tax collectors
+
+[guardian.beast~volcano]
+the Red Furnace Salamander, its back still smoking
+a lava boar the size of an ox
+
+[guardian.beast~battlefield]
+the Corpse Vulture Queen, who has eaten generals
+
+[guardian.beast~salt]
+the Mirror Sand King, a python sixty yards long
+
+[guardian.beast~ridge]
+the Thunder Roc of the Nine Heavens Crest
+the White Ape of the Spirit Spring, older than the sect
+
+[guardian.bandit]
+the bandit chief Iron Jaw Wu and his nephews
+the Black Wind gang and its chief, who was a sect disciple once
+
+[guardian.bandit~wastes]
+the Red Dust Bandit King and his twelve riders
+
+[guardian.bandit~gorge]
+Chain-Cutter Shen, who holds the Iron Chain bridge for tolls
+
+[guardian.bandit~delta]
 Pirate Chief Long Eel and his iron-hulled junk
 
-[guardian.region~volcano]
-the Red Furnace Salamander, its back still smoking
+[guardian.bandit~battlefield]
+the Deserter Captain and the thirty men who left with him
+
+[guardian.bandit~salt]
+the Camel Thief Ma Liu and his sworn brothers
+
+[guardian.cultivator]
+a Foundation-stage rogue who has killed three sect hunters
+a sect elder in disgrace who will not let anyone pass his cave
+
+[guardian.cultivator~snow]
+Frost Matron Qiu, a cultivator who never came down from the pass
+
+[guardian.cultivator~volcano]
 Smith Zhuo, who forges demon blades in the crater
 
-[guardian.region~battlefield]
+[guardian.cultivator~ridge]
+Elder Gu of the Sky Ladder, who throws visitors off the ridge
+
+[guardian.spirit]
+the ghost of a sect master who was poisoned by his own disciple
+a wronged bride's ghost who has waited sixty years for her groom
+
+[guardian.spirit~battlefield]
 the Headless General's last guard of forty dead men
 the Bone Marshal, a corpse cultivator in rusted armour
 
-[guardian.region~salt]
-the Mirror Sand King, a python sixty yards long
+[guardian.spirit~salt]
 the Caravan Eater, a ghoul that wears merchants' silks
 
-[guardian.region~ridge]
-the Thunder Roc of the Nine Heavens Crest
-Elder Gu of the Sky Ladder, who throws visitors off the ridge
+[guardian.spirit~marsh]
+the Drowned Magistrate, still holding court in the reeds
 
 [explore.path]
 A footpath through {$region.name}, trodden by herb pickers.
@@ -972,8 +1097,8 @@ You take a bad wound to the side and fall back the way you came.
 You lose your footing, take a beating and only just get clear.
 
 [explore.slip]
-You back away slowly and it lets you go.
-You circle round through the undergrowth and leave it behind.
+You back away slowly and are let go.
+You circle round through the undergrowth and leave the trouble behind.
 
 [explore.line.guardian]
 In {$region.name} you fought {$beast.name} and walked away the winner.
@@ -991,6 +1116,171 @@ Rockfalls closed the passes of {$region.name} and opened new ones; nobody's map 
 You burned a Region Talisman at the edge of {$region.name}, and by morning the paths had moved.
 
 # --- Sample event ---------------------------------------------------------
+
+[explore.fight.bandit]
+Ahead on the path: {$beast.name}, and a price to walk past.
+You have run into {$beast.name}. Stones or blood, they say.
+
+[explore.fight.hideout]
+This is the hideout of {$beast.name}, and you have walked into the middle of it.
+A lean-to of stolen tent cloth, a cookfire, and {$beast.name}, reaching for their weapons.
+
+[explore.fight.cultivator]
+In your way stands {$beast.name}, hand already on the hilt.
+You meet {$beast.name}, who asks which sect taught you to walk like that and does not wait for an answer.
+
+[explore.fight.spirit]
+The air goes cold. Where nobody stood a moment ago there is {$beast.name}.
+Your lantern gutters, and out of the dark comes {$beast.name}.
+
+[explore.won.bandit]
+You put two of them on the ground and the rest run. They leave their purse behind.
+They did not expect a fight. You take back what they had taken from others.
+
+[explore.won.cultivator]
+You win on the eleventh exchange. Your opponent pays up, as the custom is, and limps off.
+A palm strike to the chest ends it. Your opponent bows, drops a pouch and leaves.
+
+[explore.won.spirit]
+You strike through the cold and it comes apart like smoke. Where it stood lie a few coins of the dead.
+On the third blow it lets out a long breath and is gone. Its grave goods are on the ground.
+
+[explore.paid]
+You count out the stones. They weigh the purse, wave you through and do not look back.
+You pay. One of them bites a stone to check it, and then they let you pass.
+
+[explore.drivenoff]
+You light the Calm-Heart Incense. The smoke reaches it and it draws back into the dark.
+The incense burns down to the stick, and by then the thing is gone.
+
+[alchemy.learned]
+The smoke goes from grey to white and you know you have it: the {$pill.name}. You write the recipe inside your sleeve.
+The mixture settles and smells right for the first time. You note down what went in: the {$pill.name}.
+
+[alchemy.miss]
+The mixture boils over and fills the room with bitter smoke. You scrape the cauldron clean.
+It turns to a black paste that even the rats will not eat.
+The cauldron hisses and spits, and what is left at the bottom is no good to anyone.
+
+[alchemy.collect]
+You lift the lid and pick the {$pill.name} out of the ash with bamboo tongs.
+The {$pill.name} comes out the size of a mung bean and still warm.
+
+[alchemy.line.learned]
+You worked out how to brew the {$pill.name}, and burned through a month of herbs finding out.
+After many spoiled batches you got the {$pill.name} right, and sewed the recipe into your collar.
+
+[alchemy.line.slip]
+You came by a recipe slip for the {$pill.name}, stained with lamp oil, and copied it out before it fell apart.
+
+# Each region's own herb and ore (alchemy, v0.2.0): one of each per region,
+# picked by the world seed. No article; shown as "+2 bitter reed-root".
+[ingredient.herb]
+wild ginseng
+
+[ingredient.herb~marsh]
+bitter reed-root
+black water-lily root
+leech moss
+marsh ginseng
+
+[ingredient.herb~wastes]
+dust sage
+red thornbush berry
+camel-bone mushroom
+
+[ingredient.herb~forest]
+blood ginseng
+ironwood bark
+tiger-claw fern
+
+[ingredient.herb~gorge]
+cliff orchid
+swallow-nest fungus
+rope-bridge moss
+
+[ingredient.herb~snow]
+ice lotus
+frost-pine needle
+white yak-grass
+
+[ingredient.herb~delta]
+river cress
+water chestnut root
+red lotus seed
+
+[ingredient.herb~volcano]
+cinder moss
+fire date
+ash lichen
+
+[ingredient.herb~battlefield]
+grave-pine resin
+bloodroot
+crow garlic
+
+[ingredient.herb~salt]
+salt-bush leaf
+white sand-fern
+brine tuber
+
+[ingredient.herb~ridge]
+cloud orchid
+thunder-struck pine bark
+Sky Ladder mint
+
+[ingredient.ore]
+raw iron
+
+[ingredient.ore~marsh]
+bog iron
+green swamp copper
+drowned cinnabar
+
+[ingredient.ore~wastes]
+red slate copper
+desert glass
+sun-baked lodestone
+
+[ingredient.ore~forest]
+forest jade
+root tin
+black loam silver
+
+[ingredient.ore~gorge]
+chain iron
+gorge flint
+blue cliff copper
+
+[ingredient.ore~snow]
+snow quartz
+frozen silver
+glacier jade
+
+[ingredient.ore~delta]
+river gold dust
+silt copper
+black pearl grit
+
+[ingredient.ore~volcano]
+sulphur iron
+crater bronze
+red cinnabar
+
+[ingredient.ore~battlefield]
+spearhead bronze
+old arrowhead iron
+bone-ash salt
+
+[ingredient.ore~salt]
+rock salt crystal
+mirror-flat glass
+salt-crust silver
+
+[ingredient.ore~ridge]
+thunder iron
+ridge jade
+star-fall silver
 
 [ruin.desc]
 a [collapsed|half-buried|burned-out] shrine

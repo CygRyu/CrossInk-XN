@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Rng.h"
 #include "Simulation.h"
@@ -41,7 +42,12 @@ Chance chanceFor(const GameState& state) {
   c.consolidation =
       static_cast<uint8_t>(static_cast<uint32_t>(consolidation) * kConsolidationChanceMax / kConsolidationMax);
   c.element = scrolls::manualMatchesRoot(state) ? kElementChance : 0;
-  uint32_t total = c.base + c.daoHeart + c.consolidation + c.element;
+  // v0.2.0: the pill taken for an attempt under way, or the one it would take.
+  c.pillItem = alchemy::pillInUse(state);
+  if (c.pillItem == inventory::Item::None) c.pillItem = alchemy::chosenPill(state, c.target);
+  if (!alchemy::pillFits(c.pillItem, c.target)) c.pillItem = inventory::Item::None;
+  c.pill = alchemy::breakthroughBonus(c.pillItem);
+  uint32_t total = c.base + c.daoHeart + c.consolidation + c.element + c.pill;
   if (total > kChanceCap) total = kChanceCap;
   // balance_sim.py: pity raises the chance by 15 per failure, but never past 90.
   if (p.failures > 0) {
@@ -55,8 +61,9 @@ Chance chanceFor(const GameState& state) {
   c.total = static_cast<uint8_t>(total);
   c.needsKey = c.target >= 2;  // the small bottleneck into Qi Condensation needs none
   if (c.needsKey) {
-    c.keyIndex = scrolls::keyFor(state, c.target);  // Daos and pills join in later milestones
-    c.hasKey = c.keyIndex >= 0;
+    c.keyIndex = scrolls::keyFor(state, c.target);  // Daos join in a later milestone
+    c.pillIsKey = c.keyIndex < 0 && c.pillItem != inventory::Item::None;
+    c.hasKey = c.keyIndex >= 0 || c.pillIsKey;
   }
   return c;
 }
@@ -87,7 +94,7 @@ uint8_t gradeScore(const GameState& state, const uint8_t targetRealm) {
   const ProgressBlock& p = state.progress;
   uint32_t score = p.consolidation < kConsolidationMax ? p.consolidation : kConsolidationMax;
   score += static_cast<uint32_t>(p.daoHeart) * kDaoHeartGradeMax / 100u;
-  // Pills used (0-20) join with alchemy.
+  if (targetRealm >= 2 && targetRealm <= 4) score += alchemy::gradePillScore(state);  // 0-20
   if (scrolls::manualMatchesRoot(state)) score += kElementGradeScore;
   if (targetRealm == 2) score += originBonus(state.character.origin).foundationGradeScore;
   return clampPercent(score);
@@ -133,13 +140,17 @@ void failAttempt(GameState& state) {
   p.qi = left;
   if (p.failures < 255) ++p.failures;
   p.progressFlags |= ProgressBlock::kHalfStep;
+  alchemy::clearPillInUse(state);  // user: a breakthrough pill is used up on every attempt
 }
 
 Result attempt(GameState& state) {
   Result r;
   if (!canAttempt(state)) return r;
   ProgressBlock& p = state.progress;
+  // The pill is taken now (a trial took it already, when it began).
+  alchemy::takePill(state, static_cast<uint8_t>(p.realm + 1));
   const Chance c = chanceFor(state);
+  r.pillUsed = c.pillItem;
   r.attempted = true;
   r.chance = c.total;
   r.fromRealm = p.realm;
@@ -153,6 +164,7 @@ Result attempt(GameState& state) {
     failAttempt(state);
     return r;
   }
+  alchemy::clearPillInUse(state);
 
   if (c.needsKey && c.keyIndex >= 0) {
     r.key = scrolls::removeAt(state, static_cast<uint8_t>(c.keyIndex));  // spent only on success
@@ -174,6 +186,7 @@ Result attempt(GameState& state) {
   p.qi = QiNumber{};
   p.failures = 0;
   p.consolidation = 0;  // spent on this grade and this attempt
+  if (c.target >= 2 && c.target <= 4) alchemy::resetGradePills(state);
   p.progressFlags &= static_cast<uint8_t>(~(ProgressBlock::kInGreatPerfection | ProgressBlock::kHalfStep));
   return r;
 }

@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 
+#include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Exploration.h"
 #include "ExploreText.h"
@@ -39,7 +40,9 @@
 // during the visit's start) and the library list with one page of names
 // (~1 KB). Exploration (v0.1.10) adds ~1.9 KB while its screens are open: the
 // open regions' names, the open map's layout and the last event's text.
-// Everything else is a few hundred bytes of members.
+// Alchemy (v0.2.0) adds ~0.3 KB while its screens are open, and the names of
+// the world's 20 ingredients (~0.7 KB) live while Exploration or Alchemy is
+// open. Everything else is a few hundred bytes of members.
 class CultivationActivity final : public Activity {
  public:
   CultivationActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
@@ -75,10 +78,16 @@ class CultivationActivity final : public Activity {
     MerchantSell,  // selling items back at a third
     Bag,           // items; tonics are drunk here
     Talisman,      // which cleared region a Region Talisman reshapes
+    Alchemy,       // v0.2.0 (CultivationAlchemyScreens.cpp): the cauldron and what to do with it
+    Recipes,       // the recipes known
+    RecipeDetail,  // one recipe: its parts, what it makes, the brew time; Confirm brews
+    Experiment,    // pick 2-3 ingredients and mix them
     Error
   };
   // What the Cultivator screen's list offers right now.
-  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Explore, Chronicle, Trial };
+  // v0.2.0: shown as a two-column grid (user's choice), one press from everything.
+  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Explore, Alchemy, Chronicle, Trial };
+  static constexpr uint8_t kMaxActions = 7;
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -160,6 +169,31 @@ class CultivationActivity final : public Activity {
   void renderSell(int x, int y, int width, int bottom);
   void renderBag(int x, int y, int width, int bottom);
   void renderTalisman(int x, int y, int width, int bottom);
+  // v0.2.0: the fight's answers on screen, in order.
+  enum class FightRow : uint8_t { Fight, Slip, Pay, Incense, Tonic };
+  uint8_t fightRowList(FightRow* out) const;
+
+  // Alchemy (CultivationAlchemyScreens.cpp, v0.2.0)
+  void openAlchemy();
+  void closeAlchemy();
+  bool handleAlchemy(bool back, bool confirm, bool up, bool down);  // true when the screen is an alchemy one
+  void renderAlchemy(int x, int y, int width, int bottom);
+  void renderRecipes(int x, int y, int width, int bottom);
+  void renderRecipeDetail(int x, int y, int width, int bottom);
+  void renderExperiment(int x, int y, int width, int bottom);
+  void alchemyLabels(const char*& confirmLabel, const char*& upLabel, const char*& downLabel) const;
+  int alchemyRows() const;
+  void refreshAlchemy();
+  void collectPills();
+  void brewSelected();
+  void mixExperiment();
+  void alchemyChronicle(const char* listKey, uint8_t recipe);
+  // Ingredient names (~0.7 KB): loaded while Exploration or Alchemy is open.
+  void loadIngredientNames();
+  // An item's name for the screen: a region's own herb or ore by name, pills with their quality.
+  const char* itemLabel(cultivation::inventory::Item item, char* buf, size_t len) const;
+  const char* pillLabel(cultivation::alchemy::Pill pill) const;  // "Core-Forming pill"
+  void useBagPill(cultivation::inventory::Item item);
   void exploreLabels(const char*& confirmLabel, const char*& upLabel, const char*& downLabel) const;
   void appendUpheavalLines(uint16_t reshaped);
   int regionRows() const;  // regions, then the Bag, then the Region Talisman when one can be used
@@ -278,7 +312,7 @@ class CultivationActivity final : public Activity {
   char notice_[200] = {};  // one line after selling, equipping, exporting the Chronicle ...
 
   // Cultivator actions and the last breakthrough or Great Perfection outcome.
-  Action actions_[5] = {};
+  Action actions_[kMaxActions] = {};
   uint8_t actionCount_ = 0;
   OutcomeKind outcomeKind_ = OutcomeKind::BreakthroughSuccess;
   cultivation::breakthrough::Result outcome_;
@@ -322,12 +356,32 @@ class CultivationActivity final : public Activity {
     uint8_t merchantTile = 0;
     cultivation::inventory::Item bag[kBagMax] = {};
     uint8_t bagCount = 0;
+    bool forAlchemy = false;  // opened only for the Bag from the Alchemy screen
     Screen bagReturn = Screen::Regions;
     uint8_t talismanRegions[cultivation::explore::kRegionCount] = {};
     uint8_t talismanCount = 0;
     int regionsSelected = 0;
   };
   std::unique_ptr<ExploreView> explore_;
+
+  // Alchemy, only while its screens are open (~0.3 KB): the list rows, the
+  // recipe shown, the parts picked for an experiment.
+  struct AlchemyView {
+    uint8_t recipes[cultivation::alchemy::kRecipeCount] = {};  // known recipes, in table order
+    uint8_t recipeCount = 0;
+    uint8_t recipe = 0;                                 // the one on RecipeDetail
+    cultivation::inventory::Item ingredients[20] = {};  // held, for the experiment's list
+    uint8_t ingredientCount = 0;
+    cultivation::inventory::Item chosen[cultivation::alchemy::kMaxParts] = {};
+    uint8_t chosenCount = 0;
+    char flavor[200] = {};  // the last result's line from the packs
+    int menuSelected = 0;
+  };
+  std::unique_ptr<AlchemyView> alchemy_;
+  struct IngredientNames {
+    char names[20][36] = {};  // herbs 0-9, then ores 0-9
+  };
+  std::unique_ptr<IngredientNames> ingredients_;
   uint16_t upheavals_ = 0;  // regions reshaped this visit, for the life log
   bool justCreated_ = false;
   bool saveFailed_ = false;

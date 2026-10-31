@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Inventory.h"
 #include "Rng.h"
@@ -106,6 +107,7 @@ bool begin(GameState& s) {
   if (k == Kind::None || !breakthrough::canAttempt(s)) return false;
   if (k == Kind::Tribulation && s.progress.hp == 0) return false;
   s.progress.progressFlags |= ProgressBlock::kInTrial;
+  alchemy::takePill(s, targetOf(s));  // v0.2.0: taken before the trial; lost with it, or spent on the roll
   stepByte(s) = 0;
   usedByte(s) = 0;
   scenesByte(s) = 0;

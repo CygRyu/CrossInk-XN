@@ -33,6 +33,7 @@ namespace {
 constexpr uint32_t kKindMapText = 91;  // contentSeed kinds 80-99: exploration
 constexpr uint32_t kKindFightText = 92;
 constexpr uint32_t kKindExploreChronicle = 93;
+constexpr uint32_t kKindAlchemyChronicle = 103;  // 100-119: alchemy
 
 constexpr int kMaxCell = 72;  // the agreed mockup drew 76 px; 72 leaves room for three lines of news
 
@@ -42,13 +43,6 @@ static const StrId kDangerNames[static_cast<int>(explore::Danger::Count)] = {
     StrId::STR_CULT_DANGER_TRIVIAL,   StrId::STR_CULT_DANGER_WEAK,    StrId::STR_CULT_DANGER_DANGEROUS,
     StrId::STR_CULT_DANGER_HAZARDOUS, StrId::STR_CULT_DANGER_EXTREME, StrId::STR_CULT_DANGER_IMPOSSIBLE};
 
-static const StrId kItemNames[static_cast<int>(inventory::Item::Count)] = {
-    StrId::STR_CULT_ITEM_HERB_COMMON, StrId::STR_CULT_ITEM_HERB_COMMON, StrId::STR_CULT_ITEM_HERB_SPIRIT,
-    StrId::STR_CULT_ITEM_HERB_RARE,   StrId::STR_CULT_ITEM_ORE_COMMON,  StrId::STR_CULT_ITEM_ORE_SPIRIT,
-    StrId::STR_CULT_ITEM_ORE_RARE,    StrId::STR_CULT_ITEM_TONIC_MINOR, StrId::STR_CULT_ITEM_TONIC_GREATER,
-    StrId::STR_CULT_ITEM_TONIC_FULL,  StrId::STR_CULT_ITEM_THUNDER,     StrId::STR_CULT_ITEM_INCENSE,
-    StrId::STR_CULT_ITEM_REGION};
-
 static const StrId kTileNames[static_cast<int>(explore::Tile::Count)] = {
     StrId::STR_CULT_TILE_CRAG,  StrId::STR_CULT_TILE_PATH,    StrId::STR_CULT_TILE_HERB, StrId::STR_CULT_TILE_ORE,
     StrId::STR_CULT_TILE_RUIN,  StrId::STR_CULT_TILE_CAVE,    StrId::STR_CULT_TILE_LAIR, StrId::STR_CULT_TILE_MERCHANT,
@@ -57,44 +51,6 @@ static const StrId kTileNames[static_cast<int>(explore::Tile::Count)] = {
 const char* dangerName(const explore::Danger d) {
   const int i = static_cast<int>(d);
   return text(kDangerNames[i < static_cast<int>(explore::Danger::Count) ? i : 0]);
-}
-
-const char* itemName(const inventory::Item item) {
-  const int i = static_cast<int>(item);
-  return text(kItemNames[i < static_cast<int>(inventory::Item::Count) ? i : 0]);
-}
-
-void itemDescription(const inventory::Item item, char* out, const size_t len) {
-  using inventory::Item;
-  switch (item) {
-    case Item::HerbCommon:
-    case Item::HerbSpirit:
-    case Item::HerbRare:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_HERB_DESC));
-      return;
-    case Item::OreCommon:
-    case Item::OreSpirit:
-    case Item::OreRare:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_ORE_DESC));
-      return;
-    case Item::TonicMinor:
-    case Item::TonicGreater:
-    case Item::TonicFull:
-      snprintf(out, len, tr(STR_CULT_ITEM_TONIC_DESC_FORMAT), static_cast<unsigned>(inventory::healPercent(item)));
-      return;
-    case Item::ThunderTalisman:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_THUNDER_DESC));
-      return;
-    case Item::CalmIncense:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_INCENSE_DESC));
-      return;
-    case Item::RegionTalisman:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_REGION_DESC));
-      return;
-    default:
-      out[0] = '\0';
-      return;
-  }
 }
 
 // Appends ", part" (or "part" first) to out.
@@ -286,6 +242,7 @@ void CultivationActivity::openRegions() {
     explore_ = std::move(view);
     notice_[0] = '\0';
     loadRegionNames();
+    loadIngredientNames();
     selected_ = 0;
     screen_ = Screen::Regions;
   }
@@ -310,6 +267,7 @@ void CultivationActivity::closeExplore() {
   {
     RenderLock lock(*this);
     explore_.reset();
+    if (!alchemy_) ingredients_.reset();
     notice_[0] = '\0';
     refreshActions();
     selected_ = 0;
@@ -479,6 +437,7 @@ void CultivationActivity::showStep(const explore::StepResult& r) {
     if (packs_) packs_->closeFile();
   }
   formatReward(r.reward, r.hpLost, r.hpHealed, v.numbers, sizeof(v.numbers));
+  if (r.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(r.reward.recipe));
   if (r.clearedNow) {
     char reward[120] = {};
     formatReward(r.clearReward, 0, 0, reward, sizeof(reward));
@@ -492,18 +451,25 @@ void CultivationActivity::showStep(const explore::StepResult& r) {
 // "+45 Spirit Stones, +2 Common herb, -10 HP".
 void CultivationActivity::formatReward(const explore::Reward& r, const uint16_t hpLost, const uint16_t hpHealed,
                                        char* out, const size_t len) const {
-  char part[64];
+  char part[96];
+  char name[64];
   if (r.stones > 0) {
     snprintf(part, sizeof(part), tr(STR_CULT_GAINED_STONES_FORMAT), static_cast<unsigned long>(r.stones));
     appendPart(out, len, part);
   }
   if (r.item != inventory::Item::None && r.itemCount > 0) {
-    snprintf(part, sizeof(part), tr(STR_CULT_GAINED_ITEM_FORMAT), static_cast<unsigned>(r.itemCount), itemName(r.item));
+    snprintf(part, sizeof(part), tr(STR_CULT_GAINED_ITEM_FORMAT), static_cast<unsigned>(r.itemCount),
+             itemLabel(r.item, name, sizeof(name)));
     appendPart(out, len, part);
   }
   if (r.item2 != inventory::Item::None && r.item2Count > 0) {
     snprintf(part, sizeof(part), tr(STR_CULT_GAINED_ITEM_FORMAT), static_cast<unsigned>(r.item2Count),
-             itemName(r.item2));
+             itemLabel(r.item2, name, sizeof(name)));
+    appendPart(out, len, part);
+  }
+  if (r.recipe >= 0 && r.recipe < alchemy::kRecipeCount) {
+    snprintf(part, sizeof(part), tr(STR_CULT_GAINED_RECIPE_FORMAT),
+             pillLabel(alchemy::recipesOf(*state_).recipes[r.recipe].pill));
     appendPart(out, len, part);
   }
   if (hpLost > 0) {
@@ -573,13 +539,17 @@ void CultivationActivity::openFight() {
     const char* list = "explore.fight.beast";
     if (grammar_) {
       bool named = false;
+      // v0.2.0: the enemy's kind picks its name list and its opening line.
+      static const char* const kKindLines[static_cast<int>(explore::Enemy::Count)] = {
+          "explore.fight.beast", "explore.fight.bandit", "explore.fight.cultivator", "explore.fight.spirit"};
       if (f.kind == explore::FightKind::Beast) {
-        named =
-            exploretext::beastName(*state_, v.region, explore::beastSeed(*state_), *grammar_, v.beast, sizeof(v.beast));
+        list = kKindLines[static_cast<int>(f.enemy)];
+        named = exploretext::enemyName(*state_, v.region, f.enemy, explore::beastSeed(*state_), *grammar_, v.beast,
+                                       sizeof(v.beast));
       } else if (f.kind == explore::FightKind::Lair) {
-        list = "explore.fight.lair";
-        named = exploretext::beastName(*state_, v.region, exploretext::lairSeed(*state_, v.region, f.tile), *grammar_,
-                                       v.beast, sizeof(v.beast));
+        list = f.enemy == explore::Enemy::Bandit ? "explore.fight.hideout" : "explore.fight.lair";
+        named = exploretext::enemyName(*state_, v.region, f.enemy, exploretext::lairSeed(*state_, v.region, f.tile),
+                                       *grammar_, v.beast, sizeof(v.beast));
       } else {
         list = "explore.fight.guardian";
         named = exploretext::guardianName(*state_, v.region, *grammar_, v.beast, sizeof(v.beast));
@@ -597,10 +567,23 @@ void CultivationActivity::openFight() {
   requestUpdate();
 }
 
-int CultivationActivity::fightRows() const {
+// The answers on the fight screen (v0.2.0: by the enemy's kind).
+uint8_t CultivationActivity::fightRowList(FightRow* out) const {
+  uint8_t n = 0;
+  if (!explore_) return 0;
   const ProgressBlock& p = state_->progress;
-  const bool tonic = inventory::tonicFor(*state_, 1) != inventory::Item::None && p.hp < p.hpMax;
-  return tonic ? 3 : 2;
+  const explore::Fight f = explore::pendingFight(*state_, explore_->layout);
+  out[n++] = FightRow::Fight;
+  if (f.canSlip) out[n++] = FightRow::Slip;
+  if (f.payCost > 0) out[n++] = FightRow::Pay;
+  if (f.canIncense) out[n++] = FightRow::Incense;
+  if (inventory::tonicFor(*state_, 1) != inventory::Item::None && p.hp < p.hpMax) out[n++] = FightRow::Tonic;
+  return n;
+}
+
+int CultivationActivity::fightRows() const {
+  FightRow rows[5];
+  return fightRowList(rows);
 }
 
 void CultivationActivity::answerFight() {
@@ -609,11 +592,15 @@ void CultivationActivity::answerFight() {
     RenderLock lock(*this);
     const explore::Fight f = explore::pendingFight(*state_, v.layout);
     if (f.kind == explore::FightKind::None) return;
-    if (selected_ == 2) {  // a tonic first; the fight waits
+    FightRow rows[5];
+    const uint8_t rowCount = fightRowList(rows);
+    if (selected_ < 0 || selected_ >= rowCount) return;
+    char name[64];
+    if (rows[selected_] == FightRow::Tonic) {  // a tonic first; the fight waits
       const inventory::Item tonic = inventory::tonicFor(*state_, f.damage);
       const uint16_t healed = inventory::useTonic(*state_, tonic);
       if (healed > 0) {
-        snprintf(v.fightResult, sizeof(v.fightResult), tr(STR_CULT_DRANK_FORMAT), itemName(tonic),
+        snprintf(v.fightResult, sizeof(v.fightResult), tr(STR_CULT_DRANK_FORMAT), itemLabel(tonic, name, sizeof(name)),
                  static_cast<unsigned>(healed));
         persist();
       }
@@ -621,8 +608,16 @@ void CultivationActivity::answerFight() {
       requestUpdate();
       return;
     }
-    const explore::FightChoice choice = selected_ == 1 ? explore::FightChoice::Slip : explore::FightChoice::Fight;
+    const explore::FightChoice choice = rows[selected_] == FightRow::Slip      ? explore::FightChoice::Slip
+                                        : rows[selected_] == FightRow::Pay     ? explore::FightChoice::Pay
+                                        : rows[selected_] == FightRow::Incense ? explore::FightChoice::Incense
+                                                                               : explore::FightChoice::Fight;
     const explore::FightResult res = explore::fight(*state_, v.layout, choice);
+    if (res.refused) {  // short of stones: the row said how many
+      snprintf(v.fightResult, sizeof(v.fightResult), "%s", tr(STR_CULT_TOO_POOR));
+      requestUpdate();
+      return;
+    }
     LOG_INF("CULT", "Fight (kind %u, level %d vs %d): roll %u, %s", static_cast<unsigned>(f.kind),
             explore::playerLevel(*state_), f.level, static_cast<unsigned>(res.roll),
             res.won ? "won" : (res.slipped ? "slipped away" : "lost"));
@@ -630,14 +625,29 @@ void CultivationActivity::answerFight() {
     // The map shows what happened: the fight's line, then the numbers.
     v.text[0] = '\0';
     v.numbers[0] = '\0';
-    const char* list = res.won ? "explore.won" : (res.slipped ? "explore.slip" : "explore.lost");
+    static const char* const kWonLines[static_cast<int>(explore::Enemy::Count)] = {
+        "explore.won", "explore.won.bandit", "explore.won.cultivator", "explore.won.spirit"};
+    const char* list = res.paid        ? "explore.paid"
+                       : res.drivenOff ? "explore.drivenoff"
+                       : res.won       ? kWonLines[static_cast<int>(f.enemy)]
+                       : res.slipped   ? "explore.slip"
+                                       : "explore.lost";
     if (grammar_) {
       const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 1u);
-      exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.text, sizeof(v.text));
+      if (!exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.text,
+                               sizeof(v.text)) &&
+          res.won) {  // an SD pack may have replaced a kind's list away
+        exploretext::flavor(*state_, "explore.won", seed, v.regionNames[v.region], v.beast, *grammar_, v.text,
+                            sizeof(v.text));
+      }
       if (packs_) packs_->closeFile();
     }
     char line[160];
-    if (res.won) {
+    if (res.paid) {
+      snprintf(line, sizeof(line), tr(STR_CULT_PAID_FORMAT), static_cast<unsigned long>(res.paidStones));
+    } else if (res.drivenOff) {
+      snprintf(line, sizeof(line), "%s", tr(STR_CULT_DRIVEN_OFF));
+    } else if (res.won) {
       snprintf(line, sizeof(line), tr(STR_CULT_FIGHT_WON_FORMAT), static_cast<unsigned>(res.roll),
                static_cast<unsigned>(f.chance));
     } else if (res.slipped) {
@@ -656,6 +666,10 @@ void CultivationActivity::answerFight() {
       appendSentence(v.numbers, sizeof(v.numbers), parts);
       const size_t used = strlen(v.numbers);
       if (used + 1 < sizeof(v.numbers)) snprintf(v.numbers + used, sizeof(v.numbers) - used, ".");
+    }
+    if (res.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(res.reward.recipe));
+    if (res.tile.reward.recipe >= 0) {
+      alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(res.tile.reward.recipe));
     }
     if (res.guardianBeaten) {
       appendSentence(v.numbers, sizeof(v.numbers), tr(STR_CULT_GUARDIAN_BEATEN));
@@ -724,10 +738,12 @@ void CultivationActivity::useBagItem() {
   {
     RenderLock lock(*this);
     const inventory::Item item = v.bag[selected_];
+    char name[64];
+    itemLabel(item, name, sizeof(name));
     if (screen_ == Screen::MerchantSell) {
       const uint16_t price = inventory::sellPrice(item);
       if (explore::sell(*state_, item)) {
-        snprintf(notice_, sizeof(notice_), tr(STR_CULT_SOLD_ITEM_FORMAT), itemName(item), static_cast<unsigned>(price));
+        snprintf(notice_, sizeof(notice_), tr(STR_CULT_SOLD_ITEM_FORMAT), name, static_cast<unsigned>(price));
         persist();
       }
     } else if (inventory::isTonic(item)) {
@@ -735,10 +751,12 @@ void CultivationActivity::useBagItem() {
         snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_HP_FULL));
       } else {
         const uint16_t healed = inventory::useTonic(*state_, item);
-        snprintf(notice_, sizeof(notice_), tr(STR_CULT_DRANK_FORMAT), itemName(item), static_cast<unsigned>(healed));
+        snprintf(notice_, sizeof(notice_), tr(STR_CULT_DRANK_FORMAT), name, static_cast<unsigned>(healed));
         persist();
       }
-    } else if (item == inventory::Item::RegionTalisman) {
+    } else if (inventory::isGradePill(item) || item == inventory::Item::QiPill) {
+      useBagPill(item);
+    } else if (item == inventory::Item::RegionTalisman && !v.forAlchemy) {
       openTalisman();
       return;
     }
@@ -844,12 +862,20 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
         if (selected_ < v.stock.count) {
           RenderLock lock(*this);
           const explore::StockLine& l = v.stock.lines[selected_];
-          const uint16_t cost = inventory::price(l.item);
+          const uint16_t cost = explore::stockPrice(*state_, l.item);
+          const int slip = alchemy::slipRecipe(*state_);
+          char name[64];
           if (l.soldOut) {
             // nothing: the row says when it comes back
           } else if (explore::buy(*state_, v.layout, v.region, v.merchantTile, static_cast<uint8_t>(selected_))) {
-            snprintf(notice_, sizeof(notice_), tr(STR_CULT_BOUGHT_FORMAT), itemName(l.item),
-                     static_cast<unsigned>(cost));
+            if (l.item == inventory::Item::RecipeSlip && slip >= 0) {
+              snprintf(notice_, sizeof(notice_), tr(STR_CULT_SLIP_BOUGHT_FORMAT),
+                       pillLabel(alchemy::recipesOf(*state_).recipes[slip].pill), static_cast<unsigned>(cost));
+              alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(slip));
+            } else {
+              snprintf(notice_, sizeof(notice_), tr(STR_CULT_BOUGHT_FORMAT), itemLabel(l.item, name, sizeof(name)),
+                       static_cast<unsigned>(cost));
+            }
             persist();
           } else {
             snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_TOO_POOR));
@@ -873,6 +899,11 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
           v.stock = explore::stockFor(*state_, v.layout, v.region, v.merchantTile);
           selected_ = v.stock.count;  // back on "Sell items"
           screen_ = Screen::Merchant;
+        } else if (v.bagReturn == Screen::Alchemy) {
+          if (v.forAlchemy) explore_.reset();  // made only for the Bag
+          refreshAlchemy();
+          selected_ = alchemy_ ? alchemy_->menuSelected : 0;
+          screen_ = Screen::Alchemy;
         } else {
           selected_ = v.bagReturn == Screen::Regions ? v.regionCount : 0;
           if (v.bagReturn == Screen::Regions) loadRegionNames();
@@ -981,10 +1012,11 @@ void CultivationActivity::exploreLabels(const char*& confirmLabel, const char*& 
     case Screen::Bag:
       if (v.bagCount == 0) confirmLabel = "";
       if (screen_ == Screen::Bag && selected_ >= 0 && selected_ < v.bagCount) {
-        // Only tonics (when hurt) and the Region Talisman do anything from the bag.
+        // Only tonics (when hurt), the Region Talisman and pills that would help now do anything from the bag.
         const inventory::Item item = v.bag[selected_];
         const bool usable = (inventory::isTonic(item) && state_->progress.hp < state_->progress.hpMax) ||
-                            item == inventory::Item::RegionTalisman;
+                            (item == inventory::Item::RegionTalisman && !v.forAlchemy) ||
+                            alchemy::canUse(*state_, item) == alchemy::UseError::None;
         if (!usable) confirmLabel = "";
       }
       if (v.bagCount < 2) upLabel = downLabel = "";
@@ -1240,7 +1272,11 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
     }
     y += 4;
   }
-  snprintf(line, sizeof(line), tr(STR_CULT_FIGHT_DANGER_FORMAT), dangerName(f.danger));
+  static const StrId kEnemyNames[static_cast<int>(explore::Enemy::Count)] = {
+      StrId::STR_CULT_ENEMY_BEAST, StrId::STR_CULT_ENEMY_BANDIT, StrId::STR_CULT_ENEMY_CULTIVATOR,
+      StrId::STR_CULT_ENEMY_SPIRIT};
+  snprintf(line, sizeof(line), tr(STR_CULT_FIGHT_KIND_FORMAT), dangerName(f.danger),
+           text(kEnemyNames[static_cast<int>(f.enemy)]));
   renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
   if (v.fightText[0] != '\0') y = drawWrapped(UI_10_FONT_ID, x, y, width, v.fightText, 5) + metrics.verticalSpacing;
@@ -1253,7 +1289,11 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
   const int fill = p.hpMax > 0 ? static_cast<int>(static_cast<int64_t>(width - 4) * p.hp / p.hpMax) : 0;
   if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
   y += barHeight + metrics.verticalSpacing;
-  if (v.fightResult[0] != '\0') drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 2);
+  if (v.fightResult[0] != '\0') {
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 2);
+  } else if (f.enemy == explore::Enemy::Spirit) {
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_SPIRIT_NO_SLIP), 2);
+  }
 
   const int rows = fightRows();
   const int rowHeight = metrics.listWithSubtitleRowHeight;
@@ -1261,31 +1301,69 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
   GUI.drawList(
       renderer, Rect{0, listTop, renderer.getScreenWidth(), rowHeight * rows}, rows, selected_,
       [this](const int i) -> std::string {
-        if (i == 0) return tr(STR_CULT_FIGHT_ROW);
-        if (i == 1) return tr(STR_CULT_SLIP_ROW);
+        FightRow list[5];
+        const uint8_t n = fightRowList(list);
+        if (i >= n) return {};
         char row[96];
-        const explore::Fight fight = explore::pendingFight(*state_, explore_->layout);
-        snprintf(row, sizeof(row), tr(STR_CULT_TONIC_ROW_FORMAT), itemName(inventory::tonicFor(*state_, fight.damage)));
-        return row;
+        char name[64];
+        switch (list[i]) {
+          case FightRow::Fight:
+            return tr(STR_CULT_FIGHT_ROW);
+          case FightRow::Slip:
+            return tr(STR_CULT_SLIP_ROW);
+          case FightRow::Pay:
+            return tr(STR_CULT_PAY_ROW);
+          case FightRow::Incense:
+            return tr(STR_CULT_INCENSE_ROW);
+          case FightRow::Tonic: {
+            const explore::Fight fight = explore::pendingFight(*state_, explore_->layout);
+            snprintf(row, sizeof(row), tr(STR_CULT_TONIC_ROW_FORMAT),
+                     itemLabel(inventory::tonicFor(*state_, fight.damage), name, sizeof(name)));
+            return row;
+          }
+        }
+        return {};
       },
       [this](const int i) -> std::string {
+        FightRow list[5];
+        const uint8_t n = fightRowList(list);
+        if (i >= n) return {};
         char sub[160];
         const explore::Fight fight = explore::pendingFight(*state_, explore_->layout);
-        if (i == 0) {
-          snprintf(sub, sizeof(sub), tr(STR_CULT_FIGHT_SUB_FORMAT), static_cast<unsigned>(fight.chance),
-                   static_cast<unsigned>(fight.damage));
-        } else if (i == 1) {
-          if (fight.slipChance >= 100) {
-            snprintf(sub, sizeof(sub), "%s", tr(STR_CULT_SLIP_SURE_SUB));
-          } else {
-            snprintf(sub, sizeof(sub), tr(STR_CULT_SLIP_SUB_FORMAT), static_cast<unsigned>(fight.slipChance),
-                     static_cast<unsigned>(fight.slipDamage));
+        switch (list[i]) {
+          case FightRow::Fight:
+            snprintf(sub, sizeof(sub),
+                     fight.enemy == explore::Enemy::Cultivator ? tr(STR_CULT_FIGHT_SUB_CULT_FORMAT)
+                                                               : tr(STR_CULT_FIGHT_SUB_FORMAT),
+                     static_cast<unsigned>(fight.chance), static_cast<unsigned>(fight.damage));
+            break;
+          case FightRow::Slip:
+            if (fight.slipChance >= 100) {
+              snprintf(sub, sizeof(sub), "%s", tr(STR_CULT_SLIP_SURE_SUB));
+            } else {
+              snprintf(sub, sizeof(sub), tr(STR_CULT_SLIP_SUB_FORMAT), static_cast<unsigned>(fight.slipChance),
+                       static_cast<unsigned>(fight.slipDamage));
+            }
+            break;
+          case FightRow::Pay:
+            if (state_->progress.stones >= fight.payCost) {
+              snprintf(sub, sizeof(sub), tr(STR_CULT_PAY_SUB_FORMAT), static_cast<unsigned long>(fight.payCost));
+            } else {
+              snprintf(sub, sizeof(sub), tr(STR_CULT_PAY_SHORT_FORMAT), static_cast<unsigned long>(fight.payCost),
+                       static_cast<unsigned long>(state_->progress.stones));
+            }
+            break;
+          case FightRow::Incense:
+            snprintf(sub, sizeof(sub), tr(STR_CULT_INCENSE_SUB_FORMAT),
+                     static_cast<unsigned>(inventory::count(*state_, inventory::Item::CalmIncense)));
+            break;
+          case FightRow::Tonic: {
+            const inventory::Item tonic = inventory::tonicFor(*state_, fight.damage);
+            snprintf(sub, sizeof(sub), tr(STR_CULT_TONIC_SUB_FORMAT),
+                     static_cast<unsigned>(inventory::healAmount(*state_, tonic)),
+                     static_cast<unsigned>(inventory::count(*state_, tonic)));
+            break;
           }
-        } else {
-          const inventory::Item tonic = inventory::tonicFor(*state_, fight.damage);
-          snprintf(sub, sizeof(sub), tr(STR_CULT_TONIC_SUB_FORMAT),
-                   static_cast<unsigned>(inventory::healAmount(*state_, tonic)),
-                   static_cast<unsigned>(inventory::count(*state_, tonic)));
         }
         return sub;
       });
@@ -1309,7 +1387,8 @@ void CultivationActivity::renderMerchant(const int x, int y, const int width, co
   GUI.drawList(
       renderer, Rect{0, y, renderer.getScreenWidth(), height}, rows, selected_,
       [this](const int i) -> std::string {
-        if (i < explore_->stock.count) return itemName(explore_->stock.lines[i].item);
+        char name[64];
+        if (i < explore_->stock.count) return itemLabel(explore_->stock.lines[i].item, name, sizeof(name));
         return tr(STR_CULT_SELL_ITEMS);
       },
       [this](const int i) -> std::string {
@@ -1321,9 +1400,14 @@ void CultivationActivity::renderMerchant(const int x, int y, const int width, co
           snprintf(sub, sizeof(sub), tr(STR_CULT_SOLD_OUT_FORMAT), ev.regionNames[ev.region]);
         } else {
           char desc[96];
-          itemDescription(l.item, desc, sizeof(desc));
-          snprintf(sub, sizeof(sub), tr(STR_CULT_BUY_SUB_FORMAT), static_cast<unsigned>(inventory::price(l.item)),
-                   desc);
+          ui::itemDescription(l.item, desc, sizeof(desc));
+          const int slip = alchemy::slipRecipe(*state_);
+          if (l.item == inventory::Item::RecipeSlip && slip >= 0) {
+            snprintf(desc, sizeof(desc), tr(STR_CULT_ITEM_SLIP_DESC_FORMAT),
+                     pillLabel(alchemy::recipesOf(*state_).recipes[slip].pill));
+          }
+          snprintf(sub, sizeof(sub), tr(STR_CULT_BUY_SUB_FORMAT),
+                   static_cast<unsigned>(explore::stockPrice(*state_, l.item)), desc);
         }
         return sub;
       });
@@ -1358,7 +1442,10 @@ void CultivationActivity::renderBag(const int x, int y, const int width, const i
   const bool selling = screen_ == Screen::MerchantSell;
   GUI.drawList(
       renderer, Rect{0, y, renderer.getScreenWidth(), height}, v.bagCount, selected_,
-      [this](const int i) -> std::string { return itemName(explore_->bag[i]); },
+      [this](const int i) -> std::string {
+        char name[64];
+        return itemLabel(explore_->bag[i], name, sizeof(name));
+      },
       [this, selling](const int i) -> std::string {
         const inventory::Item item = explore_->bag[i];
         char sub[160];
@@ -1368,7 +1455,7 @@ void CultivationActivity::renderBag(const int x, int y, const int width, const i
                    static_cast<unsigned>(inventory::sellPrice(item)));
         } else {
           char desc[96];
-          itemDescription(item, desc, sizeof(desc));
+          ui::itemDescription(item, desc, sizeof(desc));
           snprintf(sub, sizeof(sub), tr(STR_CULT_BAG_HELD_FORMAT),
                    static_cast<unsigned>(inventory::count(*state_, item)), desc);
         }

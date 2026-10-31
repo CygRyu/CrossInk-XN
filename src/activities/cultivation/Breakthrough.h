@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include "GameState.h"
+#include "Inventory.h"
 #include "Scrolls.h"
 
 // Major-realm breakthroughs, Great Perfection and grades (DOC: Realms,
@@ -11,10 +12,11 @@
 //
 // Keys (milestone 7): from Foundation Establishment on, a bottleneck needs a
 // Technique Scroll of at least the tier Scrolls.h keyTierFor() names; it is
-// used up only when the attempt succeeds. Daos and breakthrough pills, the
-// doc's other keys, come later. Body Tempering -> Qi Condensation is the
-// doc's "small bottleneck" and needs no key. Tribulations and Heart Demons
-// are a later milestone.
+// used up only when the attempt succeeds. v0.2.0: a breakthrough pill of a
+// fitting grade (Alchemy.h) is a key too and adds chance; it is used up on
+// every attempt. When both are held the scroll is the key and the pill adds
+// chance. Daos, the doc's third key, come later. Body Tempering -> Qi
+// Condensation is the doc's "small bottleneck" and needs no key.
 namespace cultivation {
 namespace breakthrough {
 
@@ -36,11 +38,14 @@ struct Chance {
   uint8_t daoHeart = 0;       // up to +15
   uint8_t consolidation = 0;  // up to +15 (Great Perfection)
   uint8_t element = 0;        // +5 when the equipped manual's element matches the root
+  uint8_t pill = 0;           // v0.2.0: the breakthrough pill's +10 / +17 / +25
   uint8_t pity = 0;           // what pity added on top of the rest
   uint8_t total = 0;
-  bool needsKey = false;  // every bottleneck after the small one into Qi Condensation
-  bool hasKey = false;    // a qualifying unequipped scroll is in the library
-  int keyIndex = -1;      // that scroll (Scrolls.h keyFor), -1 if none or none needed
+  bool needsKey = false;                             // every bottleneck after the small one into Qi Condensation
+  bool hasKey = false;                               // a qualifying unequipped scroll is in the library
+  int keyIndex = -1;                                 // that scroll (Scrolls.h keyFor), -1 if none or none needed
+  inventory::Item pillItem = inventory::Item::None;  // the pill the attempt takes (or took)
+  bool pillIsKey = false;                            // no key scroll: the pill is the key
 };
 
 Chance chanceFor(const GameState& state);
@@ -74,6 +79,7 @@ struct Result {
   uint8_t gradeScore = 0;  // 0..100
   bool keyUsed = false;    // success with a key: `key` left the library
   scrolls::Scroll key;
+  inventory::Item pillUsed = inventory::Item::None;  // v0.2.0: used up whatever the outcome
 };
 
 // One attempt. The roll is seeded by the world, the realm and the number of
@@ -83,13 +89,14 @@ struct Result {
 // never a stage; pity grows and Great Perfection (if entered) is kept.
 Result attempt(GameState& state);
 // A failed attempt's cost on its own (also for a lost Tribulation or Heart
-// Demon, milestone v0.1.9): 25% of the bar, failures + 1, Half-step.
+// Demon, milestone v0.1.9): 25% of the bar, failures + 1, Half-step; the
+// breakthrough pill taken for it is gone.
 void failAttempt(GameState& state);
 
 // Grade score entering `targetRealm` (DOC: consolidation 0-40 + Dao Heart
 // 0-25 + pills 0-20 + technique element 0-15; the Fallen clan heir adds 5 to
-// the Foundation grade). Pills add nothing yet; the technique part is the
-// equipped manual's element matching the root.
+// the Foundation grade). Pills are the grade pills taken (Alchemy.h); the
+// technique part is the equipped manual's element matching the root.
 uint8_t gradeScore(const GameState& state, uint8_t targetRealm);
 
 // Bands (DOC): Foundation 1 Cracked, 2 Flawed, 3 Standard, 4 Perfect, 5

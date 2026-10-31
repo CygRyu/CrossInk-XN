@@ -112,10 +112,15 @@ TUNING = {
     "meridian_qi_per_point": 0.10,
     "meridian_cost_frac": 0.02,         # each point costs 2% of that realm's Q_r
     "consolidation_per_hour": 2.0,      # Great Perfection: points per reading hour
-    "pill_grade_points": 10,           # typical pill contribution to grade score
-    "breakthrough_pill_bonus": 15,     # DOC range +10..+25; typical value
-    "pill_key_hours": 3.0,             # reading hours in-realm to brew a breakthrough pill as key
-    "pill_keys": True,                 # breakthrough pills exist (alchemy, a later milestone; not in firmware yet)
+    # v0.2.0 alchemy, as built: two grade pills of medium quality (+8 each) before the Foundation and
+    # Core grades; one breakthrough pill per attempt, of the best grade the open regions allow, medium
+    # quality on average (+17; low/medium/high = +10/+17/+25). A pill is a key when its grade fits
+    # (common up to Nascent Soul, spirit up to Body Integration, rare any) and is used up on every
+    # attempt; brewing one takes 40-60 reading minutes plus gathering, modelled as 3 reading hours.
+    "pill_grade_points": 16,
+    "breakthrough_pill_bonus": 17,
+    "pill_key_hours": 3.0,             # reading hours in-realm to gather for and brew a breakthrough pill
+    "pill_keys": True,                 # breakthrough pills exist (alchemy, v0.2.0)
     # Milestone 7 (user, session 3): a bottleneck needs a Technique Scroll of at least this tier, from any
     # realm, spent on success. Index = the realm being entered; None = no key (the small bottleneck).
     "key_tier_by_target": [None, None, 0, 1, 2, 3, 3, 3, 3, 3],
@@ -820,8 +825,9 @@ def fairness(runs: int, seed: int, gp_linger: float, w):
       f"{statistics.mean(c.items_used for c in cs):.1f} items used, "
       f"{statistics.mean(c.stones_spent for c in cs):,.0f} of "
       f"{statistics.mean(c.stones_spent + c.stones for c in cs):,.0f} stones spent\n")
-    w("  Keys (milestone 7: a scroll of the tier, from any realm, spent on success):\n")
-    for label, pills, median in (("with pill keys (alchemy, later)", True, 9.0),
+    w("  Keys (milestone 7: a scroll of the tier, from any realm, spent on success; v0.2.0: or a breakthrough pill):\n")
+    for label, pills, median in (("with pill keys, typical books", True, 9.0),
+                                 ("with pill keys, short books (4 h)", True, 4.0),
                                  ("scrolls only, typical books (9 h)", False, 9.0),
                                  ("scrolls only, short books (4 h)", False, 4.0)):
         saved = (TUNING["pill_keys"], TUNING["book_hours_median"])

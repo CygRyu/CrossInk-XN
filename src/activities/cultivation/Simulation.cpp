@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstring>
 
+#include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Rng.h"
 #include "Scrolls.h"
@@ -200,6 +201,7 @@ void createCharacter(GameState& state, const CharacterDraft& draft, const StatsS
   c.creationDay = now.today;
   c.flags = CharacterBlock::kCharacterCreated;
   grantOriginGifts(state);
+  alchemy::grantStartingRecipe(state);  // v0.2.0: the Herbalist's apprentice knows the Qi Gathering pill
 
   writeLe32(state.world.data() + kWorldSeedOffset, draft.worldSeed);
   state.world[kLifeNumberOffset] = 1;  // first life
@@ -248,8 +250,16 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
 
   // Qi = qualifying minutes x 10 x M. Kept exact with a numerator carry:
   // numerator units are Qi * 60 s * 1000 permille.
-  const uint64_t numerator =
-      static_cast<uint64_t>(gains.tiers.qualifyingSeconds()) * kQiPerMinute * qiMultiplierPermille(state) + p.qiCarry;
+  const uint64_t qualifying = gains.tiers.qualifyingSeconds();
+  uint64_t numerator = qualifying * kQiPerMinute * qiMultiplierPermille(state) + p.qiCarry;
+  // v0.2.0: a Qi Gathering pill adds 25% to the Qi of the reading minutes it
+  // covers (the visit's qualifying share of them).
+  const uint32_t boosted = alchemy::spendQiPill(state, gains.seconds);
+  if (boosted > 0 && gains.seconds > 0) {
+    r.qiPillSeconds = boosted;
+    numerator += qualifying * boosted / gains.seconds * kQiPerMinute * qiMultiplierPermille(state) *
+                 alchemy::kQiPillBonusPermille / 1000u;
+  }
   constexpr uint64_t kPerQi = 60ull * 1000ull;
   r.qiGained = QiNumber::fromU64(numerator / kPerQi);
   p.qiCarry = static_cast<uint32_t>(numerator % kPerQi);

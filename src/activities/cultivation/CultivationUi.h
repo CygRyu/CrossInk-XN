@@ -3,8 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "Alchemy.h"
 #include "Breakthrough.h"
 #include "GameState.h"
+#include "Inventory.h"
 #include "Scrolls.h"
 
 // Small text helpers shared by the game's screen files (all names via tr()).
@@ -23,6 +25,14 @@ void formatTitles(const GameState& s, char* out, size_t len);
 void stageName(const GameState& s, char* out, size_t len);  // "Layer 4", "Peak", "Great Perfection"
 // "Path of Immortal Reading v0.1.9"
 void versionLine(char* out, size_t len);
+
+// v0.2.0: items and pills.
+const char* gradeWord(inventory::Grade g);  // "Common", "Spirit", "Rare"
+const char* pillName(alchemy::Pill pill);   // "Core-Forming pill", "common breakthrough pill"
+// Every item but a region's own herb or ore, whose name comes from the packs
+// (the screens look those up first; this gives "Herb of region 3").
+void itemName(inventory::Item item, char* out, size_t len);
+void itemDescription(inventory::Item item, char* out, size_t len);
 
 }  // namespace ui
 }  // namespace cultivation

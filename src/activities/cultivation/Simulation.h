@@ -124,6 +124,7 @@ struct AbsorbResult {
   uint8_t staminaGained = 0;        // after the bank cap
   uint16_t hpGained = 0;            // v0.1.9: 1 HP per minute read, up to max HP
   uint8_t consolidationGained = 0;  // in Great Perfection only
+  uint32_t qiPillSeconds = 0;       // v0.2.0: reading seconds a Qi Gathering pill boosted
   bool atBottleneck = false;        // full Peak bar: needs a breakthrough
 };
 

@@ -3,8 +3,10 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "Exploration.h"
 #include "GameState.h"
 #include "Grammar.h"
+#include "Inventory.h"
 #include "LifeLog.h"
 
 // Exploration text from the packs (v0.1.10): region, beast and guardian names
@@ -18,11 +20,20 @@ namespace exploretext {
 constexpr size_t kNameSize = 96;
 
 bool regionName(const GameState& state, uint8_t region, Grammar& grammar, char* out, size_t len);
-// A random encounter's beast (seed: explore::beastSeed), or a lair's (seed from its tile).
-bool beastName(const GameState& state, uint8_t region, uint32_t seed, Grammar& grammar, char* out, size_t len);
+// A random encounter's enemy (seed: explore::beastSeed), or a lair's (seed from
+// its tile), from the list of its kind (v0.2.0): beast.region, bandit.region,
+// cultivator.region or spirit.region, themed by region.
+bool enemyName(const GameState& state, uint8_t region, explore::Enemy kind, uint32_t seed, Grammar& grammar, char* out,
+               size_t len);
 uint32_t lairSeed(const GameState& state, uint8_t region, uint8_t tile);
-// The guardian of the region's current layout (a reshape brings a new one).
+// The guardian of the region's current layout (a reshape brings a new one),
+// from guardian.beast / .bandit / .cultivator / .spirit by its kind.
 bool guardianName(const GameState& state, uint8_t region, Grammar& grammar, char* out, size_t len);
+
+// v0.2.0: a region's own herb or ore ("marsh bitter-root"), a stable pick
+// from ingredient.herb~theme / ingredient.ore~theme seeded by the world, so
+// every life has its own. False for anything that is not a regional ingredient.
+bool ingredientName(const GameState& state, inventory::Item item, Grammar& grammar, char* out, size_t len);
 
 // One line from `listKey` for the screen (no season label).
 bool flavor(const GameState& state, const char* listKey, uint32_t seed, const char* regionName, const char* beastName,
@@ -30,6 +41,11 @@ bool flavor(const GameState& state, const char* listKey, uint32_t seed, const ch
 // One Chronicle line from `listKey` ("Spring, age 31. ..."), seeded so a retried save writes the same line.
 bool chronicleLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed,
                    const char* regionName, const char* beastName, Grammar& grammar);
+// Alchemy's lines ({$pill.name} set): for the screen, and for the Chronicle.
+bool alchemyFlavor(const GameState& state, const char* listKey, uint32_t seed, const char* pillName, Grammar& grammar,
+                   char* out, size_t len);
+bool alchemyLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed, const char* pillName,
+                 Grammar& grammar);
 
 }  // namespace exploretext
 }  // namespace cultivation

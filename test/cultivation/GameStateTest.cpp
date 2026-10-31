@@ -100,13 +100,14 @@ class GameStateTest : public testing::Test {
   void SetUp() override { Storage.reset(); }
 };
 
-TEST_F(GameStateTest, FileIsAboutOnePointTwoKilobytes) {
+TEST_F(GameStateTest, FileIsAboutOnePointThreeFiveKilobytes) {
   ASSERT_TRUE(save::store(sampleState(1)));
   const auto* bytes = Storage.bytesOf(kPath);
   ASSERT_NE(bytes, nullptr);
   EXPECT_EQ(bytes->size(), save::kFileSize);
-  EXPECT_EQ(save::kFileSize, 1159u);  // v2: + 4 bytes techniqueMeta; v3: + 200 bytes exploration
-  EXPECT_LT(save::kFileSize, 1200u);  // over the doc's 1 KB since v0.1.10 (told to the user)
+  // v2: + 4 bytes techniqueMeta; v3: + 200 bytes exploration; v4: + 192 bytes bag
+  EXPECT_EQ(save::kFileSize, 1351u);
+  EXPECT_LT(save::kFileSize, 1400u);  // over the doc's 1 KB since v0.1.10 (told to the user)
 }
 
 TEST_F(GameStateTest, RoundTrip) {
@@ -273,6 +274,31 @@ TEST_F(GameStateTest, LoadsVersionTwoSaveWithExplorationEmpty) {
   EXPECT_EQ(qiOf(s), 78u);
   EXPECT_EQ(s.techniqueMeta, original.techniqueMeta);
   for (const uint8_t b : s.exploration) EXPECT_EQ(b, 0u);
+  ASSERT_TRUE(save::store(s));
+  EXPECT_EQ(Storage.bytesOf(kPath)->size(), save::kFileSize);
+}
+
+TEST_F(GameStateTest, LoadsVersionThreeSaveWithTheNewBagEmpty) {
+  // A v0.1.10 save: version 3, 1149-byte payload, the bag still in the old block.
+  GameState original = sampleState(79);
+  original.inventory[0] = 1;  // three common herbs in the v0.1.10 bag
+  original.inventory[1] = 3;
+  ASSERT_TRUE(save::store(original));
+  auto& bytes = *Storage.bytesOf(kPath);
+  bytes.resize(save::kHeaderSize + save::kPayloadSizeV3);
+  bytes[2] = 3;
+  bytes[3] = 0;
+  bytes[4] = static_cast<uint8_t>(save::kPayloadSizeV3);
+  bytes[5] = static_cast<uint8_t>(save::kPayloadSizeV3 >> 8);
+  const uint32_t crc = save::crc32Update(0, bytes.data() + save::kHeaderSize, save::kPayloadSizeV3);
+  for (int i = 0; i < 4; ++i) bytes[6 + i] = static_cast<uint8_t>(crc >> (8 * i));
+
+  GameState s;
+  ASSERT_EQ(save::load(s), save::LoadResult::Loaded);
+  EXPECT_EQ(qiOf(s), 79u);
+  EXPECT_EQ(s.inventory, original.inventory);
+  EXPECT_EQ(s.exploration, original.exploration);
+  for (const uint8_t b : s.bag) EXPECT_EQ(b, 0u);
   ASSERT_TRUE(save::store(s));
   EXPECT_EQ(Storage.bytesOf(kPath)->size(), save::kFileSize);
 }

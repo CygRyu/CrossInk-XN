@@ -113,6 +113,19 @@ Exploration gives no Qi, so it changes no reading-hour targets by itself. What i
 
 Nothing was re-tuned. Stones pile up: the merchants' items are cheap next to a life's income, so alchemy (v0.2.0) is where most stones should go.
 
+### v0.2.0: Alchemy
+
+The simulator always modelled breakthrough pills (a key after 3 reading hours in the realm, +15 chance from Foundation on, grade pills worth 10); the firmware had none until v0.2.0. The model now matches what was built: one breakthrough pill per attempt, of the best grade the open regions allow and medium quality on average (+17), a key when its grade fits (common up to Nascent Soul, spirit up to Body Integration, rare any), used up on every attempt; two medium grade pills (+8 each) before the Foundation and Core grades. Brewing one pill takes 40-60 reading minutes plus gathering, still modelled as 3 reading hours in the realm. Qi Gathering pills are left out (+25% for an hour of reading at a time), so the model is cautious.
+
+| 30 min/day (300 characters) | v0.1.10 model | v0.2.0 model |
+| --- | --- | --- |
+| Mortal Plane, reading hours (median) | 774 h | 751 h |
+| Spread of habits vs evening-only | within 1.9% | within 1.0% |
+| Short books (median 4 h), with pills | - | 849 h, 300/300 finish |
+| Short books (median 4 h), scrolls only | 214/300 finish, the rest stop in realm 7 | (unchanged) |
+
+The Soul Transformation bottleneck no longer stalls short-book readers: a spirit breakthrough pill (region 4's ingredients, open from Nascent Soul) opens it. Nothing was re-tuned.
+
 ### Earlier findings (doc rules, before the decisions)
 
 These came straight from the document's rules and led to the decisions above:

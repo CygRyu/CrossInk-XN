@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Alchemy.h"
 #include "Exploration.h"
 #include "Rng.h"
 #include "Scrolls.h"
@@ -20,6 +21,7 @@ constexpr uint32_t kKindEncounter = 84;
 constexpr uint32_t kKindBeastLevel = 85;
 constexpr uint32_t kKindFightRoll = 86;
 constexpr uint32_t kKindClearReward = 87;
+constexpr uint32_t kKindEnemy = 88;  // v0.2.0: lair and guardian kinds
 
 constexpr size_t kHeaderBytes = 8;
 constexpr size_t kRegionBytes = 19;
@@ -32,6 +34,32 @@ constexpr uint8_t kGenerateAttempts = 64;
 
 static const char* const kThemes[kRegionCount] = {"marsh", "wastes",  "forest",      "gorge", "snow",
                                                   "delta", "volcano", "battlefield", "salt",  "ridge"};
+// Enemy kinds per theme, in percent: beast, bandit, cultivator, spirit
+// (agreed with the user, v0.2.0). Lairs are dens or hideouts in the
+// beast-to-bandit ratio.
+static const uint8_t kEnemyWeights[kRegionCount][static_cast<int>(Enemy::Count)] = {
+    {70, 15, 5, 10},   // marsh
+    {50, 35, 10, 5},   // wastes
+    {70, 15, 10, 5},   // forest
+    {40, 45, 10, 5},   // gorge
+    {60, 10, 25, 5},   // snow
+    {45, 40, 10, 5},   // delta
+    {55, 15, 25, 5},   // volcano
+    {25, 20, 10, 45},  // battlefield
+    {35, 20, 5, 40},   // salt
+    {35, 10, 45, 10}   // ridge
+};
+
+Enemy pickEnemy(const uint8_t region, const uint32_t roll100) {
+  const uint8_t* w = kEnemyWeights[region < kRegionCount ? region : 0];
+  uint32_t acc = 0;
+  for (uint8_t k = 0; k < static_cast<uint8_t>(Enemy::Count); ++k) {
+    acc += w[k];
+    if (roll100 < acc) return static_cast<Enemy>(k);
+  }
+  return Enemy::Beast;
+}
+
 // Lost-fight damage in percent of max HP by danger word (agreed, v0.1.10).
 static const uint8_t kLossPercent[static_cast<int>(Danger::Count)] = {10, 15, 25, 35, 45, 60};
 
@@ -174,8 +202,13 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
     case Tile::Ruin: {
       const uint32_t luck = 50u + originBonus(s.character.origin).eventLuck;
       if (rng.below(100) < luck) {
-        r.reward.stones = halve(rng.range(20, 60) * (region + 1u), half);
-        p.stones += r.reward.stones;
+        // v0.2.0: one won ruin in five holds a recipe slip instead of stones.
+        if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20) {
+          r.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
+        } else {
+          r.reward.stones = halve(rng.range(20, 60) * (region + 1u), half);
+          p.stones += r.reward.stones;
+        }
         r.outcome = TileOutcome::RuinWon;
       } else {
         const uint32_t loss = ceilPercent(p.hpMax, 10);
@@ -187,7 +220,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
       break;
     }
     case Tile::Cave:
-      if (rng.below(2) == 0) {
+      if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 15) {  // v0.2.0: a recipe slip
+        r.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
+      } else if (rng.below(2) == 0) {
         give(s, r.reward, treasure(rng), 1);
       } else {
         r.reward.stones = halve(rng.range(10, 30) * (region + 1u), half);
@@ -214,6 +249,13 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
     default:
       break;
   }
+}
+
+// A won fight's stones by enemy kind (agreed, v0.2.0): bandits double, cultivators 1.5x.
+uint32_t kindStones(const Enemy e, const uint32_t stones) {
+  if (e == Enemy::Bandit) return stones * 2u;
+  if (e == Enemy::Cultivator) return stones * 3u / 2u;
+  return stones;
 }
 
 // After a lost fight (or slipping away from a lair or guardian): onto a
@@ -414,7 +456,7 @@ uint8_t enter(GameState& s, const Layout& l, const uint8_t region) {
 
 // --- Combat ------------------------------------------------------------------------------
 
-int playerLevel(const GameState& s) {
+int playerLevel(const GameState& s, const bool techniquesDouble) {
   const ProgressBlock& p = s.progress;
   const RealmInfo& info = realmInfo(p.realm);
   int stage = info.layered ? p.stage : p.stage * 3;
@@ -426,7 +468,7 @@ int playerLevel(const GameState& s) {
     const scrolls::Scroll sc = scrolls::get(s, i);
     if ((sc.flags & scrolls::Scroll::kEquippedTechnique) == 0) continue;
     if (sc.kind == scrolls::Kind::Sword || sc.kind == scrolls::Kind::PalmFist)
-      level += 1 + static_cast<int>(scrolls::tierOf(sc));
+      level += (1 + static_cast<int>(scrolls::tierOf(sc))) * (techniquesDouble ? 2 : 1);
   }
   if (p.foundationGrade >= 5) {
     level += 3;  // Heavenly Dao Foundation
@@ -475,6 +517,28 @@ uint32_t stepCounter(const GameState& s) { return counter(s); }
 
 uint32_t beastSeed(const GameState& s) { return contentSeed(worldSeedOf(s), kKindBeastLevel, counter(s)); }
 
+uint32_t enemySeed(const GameState& s, const uint8_t region, const uint8_t tile) {
+  return contentSeed(
+      worldSeedOf(s), kKindEnemy,
+      (static_cast<uint32_t>(region) << 16) | (static_cast<uint32_t>(reshapeCount(s, region)) << 8) | tile);
+}
+
+Enemy encounterEnemy(const GameState& s, const uint8_t region) {
+  Rng rng(mix32(beastSeed(s), 0x4B494E44u));  // its own stream: the beast's level roll stays as in v0.1.10
+  return pickEnemy(region, rng.below(100));
+}
+
+Enemy lairEnemy(const GameState& s, const uint8_t region, const uint8_t tile) {
+  const uint8_t* w = kEnemyWeights[region < kRegionCount ? region : 0];
+  Rng rng(enemySeed(s, region, tile));
+  return rng.below(static_cast<uint32_t>(w[0]) + w[1]) < w[0] ? Enemy::Beast : Enemy::Bandit;
+}
+
+Enemy guardianEnemy(const GameState& s, const uint8_t region) {
+  Rng rng(enemySeed(s, region, kNoTile));
+  return pickEnemy(region, rng.below(100));
+}
+
 int pendingRegion(const GameState& s) {
   if (s.exploration[5] == 0 || s.exploration[5] > static_cast<uint8_t>(FightKind::Guardian)) return -1;
   if (s.exploration[4] == 0 || s.exploration[4] > kRegionCount) return -1;
@@ -492,21 +556,32 @@ Fight pendingFight(const GameState& s, const Layout& l) {
   f.tile = position(s, l, f.region);
   switch (kind) {
     case FightKind::Beast: {
+      f.enemy = encounterEnemy(s, f.region);
       Rng rng(beastSeed(s));
-      f.level = regionBase(f.region) + static_cast<int>(rng.below(5));
+      const int extra = static_cast<int>(rng.below(5));
+      f.level = regionBase(f.region) + (f.enemy == Enemy::Cultivator ? 2 * extra : extra);
       break;
     }
     case FightKind::Lair:
+      f.enemy = lairEnemy(s, f.region, f.tile);
       f.level = regionBase(f.region) + 3 + l.lairBonus[f.tile];
       break;
     default:
+      f.enemy = guardianEnemy(s, f.region);
       f.level = l.guardianLevel;
+      // A cultivator's random extra counts double (the fixed +6 does not).
+      if (f.enemy == Enemy::Cultivator) f.level += l.guardianLevel - (regionBase(f.region) + 6);
       break;
   }
-  const int d = playerLevel(s) - f.level;
+  const int d = playerLevel(s, f.enemy == Enemy::Cultivator) - f.level;
   f.danger = dangerFor(d);
   f.chance = winChance(d);
-  f.slipChance = hasMovement(s) ? 100 : 50;
+  f.canSlip = f.enemy != Enemy::Spirit;
+  f.slipChance = !f.canSlip ? 0 : hasMovement(s) ? 100 : 50;
+  if (f.enemy == Enemy::Bandit && kind != FightKind::Guardian) {
+    f.payCost = (kind == FightKind::Lair ? 30u : 15u) * (f.region + 1u);
+  }
+  f.canIncense = f.enemy == Enemy::Spirit && inventory::count(s, inventory::Item::CalmIncense) > 0;
   const uint32_t raw = ceilPercent(s.progress.hpMax, lossPercent(f.danger));
   f.damage = static_cast<uint16_t>(ceilPercent(raw, 100u - bodyCut(s)));
   f.slipDamage = static_cast<uint16_t>((f.damage + 1u) / 2u);
@@ -563,6 +638,12 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   FightResult res;
   const Fight f = pendingFight(s, l);
   if (f.kind == FightKind::None) return res;
+  if ((choice == FightChoice::Slip && !f.canSlip) ||
+      (choice == FightChoice::Pay && (f.payCost == 0 || s.progress.stones < f.payCost)) ||
+      (choice == FightChoice::Incense && !f.canIncense)) {
+    res.refused = true;
+    return res;
+  }
   const uint32_t c = counter(s);
   setCounter(s, c + 1);
   setPending(s, f.region, FightKind::None);
@@ -572,6 +653,24 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   const bool half = trivialYield(s, f.region);
 
   uint16_t damage = f.damage;
+  // v0.2.0: paying off a bandit or driving off a spirit ends it like slipping away.
+  if (choice == FightChoice::Pay || choice == FightChoice::Incense) {
+    if (choice == FightChoice::Pay) {
+      p.stones -= f.payCost;
+      res.paid = true;
+      res.paidStones = f.payCost;
+    } else {
+      inventory::remove(s, inventory::Item::CalmIncense);
+      res.drivenOff = true;
+    }
+    if (f.kind == FightKind::Beast) {
+      resolveTile(s, l, f.region, res.tile);
+      checkClear(s, l, f.region, res.tile);
+    } else {
+      res.thrownTo = throwBack(s, l, f.region, rng);
+    }
+    return res;
+  }
   if (choice == FightChoice::Slip) {
     if (res.roll < f.slipChance) {
       res.slipped = true;
@@ -588,16 +687,16 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     res.won = true;
     switch (f.kind) {
       case FightKind::Beast:
-        res.reward.stones = halve(rng.range(5, 10) * (f.region + 1u), half);
-        if (rng.below(100) < 25) {
+        res.reward.stones = halve(kindStones(f.enemy, rng.range(5, 10) * (f.region + 1u)), half);
+        if (f.enemy == Enemy::Beast && rng.below(100) < 25) {  // only beasts carry herbs and ores
           give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(f.region) : inventory::oreFor(f.region), 1);
         }
         p.stones += res.reward.stones;
         resolveTile(s, l, f.region, res.tile);
         break;
       case FightKind::Lair:
-        res.reward.stones = halve(2u * rng.range(5, 10) * (f.region + 1u), half);
-        if (rng.below(100) < 50) {
+        res.reward.stones = halve(kindStones(f.enemy, 2u * rng.range(5, 10) * (f.region + 1u)), half);
+        if (f.enemy == Enemy::Beast && rng.below(100) < 50) {
           give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(f.region) : inventory::oreFor(f.region), 1);
         }
         p.stones += res.reward.stones;
@@ -615,6 +714,10 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
         res.guardianBeaten = true;
         break;
       }
+    }
+    // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
+    if (f.enemy == Enemy::Cultivator && alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20) {
+      res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
     }
     checkClear(s, l, f.region, res.tile);
     return res;
@@ -699,6 +802,11 @@ Stock stockFor(const GameState& s, const Layout& l, const uint8_t region, const 
     if (rolled && st.count < kMerchantStockMax) st.lines[st.count++] = {c.item, true, false};
   }
   if (st.count == 2) st.lines[st.count++] = {inventory::Item::TonicMinor, true, false};
+  // v0.2.0: a recipe slip, 15% per restock, while there is a recipe it could teach.
+  const bool slipRolled = rng.below(100) < 15;
+  if (slipRolled && alchemy::slipRecipe(s) >= 0 && st.count < kMerchantStockMax) {
+    st.lines[st.count++] = {inventory::Item::RecipeSlip, true, false};
+  }
   const uint8_t base = static_cast<uint8_t>(merchantOrdinal(l, tile) * 3);
   for (uint8_t i = 2; i < st.count; ++i) {
     const uint8_t bitIndex = static_cast<uint8_t>(base + i - 2);
@@ -707,13 +815,25 @@ Stock stockFor(const GameState& s, const Layout& l, const uint8_t region, const 
   return st;
 }
 
+uint16_t stockPrice(const GameState& s, const inventory::Item item) {
+  if (item == inventory::Item::RecipeSlip) {
+    const int r = alchemy::slipRecipe(s);
+    return r < 0 ? 0 : alchemy::slipPrice(alchemy::recipesOf(s), static_cast<uint8_t>(r));
+  }
+  return inventory::price(item);
+}
+
 bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile, const uint8_t line) {
   const Stock st = stockFor(s, l, region, tile);
   if (line >= st.count || st.lines[line].soldOut) return false;
-  const uint16_t cost = inventory::price(st.lines[line].item);
-  if (s.progress.stones < cost) return false;
+  const uint16_t cost = stockPrice(s, st.lines[line].item);
+  if (cost == 0 || s.progress.stones < cost) return false;
   s.progress.stones -= cost;
-  inventory::add(s, st.lines[line].item, 1);
+  if (st.lines[line].item == inventory::Item::RecipeSlip) {
+    alchemy::learnSlip(s);
+  } else {
+    inventory::add(s, st.lines[line].item, 1);
+  }
   if (st.lines[line].limited) {
     const uint8_t bitIndex = static_cast<uint8_t>(merchantOrdinal(l, tile) * 3 + line - 2);
     if (bitIndex < 8) regionBytes(s, region)[18] = static_cast<uint8_t>(regionBytes(s, region)[18] | (1u << bitIndex));

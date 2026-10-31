@@ -27,6 +27,7 @@ void GameState::reset() {
   legacy.fill(0);
   techniqueMeta.fill(0);
   exploration.fill(0);
+  bag.fill(0);
 }
 
 namespace save {
@@ -234,6 +235,8 @@ void transfer(Io& io, State& s) {
   io.bytes(s.techniqueMeta.data(), s.techniqueMeta.size());
   // Save v3 (v0.1.10): 200 bytes
   io.bytes(s.exploration.data(), s.exploration.size());
+  // Save v4 (v0.2.0): 192 bytes
+  io.bytes(s.bag.data(), s.bag.size());
 }
 
 uint16_t readLe16(const uint8_t* p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)); }

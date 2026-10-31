@@ -383,6 +383,12 @@ TEST(Exploration, SlippingAwayWithAMovementTechniqueAlwaysWorks) {
     s.progress.hp = 100;
     step(s, l, 0, walkableNeighbour(l, position(s, l, 0)));
     if (pendingFight(s, l).kind == FightKind::None) continue;
+    if (pendingFight(s, l).enemy == Enemy::Spirit) {  // v0.2.0: spirits cannot be outrun
+      EXPECT_FALSE(pendingFight(s, l).canSlip);
+      EXPECT_TRUE(fight(s, l, FightChoice::Slip).refused);
+      fight(s, l, FightChoice::Fight);
+      continue;
+    }
     EXPECT_EQ(pendingFight(s, l).slipChance, 100);
     const FightResult r = fight(s, l, FightChoice::Slip);
     EXPECT_TRUE(r.slipped);
@@ -498,8 +504,8 @@ TEST(Exploration, MerchantStockIsStableAndSellsBackAtAThird) {
     ASSERT_EQ(a.count, b.count);
     EXPECT_GE(a.count, 3);
     EXPECT_LE(a.count, 5);
-    EXPECT_EQ(a.lines[0].item, Item::HerbCommon);
-    EXPECT_EQ(a.lines[1].item, Item::OreCommon);
+    EXPECT_EQ(a.lines[0].item, inventory::herbFor(0));
+    EXPECT_EQ(a.lines[1].item, inventory::oreFor(0));
     s.progress.stones = 10000;
     const uint8_t limited = 2;
     const Item item = a.lines[limited].item;
@@ -524,7 +530,7 @@ TEST(Exploration, BuyingNeedsTheStones) {
   }
   s.progress.stones = 9;
   EXPECT_FALSE(buy(s, l, 0, merchant, 0));
-  EXPECT_EQ(inventory::count(s, Item::HerbCommon), 0);
+  EXPECT_EQ(inventory::count(s, inventory::herbFor(0)), 0);
 }
 
 TEST(Inventory, AddRemoveAndTonics) {
@@ -545,7 +551,7 @@ TEST(Inventory, AddRemoveAndTonics) {
   EXPECT_EQ(inventory::kinds(s), 1);
   EXPECT_FALSE(inventory::remove(s, Item::TonicGreater));
   EXPECT_EQ(inventory::sellPrice(Item::TonicFull), 66);
-  EXPECT_EQ(inventory::add(s, Item::HerbRare, 60000), inventory::kMaxCount);
+  EXPECT_EQ(inventory::add(s, inventory::herbFor(9), 60000), inventory::kMaxCount);
 }
 
 // --- Trials use the treasures ----------------------------------------------------------------
@@ -611,17 +617,42 @@ TEST(Exploration, TextExpandsCleanly) {
     char guardian[exploretext::kNameSize];
     ASSERT_TRUE(exploretext::regionName(s, region, *packs.grammar, region_, sizeof(region_)));
     regionNames.insert(region_);
-    for (uint32_t seed = 0; seed < 20; ++seed) {
-      ASSERT_TRUE(exploretext::beastName(s, region, seed * 977u, *packs.grammar, beast, sizeof(beast)));
-      EXPECT_EQ(std::string(beast).find_first_of("{}[]|$"), std::string::npos) << beast;
+    for (uint8_t kind = 0; kind < static_cast<uint8_t>(Enemy::Count); ++kind) {
+      for (uint32_t seed = 0; seed < 20; ++seed) {
+        ASSERT_TRUE(exploretext::enemyName(s, region, static_cast<Enemy>(kind), seed * 977u, *packs.grammar, beast,
+                                           sizeof(beast)));
+        EXPECT_EQ(std::string(beast).find_first_of("{}[]|$"), std::string::npos) << beast;
+      }
     }
     ASSERT_TRUE(exploretext::guardianName(s, region, *packs.grammar, guardian, sizeof(guardian)));
-    const char* lists[] = {
-        "explore.path",       "explore.herb",          "explore.ore",          "explore.ruin.won",
-        "explore.ruin.trap",  "explore.cave",          "explore.quiet",        "explore.quiet.full",
-        "explore.merchant",   "explore.fight.beast",   "explore.fight.lair",   "explore.fight.guardian",
-        "explore.won",        "explore.lost",          "explore.slip",         "explore.line.guardian",
-        "explore.line.clear", "explore.line.upheaval", "explore.line.talisman"};
+    const char* lists[] = {"explore.path",
+                           "explore.herb",
+                           "explore.ore",
+                           "explore.ruin.won",
+                           "explore.ruin.trap",
+                           "explore.cave",
+                           "explore.quiet",
+                           "explore.quiet.full",
+                           "explore.merchant",
+                           "explore.fight.beast",
+                           "explore.fight.lair",
+                           "explore.fight.guardian",
+                           "explore.won",
+                           "explore.lost",
+                           "explore.slip",
+                           "explore.line.guardian",
+                           "explore.line.clear",
+                           "explore.line.upheaval",
+                           "explore.line.talisman",
+                           "explore.fight.bandit",
+                           "explore.fight.hideout",
+                           "explore.fight.cultivator",
+                           "explore.fight.spirit",
+                           "explore.won.bandit",
+                           "explore.won.cultivator",
+                           "explore.won.spirit",
+                           "explore.paid",
+                           "explore.drivenoff"};
     for (const char* key : lists) {
       for (uint32_t seed = 0; seed < 12; ++seed) {
         char out[240];

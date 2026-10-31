@@ -187,6 +187,160 @@ void versionLine(char* out, const size_t len) {
 void formatPermille(char* buf, const size_t len, const uint32_t permille) {
   snprintf(buf, len, "x%u.%02u", static_cast<unsigned>(permille / 1000), static_cast<unsigned>((permille % 1000) / 10));
 }
+
+const char* gradeWord(const inventory::Grade g) {
+  switch (g) {
+    case inventory::Grade::Spirit:
+      return tr(STR_CULT_GRADE_SPIRIT);
+    case inventory::Grade::Rare:
+      return tr(STR_CULT_GRADE_RARE);
+    default:
+      return tr(STR_CULT_GRADE_COMMON);
+  }
+}
+
+const char* pillName(const alchemy::Pill pill) {
+  using alchemy::Pill;
+  switch (pill) {
+    case Pill::QiGathering:
+      return tr(STR_CULT_PILL_QI);
+    case Pill::TonicMinor:
+      return tr(STR_CULT_ITEM_TONIC_MINOR);
+    case Pill::BreakthroughCommon:
+      return tr(STR_CULT_PILL_BT_COMMON);
+    case Pill::FoundationBuilding:
+      return tr(STR_CULT_PILL_FOUNDATION);
+    case Pill::CoreForming:
+      return tr(STR_CULT_PILL_CORE);
+    case Pill::TonicGreater:
+      return tr(STR_CULT_ITEM_TONIC_GREATER);
+    case Pill::SoulClearing:
+      return tr(STR_CULT_PILL_SOUL);
+    case Pill::BreakthroughSpirit:
+      return tr(STR_CULT_PILL_BT_SPIRIT);
+    case Pill::TonicFull:
+      return tr(STR_CULT_ITEM_TONIC_FULL);
+    case Pill::BreakthroughRare:
+      return tr(STR_CULT_PILL_BT_RARE);
+    default:
+      return "";
+  }
+}
+
+namespace {
+const char* qualityWord(const inventory::Quality q) {
+  switch (q) {
+    case inventory::Quality::High:
+      return tr(STR_CULT_PILL_HIGH);
+    case inventory::Quality::Medium:
+      return tr(STR_CULT_PILL_MEDIUM);
+    default:
+      return tr(STR_CULT_PILL_LOW);
+  }
+}
+// "Core-Forming pill · high", with the first letter capitalised.
+void withQuality(const char* base, const inventory::Quality q, char* out, const size_t len) {
+  snprintf(out, len, tr(STR_CULT_PILL_QUALITY_FORMAT), base, qualityWord(q));
+  if (out[0] >= 'a' && out[0] <= 'z') out[0] = static_cast<char>(out[0] - 'a' + 'A');
+}
+static const alchemy::Pill kBreakthroughPills[3] = {alchemy::Pill::BreakthroughCommon,
+                                                    alchemy::Pill::BreakthroughSpirit, alchemy::Pill::BreakthroughRare};
+static const alchemy::Pill kGradePills[3] = {alchemy::Pill::FoundationBuilding, alchemy::Pill::CoreForming,
+                                             alchemy::Pill::SoulClearing};
+}  // namespace
+
+void itemName(const inventory::Item item, char* out, const size_t len) {
+  using inventory::Item;
+  out[0] = '\0';
+  if (inventory::isHerb(item)) {
+    snprintf(out, len, tr(STR_CULT_ITEM_HERB_FALLBACK_FORMAT), static_cast<unsigned>(inventory::regionOf(item) + 1));
+  } else if (inventory::isOre(item)) {
+    snprintf(out, len, tr(STR_CULT_ITEM_ORE_FALLBACK_FORMAT), static_cast<unsigned>(inventory::regionOf(item) + 1));
+  } else if (inventory::isBreakthroughPill(item)) {
+    withQuality(pillName(kBreakthroughPills[inventory::pillGroup(item)]), inventory::pillQuality(item), out, len);
+  } else if (inventory::isGradePill(item)) {
+    withQuality(pillName(kGradePills[inventory::pillGroup(item)]), inventory::pillQuality(item), out, len);
+  } else {
+    const char* name = "";
+    switch (item) {
+      case Item::TonicMinor:
+        name = tr(STR_CULT_ITEM_TONIC_MINOR);
+        break;
+      case Item::TonicGreater:
+        name = tr(STR_CULT_ITEM_TONIC_GREATER);
+        break;
+      case Item::TonicFull:
+        name = tr(STR_CULT_ITEM_TONIC_FULL);
+        break;
+      case Item::ThunderTalisman:
+        name = tr(STR_CULT_ITEM_THUNDER);
+        break;
+      case Item::CalmIncense:
+        name = tr(STR_CULT_ITEM_INCENSE);
+        break;
+      case Item::RegionTalisman:
+        name = tr(STR_CULT_ITEM_REGION);
+        break;
+      case Item::QiPill:
+        name = tr(STR_CULT_PILL_QI);
+        break;
+      case Item::RecipeSlip:
+        name = tr(STR_CULT_ITEM_SLIP);
+        break;
+      default:
+        break;
+    }
+    snprintf(out, len, "%s", name);
+  }
+}
+
+void itemDescription(const inventory::Item item, char* out, const size_t len) {
+  using inventory::Item;
+  out[0] = '\0';
+  if (inventory::isIngredient(item)) {
+    snprintf(out, len, inventory::isHerb(item) ? tr(STR_CULT_ITEM_HERB_DESC_FORMAT) : tr(STR_CULT_ITEM_ORE_DESC_FORMAT),
+             gradeWord(inventory::gradeOfRegion(inventory::regionOf(item))));
+    return;
+  }
+  if (inventory::isBreakthroughPill(item)) {
+    const unsigned bonus = alchemy::breakthroughBonus(item);
+    const uint8_t group = inventory::pillGroup(item);
+    if (group >= 2) {
+      snprintf(out, len, tr(STR_CULT_ITEM_BT_DESC_ANY_FORMAT), bonus);
+    } else {
+      snprintf(out, len, tr(STR_CULT_ITEM_BT_DESC_FORMAT), bonus, realmName(group == 0 ? 4 : 7));
+    }
+    return;
+  }
+  if (inventory::isGradePill(item)) {
+    static const StrId kKinds[3] = {StrId::STR_CULT_GRADE_KIND_FOUNDATION, StrId::STR_CULT_GRADE_KIND_CORE,
+                                    StrId::STR_CULT_GRADE_KIND_SOUL};
+    snprintf(out, len, tr(STR_CULT_ITEM_GRADE_DESC_FORMAT), static_cast<unsigned>(alchemy::gradePillPoints(item)),
+             I18N.get(kKinds[inventory::pillGroup(item)]));
+    return;
+  }
+  switch (item) {
+    case Item::TonicMinor:
+    case Item::TonicGreater:
+    case Item::TonicFull:
+      snprintf(out, len, tr(STR_CULT_ITEM_TONIC_DESC_FORMAT), static_cast<unsigned>(inventory::healPercent(item)));
+      return;
+    case Item::ThunderTalisman:
+      snprintf(out, len, "%s", tr(STR_CULT_ITEM_THUNDER_DESC));
+      return;
+    case Item::CalmIncense:
+      snprintf(out, len, "%s", tr(STR_CULT_ITEM_INCENSE_DESC));
+      return;
+    case Item::RegionTalisman:
+      snprintf(out, len, "%s", tr(STR_CULT_ITEM_REGION_DESC));
+      return;
+    case Item::QiPill:
+      snprintf(out, len, "%s", tr(STR_CULT_ITEM_QI_DESC));
+      return;
+    default:
+      return;
+  }
+}
 }  // namespace ui
 }  // namespace cultivation
 
@@ -232,6 +386,8 @@ void CultivationActivity::onEnter() {
 
 void CultivationActivity::onExit() {
   explore_.reset();
+  alchemy_.reset();
+  ingredients_.reset();
   library_.reset();
   news_.reset();
   chronicle_.reset();
@@ -293,6 +449,9 @@ void CultivationActivity::startVisit() {
   const StatsSample now = readLocalStats();
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
   originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
+  // v0.2.0: a v0.1.10 bag moves to the new one; an older Herbalist learns the Qi Gathering recipe.
+  if (inventory::migrateLegacyBag(*state_)) LOG_INF("CULT", "Moved the v0.1.10 bag to the v0.2.0 one");
+  alchemy::grantStartingRecipe(*state_);
   lifelog::VisitChange change;
   change.ageMonthsBefore = state_->progress.ageMonths;
   const bool bottleneckBefore = atBottleneck(*state_);
@@ -393,6 +552,7 @@ void CultivationActivity::refreshActions() {
     if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
     actions_[actionCount_++] = Action::Techniques;
     actions_[actionCount_++] = Action::Explore;  // v0.1.10; says when the first region opens
+    actions_[actionCount_++] = Action::Alchemy;  // v0.2.0
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
   if (selected_ >= actionCount_) selected_ = 0;
@@ -414,6 +574,9 @@ void CultivationActivity::runAction() {
       return;
     case Action::Explore:
       openRegions();
+      return;
+    case Action::Alchemy:
+      openAlchemy();
       return;
     case Action::GreatPerfection:
       screen_ = Screen::GreatPerfection;
@@ -557,6 +720,7 @@ void CultivationActivity::loop() {
   if (confirm) mappedInput.suppressNextConfirmRelease();
 
   if (handleExplore(back, confirm, up, down)) return;  // exploration screens (CultivationExploreScreens.cpp)
+  if (handleAlchemy(back, confirm, up, down)) return;  // alchemy screens (CultivationAlchemyScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -580,6 +744,12 @@ void CultivationActivity::loop() {
     case Screen::Breakthrough:
       if (back) {
         screen_ = Screen::Cultivator;
+        requestUpdate();
+      } else if (up || down) {  // v0.2.0: which breakthrough pill to take (or none)
+        RenderLock lock(*this);
+        const breakthrough::Chance c = breakthrough::chanceFor(*state_);
+        alchemy::cycleChoice(*state_, c.target, c.needsKey && c.keyIndex < 0);
+        persist();
         requestUpdate();
       } else if (confirm) {
         // Realms with a Tribulation or Heart Demon face it first (v0.1.9).
@@ -898,6 +1068,15 @@ void CultivationActivity::render(RenderLock&&) {
       screen_ == Screen::MerchantSell || screen_ == Screen::Bag || screen_ == Screen::Talisman) {
     title = exploreTitle(exploreTitleBuf, sizeof(exploreTitleBuf));
   }
+  if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = tr(STR_CULT_ALCHEMY_TITLE);
+  if (screen_ == Screen::Experiment) title = tr(STR_CULT_ALCHEMY_EXPERIMENT);
+  char recipeTitle[64];
+  if (screen_ == Screen::RecipeDetail && alchemy_) {
+    snprintf(recipeTitle, sizeof(recipeTitle), "%s",
+             pillLabel(alchemy::recipesOf(*state_).recipes[alchemy_->recipe].pill));
+    if (recipeTitle[0] >= 'a' && recipeTitle[0] <= 'z') recipeTitle[0] = static_cast<char>(recipeTitle[0] - 'a' + 'A');
+    title = recipeTitle;
+  }
   char chronicleTitle[48];
   if (screen_ == Screen::Chronicle && chronicle_) {
     snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_TITLE_FORMAT),
@@ -955,6 +1134,18 @@ void CultivationActivity::render(RenderLock&&) {
           breakthrough::canAttempt(*state_) && !(lightning && state_->progress.hp == 0) ? tr(STR_CULT_ATTEMPT) : "";
       upLabel = "";
       downLabel = "";
+      {
+        // v0.2.0: Up/Down picks the breakthrough pill when there is a choice to make.
+        const breakthrough::Chance c = breakthrough::chanceFor(*state_);
+        uint8_t fitting = 0;
+        for (uint8_t i = static_cast<uint8_t>(inventory::Item::BreakthroughPill);
+             i < static_cast<uint8_t>(inventory::Item::GradePill); ++i) {
+          const auto pill = static_cast<inventory::Item>(i);
+          if (inventory::count(*state_, pill) > 0 && alchemy::pillFits(pill, c.target)) ++fitting;
+        }
+        const bool onlyKey = c.needsKey && c.keyIndex < 0;
+        if (fitting + (onlyKey ? 0 : 1) > 1) downLabel = tr(STR_CULT_CHANGE_PILL);
+      }
       break;
     }
     case Screen::Trial:
@@ -1040,6 +1231,22 @@ void CultivationActivity::render(RenderLock&&) {
     case Screen::Talisman:
       renderTalisman(x, top, width, bottom);
       exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Alchemy:
+      renderAlchemy(x, top, width, bottom);
+      alchemyLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Recipes:
+      renderRecipes(x, top, width, bottom);
+      alchemyLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::RecipeDetail:
+      renderRecipeDetail(x, top, width, bottom);
+      alchemyLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Experiment:
+      renderExperiment(x, top, width, bottom);
+      alchemyLabels(confirmLabel, upLabel, downLabel);
       break;
     case Screen::Error:
       drawWrapped(UI_10_FONT_ID, x, top, width, tr(STR_CULT_OUT_OF_MEMORY), 4);
@@ -1206,90 +1413,102 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   renderer.drawText(SMALL_FONT_ID, x + width - renderer.getTextWidth(SMALL_FONT_ID, percent), y, percent);
   y += renderer.getLineHeight(SMALL_FONT_ID) + metrics.verticalSpacing * 2;
 
-  // Short lines share a row, the second on the right (v0.1.10: the Explore
-  // row needed the room); a pair too wide for one row takes two.
+  // v0.2.0 (user's choice): the actions sit in a two-column grid of fixed rows
+  // at the bottom. The rumor's room (in the small font) and a missing-key line
+  // are reserved before the stats, which drop the talent and then the root
+  // line rather than cut the rumor.
   const int rowStep = renderer.getLineHeight(UI_10_FONT_ID) + 4;
-  auto pair = [&](const char* left, const char* right) {
-    renderer.drawText(UI_10_FONT_ID, x, y, left);
-    const int leftWidth = renderer.getTextWidth(UI_10_FONT_ID, left);
-    const int rightWidth = renderer.getTextWidth(UI_10_FONT_ID, right);
-    if (leftWidth + rightWidth + 16 > width) y += rowStep;
-    renderer.drawText(UI_10_FONT_ID, x + width - rightWidth, y, right);
-    y += rowStep;
-  };
-  char second[64];
-
-  snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
-           static_cast<unsigned>(realm.lifespanYears));
-  snprintf(second, sizeof(second), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
-  pair(line, second);
-
-  snprintf(line, sizeof(line), tr(STR_CULT_ROOT_FORMAT), text(kElementNames[static_cast<int>(s.character.rootElement)]),
-           static_cast<unsigned>(s.character.rootPurity));
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += rowStep;
-
-  snprintf(line, sizeof(line), tr(STR_CULT_TALENT_FORMAT), text(kTalentNames[s.character.talent % kTalentCount]));
-  renderer.drawText(UI_10_FONT_ID, x, y, line);
-  y += rowStep;
-
-  const uint32_t rate = qiMultiplierPermille(s);
-  if (scrolls::equippedManual(s) >= 0) {
-    const uint32_t manual = scrolls::equippedManualPermille(s);
-    snprintf(line, sizeof(line), tr(STR_CULT_QI_RATE_MANUAL_FORMAT), static_cast<unsigned>(rate / 1000),
-             static_cast<unsigned>((rate % 1000) / 10), static_cast<unsigned>(manual / 1000),
-             static_cast<unsigned>((manual % 1000) / 10));
-  } else {
-    formatRate(line, sizeof(line), rate);
-  }
-  snprintf(second, sizeof(second), tr(STR_CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
-  pair(line, second);
-
-  // HP on the Stamina line (v0.1.9: Tribulations spend it, reading heals it).
-  snprintf(line, sizeof(line), tr(STR_CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
-           static_cast<unsigned>(kStaminaCap));
-  snprintf(second, sizeof(second), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
-  pair(line, second);
-
-  if (breakthrough::inGreatPerfection(s)) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
-             static_cast<unsigned>(breakthrough::kConsolidationMax));
-    renderer.drawText(UI_10_FONT_ID, x, y, line);
-    y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
-  }
-  y += metrics.verticalSpacing * 2 - 4;
-
-  // The action list sits at the bottom; text above it is cut to fit.
-  const int rowHeight = metrics.listRowHeight;
-  const int listTop = bottom - rowHeight * actionCount_;
   const int smallLine = renderer.getLineHeight(SMALL_FONT_ID);
   const int textLine = renderer.getLineHeight(UI_10_FONT_ID);
+  const int gridRows = (actionCount_ + 1) / 2;
+  const int cellHeight = metrics.listRowHeight;
+  const int listTop = bottom - cellHeight * gridRows;
   auto fits = [&](const int lineHeight, const int wanted) {
-    const int room = (listTop - y) / lineHeight;
+    const int room = (listTop - 6 - y) / lineHeight;  // a few pixels clear of the grid
     return room < wanted ? (room > 0 ? room : 0) : wanted;
   };
 
-  // The rumor keeps its room (in the small font) on the busiest screens:
-  // the "no reading" note is the first thing to give way (found in the
-  // simulator with four actions, a title line and a Half-step bar).
-  int rumorReserve = 0;
+  int rumorReserve = 6;
   if (rumor_[0] != '\0') {
     snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
-    rumorReserve = static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, line, width, 5).size()) * smallLine +
-                   metrics.verticalSpacing * 2;
+    rumorReserve += static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, line, width, 5).size()) * smallLine +
+                    metrics.verticalSpacing * 2;
   }
-  // The missing-key line below needs its room too (v0.1.10: with Explore the
-  // busiest screen has five actions).
   if (atBottleneck(s)) {
     const breakthrough::Chance c = breakthrough::chanceFor(s);
     if (c.needsKey && !c.hasKey) rumorReserve += smallLine + 4;
   }
 
+  // Short lines share a row, the second on the right; a pair too wide for one row takes two.
+  auto pairRows = [&](const char* left, const char* right) {
+    return renderer.getTextWidth(UI_10_FONT_ID, left) + renderer.getTextWidth(UI_10_FONT_ID, right) + 16 > width ? 2
+                                                                                                                 : 1;
+  };
+  auto pair = [&](const char* left, const char* right) {
+    renderer.drawText(UI_10_FONT_ID, x, y, left);
+    if (pairRows(left, right) == 2) y += rowStep;
+    renderer.drawText(UI_10_FONT_ID, x + width - renderer.getTextWidth(UI_10_FONT_ID, right), y, right);
+    y += rowStep;
+  };
+  char ageLine[64], daoLine[64], rootLine[96], talentLine[96], rateLine[96], stonesLine[64], staminaLine[64],
+      hpLine[64];
+  snprintf(ageLine, sizeof(ageLine), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
+           static_cast<unsigned>(realm.lifespanYears));
+  snprintf(daoLine, sizeof(daoLine), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
+  snprintf(rootLine, sizeof(rootLine), tr(STR_CULT_ROOT_FORMAT),
+           text(kElementNames[static_cast<int>(s.character.rootElement)]),
+           static_cast<unsigned>(s.character.rootPurity));
+  snprintf(talentLine, sizeof(talentLine), tr(STR_CULT_TALENT_FORMAT),
+           text(kTalentNames[s.character.talent % kTalentCount]));
+  const uint32_t rate = qiMultiplierPermille(s);
+  if (scrolls::equippedManual(s) >= 0) {
+    const uint32_t manual = scrolls::equippedManualPermille(s);
+    snprintf(rateLine, sizeof(rateLine), tr(STR_CULT_QI_RATE_MANUAL_FORMAT), static_cast<unsigned>(rate / 1000),
+             static_cast<unsigned>((rate % 1000) / 10), static_cast<unsigned>(manual / 1000),
+             static_cast<unsigned>((manual % 1000) / 10));
+  } else {
+    formatRate(rateLine, sizeof(rateLine), rate);
+  }
+  snprintf(stonesLine, sizeof(stonesLine), tr(STR_CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
+  // HP on the Stamina line (v0.1.9: Tribulations spend it, reading heals it).
+  snprintf(staminaLine, sizeof(staminaLine), tr(STR_CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
+           static_cast<unsigned>(kStaminaCap));
+  snprintf(hpLine, sizeof(hpLine), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+
+  const bool gp = breakthrough::inGreatPerfection(s);
+  const int fixedStats =
+      rowStep * (pairRows(ageLine, daoLine) + pairRows(rateLine, stonesLine) + pairRows(staminaLine, hpLine)) +
+      (gp ? textLine + 4 : 0) + metrics.verticalSpacing * 2 - 4;
+  bool showRoot = true;
+  bool showTalent = true;
+  if (y + fixedStats + 2 * rowStep + rumorReserve > listTop) showTalent = false;
+  if (y + fixedStats + rowStep + rumorReserve > listTop) showRoot = false;
+
+  pair(ageLine, daoLine);
+  if (showRoot) {
+    renderer.drawText(UI_10_FONT_ID, x, y, rootLine);
+    y += rowStep;
+  }
+  if (showTalent) {
+    renderer.drawText(UI_10_FONT_ID, x, y, talentLine);
+    y += rowStep;
+  }
+  pair(rateLine, stonesLine);
+  pair(staminaLine, hpLine);
+
+  if (gp) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
+             static_cast<unsigned>(breakthrough::kConsolidationMax));
+    renderer.drawText(UI_10_FONT_ID, x, y, line);
+    y += textLine + 4;
+  }
+  y += metrics.verticalSpacing * 2 - 4;
+
   // What this visit brought.
   if (justCreated_) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_WELCOME), 3);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_WELCOME), fits(textLine, 3));
   } else if (visitReset_) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_RESET), 3);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_RESET), fits(textLine, 3));
   } else if (visitSeconds_ == 0) {
     const int needed =
         static_cast<int>(renderer.wrappedText(UI_10_FONT_ID, tr(STR_CULT_VISIT_NONE), width, 3).size()) * textLine;
@@ -1331,26 +1550,49 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_FAILED), 2);
 
   if (actionCount_ > 0) {
-    GUI.drawList(renderer, Rect{0, listTop, renderer.getScreenWidth(), rowHeight * actionCount_}, actionCount_,
-                 selected_, [this](const int i) -> std::string {
-                   switch (actions_[i]) {
-                     case Action::Breakthrough:
-                       return tr(STR_CULT_ACTION_BREAKTHROUGH);
-                     case Action::GreatPerfection:
-                       return tr(STR_CULT_ACTION_GREAT_PERFECTION);
-                     case Action::Techniques:
-                       return tr(STR_CULT_ACTION_TECHNIQUES);
-                     case Action::Explore:
-                       return tr(STR_CULT_ACTION_EXPLORE);
-                     case Action::Chronicle:
-                       return tr(STR_CULT_ACTION_CHRONICLE);
-                     case Action::Trial:
-                       return trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon
-                                  ? tr(STR_CULT_ACTION_DEMON)
-                                  : tr(STR_CULT_ACTION_TRIBULATION);
-                   }
-                   return {};
-                 });
+    // Two columns, reading order; Up/Down walk the cells.
+    const int screenWidth = renderer.getScreenWidth();
+    const int cellWidth = screenWidth / 2;
+    const int pad = metrics.contentSidePadding;
+    for (int i = 0; i < actionCount_; ++i) {
+      const int cx = (i % 2) * cellWidth;
+      const int cy = listTop + (i / 2) * cellHeight;
+      const char* label = "";
+      switch (actions_[i]) {
+        case Action::Breakthrough:
+          label = tr(STR_CULT_ACTION_BREAKTHROUGH);
+          break;
+        case Action::GreatPerfection:
+          label = tr(STR_CULT_ACTION_GREAT_PERFECTION);
+          break;
+        case Action::Techniques:
+          label = tr(STR_CULT_ACTION_TECHNIQUES);
+          break;
+        case Action::Explore:
+          label = tr(STR_CULT_ACTION_EXPLORE);
+          break;
+        case Action::Alchemy:
+          label = tr(STR_CULT_ACTION_ALCHEMY);
+          break;
+        case Action::Chronicle:
+          label = tr(STR_CULT_ACTION_CHRONICLE);
+          break;
+        case Action::Trial:
+          label = trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon
+                      ? tr(STR_CULT_ACTION_DEMON)
+                      : tr(STR_CULT_ACTION_TRIBULATION);
+          break;
+      }
+      const std::string fitted = renderer.truncatedText(UI_10_FONT_ID, label, cellWidth - pad * 2);
+      const int ty = cy + (cellHeight - textLine) / 2;
+      if (i == selected_) {
+        renderer.fillRect(cx, cy, cellWidth, cellHeight - 2);
+        renderer.drawText(UI_10_FONT_ID, cx + pad, ty, fitted.c_str(), false, EpdFontFamily::BOLD);
+      } else {
+        renderer.drawRect(cx + 4, cy + 2, cellWidth - 8, cellHeight - 6);
+        renderer.drawText(UI_10_FONT_ID, cx + pad, ty, fitted.c_str());
+      }
+    }
   }
 }
 
@@ -1387,6 +1629,10 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
     snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_ELEMENT_FORMAT), static_cast<unsigned>(c.element));
     part(line);
   }
+  if (c.pill > 0) {
+    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_PILL_FORMAT), static_cast<unsigned>(c.pill));
+    part(line);
+  }
   if (c.pity > 0) {
     snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_PITY_FORMAT), static_cast<unsigned>(s.progress.failures),
              static_cast<unsigned>(c.pity));
@@ -1416,6 +1662,9 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + metrics.verticalSpacing;
   }
 
+  // v0.2.0: the breakthrough pill this attempt would take (Up/Down picks another or none).
+  char pillName[64] = {};
+  if (c.pillItem != inventory::Item::None) ui::itemName(c.pillItem, pillName, sizeof(pillName));
   if (c.needsKey && !c.hasKey) {
     const scrolls::Tier need = scrolls::keyTierFor(c.target);
     static const uint8_t kTierHours[] = {0, 3, 8, 15, 25};
@@ -1426,11 +1675,25 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
                cultivation::ui::tierName(need), static_cast<unsigned>(kTierHours[static_cast<int>(need)]));
     }
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5);
+    const alchemy::Pill pill = c.target <= 4   ? alchemy::Pill::BreakthroughCommon
+                               : c.target <= 7 ? alchemy::Pill::BreakthroughSpirit
+                                               : alchemy::Pill::BreakthroughRare;
+    snprintf(line, sizeof(line), tr(STR_CULT_BT_PILL_HINT_FORMAT), ui::pillName(pill));
+    y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   } else {
-    if (c.needsKey && nameBuf_[0] != '\0') {
+    if (c.needsKey && c.keyIndex >= 0 && nameBuf_[0] != '\0') {
       snprintf(line, sizeof(line), tr(STR_CULT_KEY_FORMAT), nameBuf_);
-      y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + metrics.verticalSpacing;
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + 4;
     }
+    if (c.pillItem != inventory::Item::None) {
+      snprintf(line, sizeof(line), c.pillIsKey ? tr(STR_CULT_BT_PILL_KEY_FORMAT) : tr(STR_CULT_BT_PILL_FORMAT),
+               pillName);
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + 4;
+    } else if (c.target >= 2 && alchemy::chosenPill(s, c.target) == inventory::Item::None &&
+               state_->timers[9] == alchemy::kNoPillChoice) {
+      y = drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_BT_PILL_NONE), 2) + 4;
+    }
+    y += metrics.verticalSpacing - 4;
     y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_BREAKTHROUGH_RISK), 4);
   }
   if (breakthrough::canEnterGreatPerfection(s)) {
@@ -1489,6 +1752,13 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
                                                                        : tr(STR_CULT_GRADE_FORMED_FORMAT),
              formed, static_cast<unsigned>(outcome_.gradeScore));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  }
+  if ((outcomeKind_ == OutcomeKind::BreakthroughSuccess || outcomeKind_ == OutcomeKind::BreakthroughFailure) &&
+      outcome_.pillUsed != inventory::Item::None) {
+    char pill[64];
+    ui::itemName(outcome_.pillUsed, pill, sizeof(pill));
+    snprintf(line, sizeof(line), tr(STR_CULT_PILL_USED_FORMAT), pill);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.keyUsed && nameBuf_[0] != '\0') {
     snprintf(line, sizeof(line), tr(STR_CULT_KEY_USED_FORMAT), nameBuf_);
@@ -1574,6 +1844,17 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
     }
     if (visit_.stagesGained > 0 && !stageLine) {
       snprintf(line, sizeof(line), tr(STR_CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
+    }
+    // v0.2.0: alchemy news.
+    if (visit_.qiPillSeconds > 0) {
+      snprintf(line, sizeof(line), tr(STR_CULT_QI_PILL_SUMMARY_FORMAT),
+               static_cast<unsigned>((visit_.qiPillSeconds + 59u) / 60u));
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
+    }
+    if (alchemy::ready(s)) {
+      snprintf(line, sizeof(line), tr(STR_CULT_CAULDRON_READY_SUMMARY_FORMAT),
+               ui::pillName(alchemy::recipesOf(s).recipes[alchemy::brewingRecipe(s)].pill));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
     }
     y += metrics.verticalSpacing * 2;

@@ -126,14 +126,17 @@ Region slots have a theme each, in order: `marsh`, `wastes`, `forest`, `gorge`, 
 | List | Used for |
 | --- | --- |
 | `region.name` (`~theme`) | a region's name, used inside sentences ("the Reedwater Marshes"; the screen capitalises it for titles) |
-| `beast.region` (`~theme`) | the beasts met on the region's paths and in its lairs, with an article ("a marsh crocodile") |
-| `guardian.region` (`~theme`) | the region's guardian; a new one after each reshape |
+| `beast.region`, `bandit.region`, `cultivator.region`, `spirit.region` (`~theme`) | v0.2.0: the enemies met on the region's paths, by kind, with an article ("a marsh crocodile", "two smugglers poling a flat boat of salt"); lairs use the beast or bandit list |
+| `guardian.beast`, `guardian.bandit`, `guardian.cultivator`, `guardian.spirit` (`~theme`) | v0.2.0: the region's guardian, by its kind (replaces `guardian.region`); a new one after each reshape |
+| `ingredient.herb`, `ingredient.ore` (`~theme`) | v0.2.0: each region's own herb and ore, lower case, no article ("bitter reed-root", "bog iron"); one of each per region is picked by the world seed, so keep each theme's names distinct |
 | `explore.path`, `explore.herb`, `explore.ore`, `explore.ruin.won`, `explore.ruin.trap`, `explore.cave`, `explore.quiet`, `explore.quiet.full`, `explore.merchant` | the map: one line for what a step found (no season label) |
-| `explore.fight.beast`, `explore.fight.lair`, `explore.fight.guardian` | the Fight screen's line |
-| `explore.won`, `explore.lost`, `explore.slip` | after a fight, on the map |
+| `explore.fight.beast`, `explore.fight.bandit`, `explore.fight.cultivator`, `explore.fight.spirit`, `explore.fight.lair`, `explore.fight.hideout`, `explore.fight.guardian` | the Fight screen's line, by kind (a hideout is a bandits' lair) |
+| `explore.won` (beasts), `explore.won.bandit`, `explore.won.cultivator`, `explore.won.spirit`, `explore.lost`, `explore.slip`, `explore.paid`, `explore.drivenoff` | after a fight, on the map |
+| `alchemy.learned`, `alchemy.miss`, `alchemy.collect` | v0.2.0: the Alchemy screen's line after an experiment or taking pills out; `{$pill.name}` is set ("Core-Forming pill") |
+| `alchemy.line.learned`, `alchemy.line.slip` | v0.2.0: Chronicle lines for a recipe worked out and a recipe slip; `{$pill.name}` is set |
 | `explore.line.guardian`, `explore.line.clear`, `explore.line.upheaval`, `explore.line.talisman` | Chronicle lines (the upheaval line also shows in the Return summary) |
 
-`{$region.name}` and `{$beast.name}` (the beast or guardian) are set in these lists only. Write beasts and guardians with their article and in lower case unless they are a name ("a white bear", "the Snow Bear of Frozen Bell"); use `{$beast.name.cap}` at the start of a sentence. Fight lines also fit bandits and robbers, so prefer "you" over "it" as the subject.
+`{$region.name}` and `{$beast.name}` (the beast or guardian) are set in these lists only. Write beasts and guardians with their article and in lower case unless they are a name ("a white bear", "the Snow Bear of Frozen Bell"); use `{$beast.name.cap}` at the start of a sentence. Since v0.2.0 each enemy kind has its own lines; write bandit and cultivator lines so they fit one person or a group ("they"), and keep `explore.lost` and `explore.slip` neutral, since they follow every kind.
 
 ## Events
 

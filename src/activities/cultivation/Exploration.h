@@ -106,11 +106,28 @@ uint8_t enter(GameState& state, const Layout& layout, uint8_t region);
 
 // --- Combat --------------------------------------------------------------------
 
+// v0.2.0 (agreed with the user): every enemy is one of four kinds, each with
+// one difference. Beast: as before (an equipped Movement technique always gets
+// you away). Bandit: can be paid off, 15 x (region + 1) stones (30 x at a
+// hideout; never a guardian), and pays double a beast's stones when beaten,
+// with no herbs. Cultivator: your Sword and Palm/Fist techniques count double,
+// and so does the enemy's own random extra level; a win pays 1.5x and has a
+// 20% chance of a recipe slip. Spirit: cannot be outrun or paid; burning a
+// Calm-Heart Incense drives it off; a win pays a beast's stones, no herbs.
+// The kind comes from the seed that names the enemy, so nothing is stored.
+enum class Enemy : uint8_t { Beast = 0, Bandit, Cultivator, Spirit, Count };
+
+Enemy encounterEnemy(const GameState& state, uint8_t region);           // the waiting random encounter's kind
+Enemy lairEnemy(const GameState& state, uint8_t region, uint8_t tile);  // beast den or bandits' hideout
+Enemy guardianEnemy(const GameState& state, uint8_t region);
+uint32_t enemySeed(const GameState& state, uint8_t region, uint8_t tile);  // lairs (tile) and the guardian (kNoTile)
+
 enum class Danger : uint8_t { Trivial = 0, Weak, Dangerous, Hazardous, Extreme, Impossible, Count };
 
 // 10 x realm + stage (0-9) + equipped Sword / Palm-Fist techniques (1-5 by
-// tier each) + Foundation Perfect 2 / Heavenly 3 + Golden Core 3rd grade or better 2.
-int playerLevel(const GameState& state);
+// tier each; twice that against a cultivator) + Foundation Perfect 2 /
+// Heavenly 3 + Golden Core 3rd grade or better 2.
+int playerLevel(const GameState& state, bool techniquesDouble = false);
 inline int regionBase(const uint8_t region) { return 10 * (region + 1); }
 Danger dangerFor(int difference);  // player level minus enemy level
 Danger regionDanger(const GameState& state, uint8_t region);
@@ -123,6 +140,7 @@ enum class FightKind : uint8_t { None = 0, Beast, Lair, Guardian };
 
 struct Fight {
   FightKind kind = FightKind::None;
+  Enemy enemy = Enemy::Beast;
   uint8_t region = 0;
   uint8_t tile = 0;
   int level = 0;
@@ -131,6 +149,9 @@ struct Fight {
   uint8_t slipChance = 0;  // percent to slip away (100 with a Movement technique)
   uint16_t damage = 0;     // HP lost if the fight is lost
   uint16_t slipDamage = 0;
+  bool canSlip = true;      // not from a spirit
+  uint32_t payCost = 0;     // bandits (not a guardian): stones to be let go; 0 = cannot pay
+  bool canIncense = false;  // a spirit, and a Calm-Heart Incense is held
 };
 
 // The fight waiting on the map (after a step), if any.
@@ -144,6 +165,7 @@ uint32_t stepCounter(const GameState& state);  // steps and fights so far (seeds
 
 struct Reward {
   uint32_t stones = 0;
+  int8_t recipe = -1;  // v0.2.0: a recipe slip taught this alchemy recipe
   inventory::Item item = inventory::Item::None;
   uint16_t itemCount = 0;
   inventory::Item item2 = inventory::Item::None;  // the guardian and clear rewards give two
@@ -182,11 +204,17 @@ StepResult step(GameState& state, const Layout& layout, uint8_t region, uint8_t 
 // tile: merchant; a herb that regrew since).
 StepResult resolveHere(GameState& state, const Layout& layout, uint8_t region);
 
-enum class FightChoice : uint8_t { Fight, Slip };
+// Pay: a bandit's price (refused when the stones are short). Incense: one
+// Calm-Heart Incense drives a spirit off. Both end it like slipping away.
+enum class FightChoice : uint8_t { Fight, Slip, Pay, Incense };
 
 struct FightResult {
   bool won = false;
   bool slipped = false;  // got away without a fight
+  bool paid = false;     // v0.2.0: a bandit took the stones (FightResult::reward.stones is 0)
+  uint32_t paidStones = 0;
+  bool drivenOff = false;  // v0.2.0: a spirit fled from the incense
+  bool refused = false;    // nothing happened: the answer was not available (short of stones, no incense)
   uint8_t roll = 0;
   uint16_t hpLost = 0;
   uint8_t thrownTo = kNoTile;  // after a loss or slipping away from a lair or guardian
@@ -220,6 +248,8 @@ struct Stock {
 // Seeded by the tile and the region's regrowth cycle: reopening the shop shows
 // the same stock; it restocks when the region regrows.
 Stock stockFor(const GameState& state, const Layout& layout, uint8_t region, uint8_t tile);
+// What a stock line costs (a recipe slip by the grade of the recipe it teaches).
+uint16_t stockPrice(const GameState& state, inventory::Item item);
 bool buy(GameState& state, const Layout& layout, uint8_t region, uint8_t tile, uint8_t line);
 bool sell(GameState& state, inventory::Item item);
 
