@@ -1,5 +1,8 @@
-# Personal fork: builds the X3/X4 firmware with and without the
-# Path of Immortal Reading game, and attaches both .bin files to the run.
+# Personal fork: builds the Path of Immortal Reading firmware for every device
+# CrossInk supports (X3 and the original X4 share one file; X4 Pro, X4 Classic
+# and Seeed Studio Sticky have their own), plus the stock X3/X4 build without
+# the game to prove the flag-off build still works. Each .bin is its own
+# artifact on the run.
 #
 # Run it from the Actions tab ("Cultivation firmware" -> "Run workflow", pick
 # a branch), or push to main or any feat/ branch. Download the .bin files from
@@ -28,9 +31,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - environment: cultivation   # game on
+          - environment: cultivation             # game on: Xteink X3 and the original X4 (ESP32-C3)
             firmware: firmware-x3-x4-cultivation
-          - environment: default       # game off: proves the stock build is unchanged
+            tests: true                          # host tests and the balance simulator run once, here
+          - environment: cultivation-x4-pro      # game on: Xteink X4 Pro (ESP32-S3, touch)
+            firmware: firmware-x4-pro-cultivation
+          - environment: cultivation-x4-classic  # game on: Xteink X4 Classic (ESP32-S3, buttons)
+            firmware: firmware-x4-classic-cultivation
+          - environment: cultivation-sticky      # game on: Seeed Studio Sticky (ESP32-S3, touch)
+            firmware: firmware-sticky-cultivation
+          - environment: default                 # game off: proves the stock build is unchanged
             firmware: firmware-x3-x4
     steps:
       - uses: actions/checkout@v6
@@ -67,11 +77,11 @@ jobs:
           uv pip install --python ~/.platformio/penv/bin/python "pioarduino==6.1.19"
 
       - name: Balance simulator tests
-        if: matrix.environment == 'cultivation'
+        if: matrix.tests
         run: python3 tools/cultivation/test_balance_sim.py
 
       - name: Game core host tests
-        if: matrix.environment == 'cultivation'
+        if: matrix.tests
         run: |
           set -euo pipefail
           cmake -S test/cultivation -B build/cultivation-tests
