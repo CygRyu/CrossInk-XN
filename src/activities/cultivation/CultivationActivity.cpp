@@ -1070,9 +1070,9 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::Techniques || screen_ == Screen::ScrollDetail) title = tr(STR_CULT_TECHNIQUES);
   if (screen_ == Screen::SellConfirm) title = tr(STR_CULT_SELL);
   char exploreTitleBuf[ExploreView::kRegionNameSize];
-  if (screen_ == Screen::Regions || screen_ == Screen::Map || screen_ == Screen::Fight || screen_ == Screen::Merchant ||
-      screen_ == Screen::MerchantSell || screen_ == Screen::Bag || screen_ == Screen::Talisman ||
-      screen_ == Screen::MerchantQty) {
+  if (screen_ == Screen::Regions || screen_ == Screen::Map || screen_ == Screen::Fight || screen_ == Screen::Meeting ||
+      screen_ == Screen::Merchant || screen_ == Screen::MerchantSell || screen_ == Screen::Bag ||
+      screen_ == Screen::Talisman || screen_ == Screen::MerchantQty) {
     title = exploreTitle(exploreTitleBuf, sizeof(exploreTitleBuf));
   }
   if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = tr(STR_CULT_ALCHEMY_TITLE);
@@ -1221,6 +1221,10 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Fight:
       renderFight(x, top, width, bottom);
+      exploreLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Meeting:
+      renderMeeting(x, top, width, bottom);
       exploreLabels(confirmLabel, upLabel, downLabel);
       break;
     case Screen::Merchant:

@@ -71,6 +71,11 @@ uint8_t walkableNeighbour(const Layout& l, const uint8_t from, const uint8_t avo
   return kNoTile;
 }
 
+// v0.2.2: a cultivator may walk the road; these walkers just walk on.
+void walkOn(GameState& s, const Layout& l) {
+  while (meetingRegion(s) >= 0) meet(s, l, MeetChoice::WalkOn);
+}
+
 // Walks from the player's tile to `target` over walkable tiles (BFS path),
 // fighting any fight on the way with `win` forced by a strong character.
 // Returns false if the walk got stuck.
@@ -102,6 +107,7 @@ bool walkTo(GameState& s, const Layout& l, const uint8_t region, const uint8_t t
     s.progress.stamina = 12;
     s.progress.hp = s.progress.hpMax;
     step(s, l, region, best);
+    walkOn(s, l);
     while (pendingFight(s, l).kind != FightKind::None) fight(s, l, FightChoice::Fight);
   }
   return false;
@@ -303,7 +309,10 @@ TEST(Exploration, EncountersAreReproducibleAndNearTheRegionRate) {
     const StepResult r1 = step(s, l, 0, to);
     const StepResult r2 = step(copy, l, 0, to);
     ASSERT_EQ(r1.fight, r2.fight);
+    ASSERT_EQ(r1.meeting, r2.meeting);
     ++steps;
+    walkOn(s, l);
+    walkOn(copy, l);
     if (r1.fight && pendingFight(s, l).kind == FightKind::Beast) ++fights;
     while (pendingFight(s, l).kind != FightKind::None) fight(s, l, FightChoice::Fight);
     while (pendingFight(copy, l).kind != FightKind::None) fight(copy, l, FightChoice::Fight);
@@ -324,6 +333,7 @@ TEST(Exploration, LosingCostsHpAndThrowsBackOntoAChartedTile) {
     const uint8_t here = position(s, l, 0);
     const uint8_t to = walkableNeighbour(l, here);
     const StepResult r = step(s, l, 0, to);
+    walkOn(s, l);
     if (!r.fight) continue;
     const Fight f = pendingFight(s, l);
     s.progress.realm = 0;  // weaker than the region: losses are likely
@@ -352,6 +362,7 @@ TEST(Exploration, ALossBelowZeroStopsAtZeroAndBlocksWalking) {
     s.progress.stamina = 12;
     s.progress.hp = 3;
     step(s, l, 0, walkableNeighbour(l, position(s, l, 0)));
+    walkOn(s, l);
     if (pendingFight(s, l).kind == FightKind::None) continue;
     s.progress.realm = 0;
     const FightResult r = fight(s, l, FightChoice::Fight);
@@ -382,6 +393,7 @@ TEST(Exploration, SlippingAwayWithAMovementTechniqueAlwaysWorks) {
     s.progress.stamina = 12;
     s.progress.hp = 100;
     step(s, l, 0, walkableNeighbour(l, position(s, l, 0)));
+    walkOn(s, l);
     if (pendingFight(s, l).kind == FightKind::None) continue;
     if (pendingFight(s, l).enemy == Enemy::Spirit) {  // v0.2.0: spirits cannot be outrun
       EXPECT_FALSE(pendingFight(s, l).canSlip);

@@ -1186,6 +1186,112 @@ In {$region.name} you met {$beast.name} again, the one that got away from you be
 [explore.line.return.left]
 {$beast.name.cap} found you again in {$region.name}, and again you were the one who left.
 
+[meet.who]
+{cultivator.name} of the {sect.name}
+
+[explore.meet.spar]
+The cultivator stands on the road ahead and asks, without much heat, whether you can spare an hour for a friendly bout.
+A fist in a palm, a bow, and the remark that a sparring partner is hard to find in {$region.name}.
+They have been practising forms by the roadside. When you come near, the practice turns into an invitation.
+They size up your shoulders and your sword hand and propose a bout, a few stones to the winner.
+
+[explore.meet.trade]
+A cloth is spread at the roadside, with a few things from farther afield set out on it.
+This traveller's pack is heavier than it looks. Some of it is for sale.
+They wave you over, unwrap a bundle and say there is no price a sensible person cannot haggle down.
+They are camped by the road, in no hurry, and happy to trade for a few stones and a little company.
+
+[explore.meet.challenge]
+A hand on the hilt: they step into your way and say the road is narrow and only one of you needs it.
+They have heard of you and wish to find out how much of it is true.
+They ask your name, your sect and your realm. Close enough to their own, they decide, to be worth a fight.
+Without a greeting, a hand drops to the sword. One of you will walk this stretch of {$region.name} alone.
+
+[explore.meet.return]
+They are on the road again and recognise you before you recognise them.
+You meet once more in {$region.name}. They nod, like someone who has already taken your measure.
+They have come back this way. Time has changed their stance, and they have noticed what time did to yours.
+The face is familiar. They have been walking {$region.name} since you last parted.
+
+[explore.meet.sparwon]
+{$beast.name.cap} concedes with good grace and pays the stake.
+Your palm stops short of the chest, and {$beast.name} laughs and pays up.
+You find the gap and use it. {$beast.name.cap} bows and pays.
+
+[explore.meet.sparlost]
+{$beast.name.cap} taps your ribs and ends the bout. Only pride is hurt.
+You land in the dust. {$beast.name.cap} names your mistake and walks on.
+{$beast.name.cap} wins the bout. You know where your stance failed.
+
+[explore.meet.talk.proud]
+They love to be asked. They talk about {$region.name} for a quarter of an hour, and one thing in it is worth knowing.
+Flattered, they boast about every road they have walked, and let one useful thing slip.
+You ask for news. They have been waiting for someone to ask, and do not make you wait for the answer.
+
+[explore.meet.talk.shy]
+Every question gets a polite answer that tells you nothing at all.
+You ask for news. They talk about the weather and the state of the road, and then about the weather again.
+
+[explore.meet.talk.open]
+They study you a moment, decide you are no danger and tell you plainly what they have learned.
+This time they talk freely, like someone who has already seen you are safe to talk to.
+
+[explore.meet.talk.greedy]
+News, they say, is a kind of goods, and they name a price.
+They hear the question, then hold out a palm. What they know is not free.
+
+[explore.meet.talk.nothing]
+They have little to say about {$region.name} that you do not know already.
+You ask for news. There is nothing about this stretch that you have not walked yourself.
+
+[explore.line.meet.sparwon]
+In {$region.name} you sparred with {$beast.name} on the open road, and won.
+{$beast.name.cap} asked for a friendly bout in {$region.name}, and went away with the lesson.
+You won a bout with {$beast.name} by the roadside in {$region.name}.
+
+[explore.line.meet.sparlost]
+In {$region.name} you sparred with {$beast.name} and lost, which was instructive.
+{$beast.name.cap} put you on your back in {$region.name}, kindly, and named your mistake.
+You lost a friendly bout to {$beast.name} in {$region.name}, and remembered it.
+
+[explore.line.meet.challengewon]
+{$beast.name.cap} challenged you on the road in {$region.name}, and you won.
+In {$region.name} you were challenged by {$beast.name} and did not give way.
+You met {$beast.name} in {$region.name}, who wanted a fight and got one.
+
+[explore.line.meet.challengelost]
+{$beast.name.cap} challenged you in {$region.name}. You lost, and walked away slowly.
+In {$region.name} {$beast.name} took the road from you and the best of the fight.
+You met {$beast.name} in {$region.name} and found out that you were not yet ready.
+
+[explore.line.meet.trade]
+You traded with {$beast.name} on the road in {$region.name}.
+In {$region.name} you bought from {$beast.name}, and paid a little more than you had hoped.
+
+[explore.line.meet.talk]
+You spent an hour on the road in {$region.name} talking with {$beast.name}.
+In {$region.name} you stopped for news from {$beast.name}.
+
+[explore.line.meet.again.won]
+{$beast.name.cap}, whom you beat {$meet.ago}, was on the road in {$region.name} again.
+In {$region.name} you met {$beast.name}, whom you defeated {$meet.ago}.
+
+[explore.line.meet.again.lost]
+{$beast.name.cap}, who beat you {$meet.ago}, was on the road in {$region.name} again.
+In {$region.name} you met {$beast.name}, who had the better of you {$meet.ago}.
+
+[explore.line.meet.again.traded]
+{$beast.name.cap}, who traded with you {$meet.ago}, was on the road in {$region.name} again.
+In {$region.name} you met {$beast.name}, whose wares you bought {$meet.ago}.
+
+[explore.line.meet.again.talked]
+{$beast.name.cap}, who talked with you {$meet.ago}, was on the road in {$region.name} again.
+In {$region.name} you met {$beast.name}, with whom you shared the road {$meet.ago}.
+
+[explore.line.meet.again.passed]
+{$beast.name.cap}, whom you passed {$meet.ago}, was on the road in {$region.name} again.
+In {$region.name} you met {$beast.name}, to whom you nodded {$meet.ago} without a word.
+
 [alchemy.failed]
 The cauldron cracks along an old seam and the batch turns to black slag. You scrape it out to sell.
 Halfway through, the fire runs too hot. What is left at the bottom is dross, good for nothing but the scrap dealer.

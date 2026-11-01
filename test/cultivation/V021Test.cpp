@@ -130,6 +130,13 @@ TEST(Depth, KeptOnFailureSpentOnSuccess) {
   (void)sawFailure;
 }
 
+namespace {
+// v0.2.2: a cultivator may walk the road; these walkers just walk on.
+void walkOn(GameState& s, const Layout& l) {
+  while (meetingRegion(s) >= 0) meet(s, l, MeetChoice::WalkOn);
+}
+}  // namespace
+
 // --- Encounter cap ----------------------------------------------------------------------
 
 TEST(Encounters, NeverTwoRandomFightsInARow) {
@@ -145,13 +152,15 @@ TEST(Encounters, NeverTwoRandomFightsInARow) {
       const uint8_t to = walkableNeighbour(l, position(s, l, 0), i);
       if (to == kNoTile) break;
       const StepResult r = step(s, l, 0, to);
-      const bool random = r.fight && pendingFight(s, l).kind == FightKind::Beast;
+      // v0.2.2: a meeting counts too: never two interruptions in a row.
+      const bool random = r.fight || r.meeting;
       EXPECT_FALSE(last && random) << "world " << world << " step " << i;
       last = random;
       if (r.fight) {
         fight(s, l, FightChoice::Fight);
         ++fights;
       }
+      walkOn(s, l);
     }
   }
   EXPECT_GT(fights, 100);
@@ -168,6 +177,7 @@ bool nextNewEncounter(GameState& s, const Layout& l, uint32_t& salt) {
     const uint8_t to = walkableNeighbour(l, position(s, l, 0), salt);
     if (to == kNoTile) return false;
     step(s, l, 0, to);
+    walkOn(s, l);
     const Fight f = pendingFight(s, l);
     if (f.kind == FightKind::Beast && returningFoe(s) < 0 && (f.enemy == Enemy::Beast || f.enemy == Enemy::Bandit) &&
         f.canSlip)
@@ -212,6 +222,7 @@ TEST(Foes, AnEnemyYouRanFromComesBackStronger) {
       const uint8_t to = walkableNeighbour(l, position(s, l, 0), salt);
       if (to == kNoTile) break;
       step(s, l, 0, to);
+      walkOn(s, l);
       if (pendingFight(s, l).kind == FightKind::None) continue;
       if (returningFoe(s) < 0) {
         fight(s, l, FightChoice::Fight);
@@ -231,6 +242,7 @@ TEST(Foes, AnEnemyYouRanFromComesBackStronger) {
         s.progress.hp = 100;
         const uint8_t next = walkableNeighbour(l, position(s, l, 0), salt);
         step(s, l, 0, next);
+        walkOn(s, l);
         if (pendingFight(s, l).kind == FightKind::None) continue;
         const bool back = returningFoe(s) >= 0;
         if (back) {

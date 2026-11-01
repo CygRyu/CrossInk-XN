@@ -56,7 +56,7 @@ static const char* const kValueNames[] = {
     "player.name",  "player.realm", "realm",       "player.stage", "player.age", "player.element", "pro.they",
     "pro.them",     "pro.their",    "pro.theirs",  "pro.themself", "pro.is",     "pro.was",        "pro.has",
     "title.senior", "title.sect",   "title.god",   "season",       "root.glow",  "root.color",     "past.pages",
-    "past.books",   "past.hours",   "scroll.name", "region.name",  "beast.name", "pill.name"};
+    "past.books",   "past.hours",   "scroll.name", "region.name",  "beast.name", "pill.name",      "meet.ago"};
 
 // "48,210 pages", "1 page", "no pages": the Past Life Memories numbers.
 bool putCount(char* out, const size_t outLen, const uint32_t n, const char* one, const char* many) {

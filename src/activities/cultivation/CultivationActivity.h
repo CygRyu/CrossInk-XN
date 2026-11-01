@@ -74,6 +74,7 @@ class CultivationActivity final : public Activity {
     Regions,       // exploration (CultivationExploreScreens.cpp): the open regions and the bag
     Map,           // one region's 6x6 map
     Fight,         // a random encounter, a lair or the guardian
+    Meeting,       // v0.2.2: a cultivator on the road
     Merchant,      // a wandering merchant's stock
     MerchantSell,  // selling items back at a third
     Bag,           // items; tonics are drunk here
@@ -155,12 +156,17 @@ class CultivationActivity final : public Activity {
   void showStep(const cultivation::explore::StepResult& r);
   void openFight();
   void answerFight();
+  void openMeeting();
+  void answerMeeting();
+  void showMeetingResult(const cultivation::explore::Meeting& m, const cultivation::explore::MeetResult& r);
+  void renderMeeting(int x, int y, int width, int bottom);
   void openMerchant(uint8_t tile);
   void openBag(Screen returnTo);
   void refreshBag();
   void useBagItem();
   void openTalisman();
-  void exploreChronicle(const char* listKey, uint8_t region, const char* beast, uint32_t extra);
+  void exploreChronicle(const char* listKey, uint8_t region, const char* beast, uint32_t extra,
+                        const char* ago = nullptr);
   void formatReward(const cultivation::explore::Reward& r, uint16_t hpLost, uint16_t hpHealed, char* out,
                     size_t len) const;
   bool handleExplore(bool back, bool confirm, bool up, bool down);  // true when the screen is an exploration one
@@ -176,6 +182,9 @@ class CultivationActivity final : public Activity {
   void buyFromMerchant(uint8_t line, uint16_t count);
   // v0.2.0: the fight's answers on screen, in order.
   enum class FightRow : uint8_t { Fight, Slip, Pay, Incense, Tonic };
+  enum class MeetRow : uint8_t { Offer, Talk, Tonic, WalkOn };  // v0.2.2
+  uint8_t meetRowList(MeetRow* out) const;
+  int meetRows() const;
   uint8_t fightRowList(FightRow* out) const;
 
   // Alchemy (CultivationAlchemyScreens.cpp, v0.2.0)
@@ -353,8 +362,8 @@ class CultivationActivity final : public Activity {
     uint8_t cursorCount = 0;
     uint8_t cursor = 0;
     char beast[cultivation::exploretext::kNameSize] = {};
-    char fightText[200] = {};
-    char fightResult[160] = {};
+    char fightText[280] = {};
+    char fightResult[200] = {};
     char text[200] = {};     // the last thing that happened on the map
     char numbers[200] = {};  // what it gave or cost
     cultivation::explore::Stock stock;

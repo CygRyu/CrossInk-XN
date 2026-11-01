@@ -35,12 +35,16 @@ bool guardianName(const GameState& state, uint8_t region, Grammar& grammar, char
 // every life has its own. False for anything that is not a regional ingredient.
 bool ingredientName(const GameState& state, inventory::Item item, Grammar& grammar, char* out, size_t len);
 
-// One line from `listKey` for the screen (no season label).
+// v0.2.2: a cultivator met on the road, "Old Bai of the Azure Cloud Sect" (seed: Meeting::nameSeed).
+bool cultivatorName(const GameState& state, uint8_t region, uint32_t nameSeed, Grammar& grammar, char* out, size_t len);
+
+// One line from `listKey` for the screen (no season label). v0.2.2: `ago` sets
+// {$meet.ago} ("two years ago") for lines about someone met before (may be null).
 bool flavor(const GameState& state, const char* listKey, uint32_t seed, const char* regionName, const char* beastName,
-            Grammar& grammar, char* out, size_t len);
+            Grammar& grammar, char* out, size_t len, const char* ago = nullptr);
 // One Chronicle line from `listKey` ("Spring, age 31. ..."), seeded so a retried save writes the same line.
 bool chronicleLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed,
-                   const char* regionName, const char* beastName, Grammar& grammar);
+                   const char* regionName, const char* beastName, Grammar& grammar, const char* ago = nullptr);
 // v0.2.1: Heart Demon scenes from the player's history: {$region.name},
 // {$beast.name} and {$scroll.name} set (any may be null).
 bool historyFlavor(const GameState& state, const char* listKey, uint32_t seed, const char* regionName,

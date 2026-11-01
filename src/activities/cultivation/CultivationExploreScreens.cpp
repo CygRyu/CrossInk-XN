@@ -293,7 +293,7 @@ void CultivationActivity::openMap(uint8_t region) {
     RenderLock lock(*this);
     ExploreView& v = *explore_;
     // A fight left waiting on another map comes first.
-    const int pending = explore::pendingRegion(*state_);
+    const int pending = explore::waitingRegion(*state_);  // v0.2.2: a meeting waits like a fight
     if (pending >= 0 && pending < v.regionCount) region = static_cast<uint8_t>(pending);
     v.region = region;
     v.layout = explore::layoutOf(*state_, region);
@@ -310,6 +310,8 @@ void CultivationActivity::openMap(uint8_t region) {
   }
   if (explore::pendingRegion(*state_) == explore_->region) {
     openFight();
+  } else if (explore::meetingRegion(*state_) == explore_->region) {
+    openMeeting();
   } else {
     requestUpdate();
   }
@@ -323,7 +325,7 @@ void CultivationActivity::refreshCursor() {
   const uint8_t previous = v.cursorCount > 0 && v.cursor < v.cursorCount ? v.cursorTiles[v.cursor] : here;
   v.cursorCount = 0;
   v.cursorTiles[v.cursorCount++] = here;
-  if (explore::pendingRegion(*state_) < 0) {
+  if (explore::waitingRegion(*state_) < 0) {
     uint8_t n[4];
     const uint8_t c = explore::neighbours(here, n);
     for (uint8_t i = 0; i < c; ++i) {
@@ -354,6 +356,10 @@ void CultivationActivity::mapConfirm() {
     openFight();
     return;
   }
+  if (explore::meetingRegion(*state_) == v.region) {
+    openMeeting();
+    return;
+  }
   const uint8_t here = explore::position(*state_, v.layout, v.region);
   const uint8_t target = v.cursor < v.cursorCount ? v.cursorTiles[v.cursor] : here;
   if (target == here) {
@@ -378,11 +384,13 @@ void CultivationActivity::mapConfirm() {
     return;
   }
   bool fight = false;
+  bool meeting = false;
   {
     RenderLock lock(*this);
     const explore::StepResult r = explore::step(*state_, v.layout, v.region, target);
     fight = r.fight;
-    if (!fight) showStep(r);
+    meeting = r.meeting;
+    if (!fight && !meeting) showStep(r);
     persist();
     refreshCursor();
     // Follow the player: the cursor stays on the tile just entered.
@@ -392,6 +400,8 @@ void CultivationActivity::mapConfirm() {
   }
   if (fight) {
     openFight();
+  } else if (meeting) {
+    openMeeting();
   } else {
     requestUpdate();
   }
@@ -498,13 +508,13 @@ void CultivationActivity::formatReward(const explore::Reward& r, const uint16_t 
 // One line at the bottom of the Chronicle, seeded by the region's layout so a
 // retried save writes the same line (appendLines skips it then).
 void CultivationActivity::exploreChronicle(const char* listKey, const uint8_t region, const char* beast,
-                                           const uint32_t extra) {
+                                           const uint32_t extra, const char* ago) {
   if (!grammar_ || !explore_) return;
   lifelog::Line line;
   const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindExploreChronicle,
                                     (static_cast<uint32_t>(region) << 16) |
                                         (static_cast<uint32_t>(explore::reshapeCount(*state_, region)) << 8) | extra);
-  if (exploretext::chronicleLine(line, *state_, listKey, seed, explore_->regionNames[region], beast, *grammar_)) {
+  if (exploretext::chronicleLine(line, *state_, listKey, seed, explore_->regionNames[region], beast, *grammar_, ago)) {
     if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
     chronicle::appendLines(&line, 1);
     chronicleExists_ = chronicle::exists();
@@ -714,6 +724,243 @@ void CultivationActivity::answerFight() {
   requestUpdate();
 }
 
+// --- Meetings (v0.2.2) -----------------------------------------------------------------------
+
+void CultivationActivity::openMeeting() {
+  {
+    RenderLock lock(*this);
+    ExploreView& v = *explore_;
+    const explore::Meeting m = explore::pendingMeeting(*state_, v.layout);
+    if (!m.active) return;
+    v.beast[0] = '\0';
+    v.fightText[0] = '\0';
+    v.fightResult[0] = '\0';
+    if (grammar_) {
+      if (exploretext::cultivatorName(*state_, m.region, m.nameSeed, *grammar_, v.beast, sizeof(v.beast))) {
+        const char* list = m.ring >= 0                        ? "explore.meet.return"
+                           : m.offer == explore::Offer::Spar  ? "explore.meet.spar"
+                           : m.offer == explore::Offer::Trade ? "explore.meet.trade"
+                                                              : "explore.meet.challenge";
+        const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 2u);
+        exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.fightText,
+                            sizeof(v.fightText));
+      }
+      if (packs_) packs_->closeFile();
+    }
+    selected_ = 0;
+    screen_ = Screen::Meeting;
+  }
+  requestUpdate();
+}
+
+// The answers on the meeting screen: what they offer, Talk (once), a tonic
+// before a challenge, and Walk on.
+uint8_t CultivationActivity::meetRowList(MeetRow* out) const {
+  uint8_t n = 0;
+  if (!explore_) return 0;
+  const explore::Meeting m = explore::pendingMeeting(*state_, explore_->layout);
+  if (!m.active) return 0;
+  out[n++] = MeetRow::Offer;
+  if (!m.talked) out[n++] = MeetRow::Talk;
+  if (m.offer == explore::Offer::Challenge && inventory::tonicFor(*state_, 1) != inventory::Item::None &&
+      state_->progress.hp < state_->progress.hpMax) {
+    out[n++] = MeetRow::Tonic;
+  }
+  out[n++] = MeetRow::WalkOn;
+  return n;
+}
+
+int CultivationActivity::meetRows() const {
+  MeetRow rows[4];
+  return meetRowList(rows);
+}
+
+namespace {
+// "not long ago", "a year ago", "7 years ago" into `out`.
+const char* agoText(const uint16_t years, char* out, const size_t len) {
+  if (years == 0) {
+    snprintf(out, len, "%s", tr(STR_CULT_AGO_NOW));
+  } else if (years == 1) {
+    snprintf(out, len, "%s", tr(STR_CULT_AGO_ONE));
+  } else {
+    snprintf(out, len, tr(STR_CULT_AGO_FORMAT), static_cast<unsigned>(years));
+  }
+  return out;
+}
+}  // namespace
+
+void CultivationActivity::answerMeeting() {
+  ExploreView& v = *explore_;
+  bool shop = false;
+  {
+    RenderLock lock(*this);
+    const explore::Meeting m = explore::pendingMeeting(*state_, v.layout);
+    if (!m.active) return;
+    MeetRow rows[4];
+    const uint8_t rowCount = meetRowList(rows);
+    if (selected_ < 0 || selected_ >= rowCount) return;
+    const MeetRow row = rows[selected_];
+    char name[64];
+
+    if (row == MeetRow::Tonic) {  // a tonic first; the challenge waits
+      const inventory::Item tonic = inventory::tonicFor(*state_, m.damage);
+      const uint16_t healed = inventory::useTonic(*state_, tonic);
+      if (healed > 0) {
+        snprintf(v.fightResult, sizeof(v.fightResult), tr(STR_CULT_DRANK_FORMAT), itemLabel(tonic, name, sizeof(name)),
+                 static_cast<unsigned>(healed));
+        persist();
+      }
+      if (selected_ >= meetRows()) selected_ = 0;
+      requestUpdate();
+      return;
+    }
+    if (row == MeetRow::Offer && m.offer == explore::Offer::Trade) {
+      shop = true;  // the shop is its own screen
+    } else if (row == MeetRow::Talk) {
+      const explore::MeetResult r = explore::meet(*state_, v.layout, explore::MeetChoice::Talk);
+      if (r.refused) {
+        requestUpdate();
+        return;
+      }
+      static const char* const kTalkLists[3] = {"explore.meet.talk.proud", "explore.meet.talk.open",
+                                                "explore.meet.talk.greedy"};
+      const char* list = r.talk == explore::TalkResult::Hint      ? kTalkLists[static_cast<int>(m.temperament)]
+                         : r.talk == explore::TalkResult::TooPoor ? "explore.meet.talk.greedy"
+                         : (m.temperament == explore::Temperament::Cautious && m.ring < 0)
+                             ? "explore.meet.talk.shy"
+                             : "explore.meet.talk.nothing";
+      v.fightResult[0] = '\0';
+      if (grammar_) {
+        const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 3u);
+        exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.fightText,
+                            sizeof(v.fightText));
+        if (packs_) packs_->closeFile();
+      }
+      if (r.talk == explore::TalkResult::Hint) {
+        static const StrId kEnemyNames[static_cast<int>(explore::Enemy::Count)] = {
+            StrId::STR_CULT_ENEMY_BEAST, StrId::STR_CULT_ENEMY_BANDIT, StrId::STR_CULT_ENEMY_CULTIVATOR,
+            StrId::STR_CULT_ENEMY_SPIRIT};
+        snprintf(v.fightResult, sizeof(v.fightResult), tr(STR_CULT_MEET_HINT_FORMAT),
+                 text(kEnemyNames[static_cast<int>(r.hintEnemy)]), dangerName(r.hintDanger));
+        if (r.talkPaid > 0) {
+          char paid[80];
+          snprintf(paid, sizeof(paid), tr(STR_CULT_MEET_PAID_FORMAT), static_cast<unsigned long>(r.talkPaid));
+          appendSentence(v.fightResult, sizeof(v.fightResult), paid);
+        }
+        persist();
+      } else if (r.talk == explore::TalkResult::TooPoor) {
+        snprintf(v.fightResult, sizeof(v.fightResult), tr(STR_CULT_MEET_POOR_FORMAT),
+                 static_cast<unsigned long>(r.talkCost));
+      } else {
+        persist();
+      }
+      selected_ = 0;
+      requestUpdate();
+      return;
+    } else {
+      const explore::MeetResult r = explore::meet(
+          *state_, v.layout, row == MeetRow::WalkOn ? explore::MeetChoice::WalkOn : explore::MeetChoice::Offer);
+      if (r.refused) {
+        requestUpdate();
+        return;
+      }
+      LOG_INF("CULT", "Meeting (%s, level %d vs %d): %s", row == MeetRow::WalkOn ? "walk on" : "offer", m.level,
+              explore::playerLevel(*state_), r.fought ? (r.won ? "won" : "lost") : "-");
+      showMeetingResult(m, r);
+    }
+  }
+  if (shop) {
+    openMerchant(explore::kTraderTile);
+  } else {
+    requestUpdate();
+  }
+}
+
+// The map after a meeting: its line, the numbers, the Chronicle. Caller holds the render lock.
+void CultivationActivity::showMeetingResult(const explore::Meeting& m, const explore::MeetResult& r) {
+  ExploreView& v = *explore_;
+  v.text[0] = '\0';
+  v.numbers[0] = '\0';
+  const bool spar = m.offer == explore::Offer::Spar;
+  if (r.fought && grammar_) {
+    const char* list = spar ? (r.won ? "explore.meet.sparwon" : "explore.meet.sparlost")
+                            : (r.won ? "explore.won.cultivator" : "explore.lost");
+    const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 5u);
+    exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.text, sizeof(v.text));
+    if (packs_) packs_->closeFile();
+  }
+  char line[160];
+  if (r.fought) {
+    if (spar) {
+      snprintf(line, sizeof(line), r.won ? tr(STR_CULT_SPAR_WON_FORMAT) : tr(STR_CULT_SPAR_LOST_FORMAT),
+               static_cast<unsigned>(r.roll), static_cast<unsigned>(m.chance));
+    } else {
+      snprintf(line, sizeof(line), r.won ? tr(STR_CULT_FIGHT_WON_FORMAT) : tr(STR_CULT_FIGHT_LOST_FORMAT),
+               static_cast<unsigned>(r.roll), static_cast<unsigned>(m.chance));
+    }
+  } else {
+    snprintf(line, sizeof(line), "%s", tr(STR_CULT_WALKED_ON));
+  }
+  char parts[160] = {};
+  formatReward(r.reward, r.hpLost, 0, parts, sizeof(parts));
+  formatReward(r.tile.reward, r.tile.hpLost, r.tile.hpHealed, parts, sizeof(parts));
+  snprintf(v.numbers, sizeof(v.numbers), "%s", line);
+  if (parts[0] != '\0') {
+    appendSentence(v.numbers, sizeof(v.numbers), parts);
+    const size_t used = strlen(v.numbers);
+    if (used + 1 < sizeof(v.numbers)) snprintf(v.numbers + used, sizeof(v.numbers) - used, ".");
+  }
+  if (r.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(r.reward.recipe));
+  if (r.tile.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(r.tile.reward.recipe));
+  if (r.tile.clearedNow) {
+    char reward[120] = {};
+    formatReward(r.tile.clearReward, 0, 0, reward, sizeof(reward));
+    snprintf(line, sizeof(line), tr(STR_CULT_CLEARED_FORMAT), reward);
+    appendSentence(v.numbers, sizeof(v.numbers), line);
+    exploreChronicle("explore.line.clear", v.region, nullptr, 1);
+  }
+
+  // The Chronicle: who they were to you before, then what happened now.
+  if (m.ring >= 0) {
+    static const char* const kAgain[] = {nullptr,
+                                         "explore.line.meet.again.won",
+                                         "explore.line.meet.again.lost",
+                                         "explore.line.meet.again.traded",
+                                         "explore.line.meet.again.talked",
+                                         "explore.line.meet.again.passed"};
+    const int last = static_cast<int>(m.last);
+    char ago[40];
+    agoText(m.yearsAgo, ago, sizeof(ago));
+    if (last > 0 && last < 6) exploreChronicle(kAgain[last], v.region, v.beast, 20, ago);
+  }
+  const char* result = nullptr;
+  switch (r.outcome) {
+    case explore::MeetOutcome::Won:
+      result = spar ? "explore.line.meet.sparwon" : "explore.line.meet.challengewon";
+      break;
+    case explore::MeetOutcome::Lost:
+      result = spar ? "explore.line.meet.sparlost" : "explore.line.meet.challengelost";
+      break;
+    case explore::MeetOutcome::Traded:
+      result = "explore.line.meet.trade";
+      break;
+    case explore::MeetOutcome::Talked:
+      result = "explore.line.meet.talk";
+      break;
+    default:
+      break;
+  }
+  if (result != nullptr) exploreChronicle(result, v.region, v.beast, 21);
+
+  persist();
+  refreshCursor();
+  for (uint8_t i = 0; i < v.cursorCount; ++i) {
+    if (v.cursorTiles[i] == explore::position(*state_, v.layout, v.region)) v.cursor = i;
+  }
+  selected_ = 0;
+  screen_ = Screen::Map;
+}
+
 // --- Merchants, the bag and the Region Talisman ------------------------------------------------
 
 void CultivationActivity::openMerchant(const uint8_t tile) {
@@ -735,7 +982,7 @@ void CultivationActivity::openMerchantQty(const uint8_t line) {
   {
     RenderLock lock(*this);
     ExploreView& v = *explore_;
-    const uint16_t most = explore::affordable(*state_, v.stock.lines[line].item);
+    const uint16_t most = explore::affordable(*state_, v.stock.lines[line]);
     v.qtyLine = line;
     v.qtyRows = 0;
     for (const uint16_t n : {static_cast<uint16_t>(1), static_cast<uint16_t>(5), static_cast<uint16_t>(10)}) {
@@ -754,7 +1001,7 @@ void CultivationActivity::buyFromMerchant(const uint8_t line, const uint16_t cou
     RenderLock lock(*this);
     ExploreView& v = *explore_;
     const explore::StockLine l = v.stock.lines[line];
-    const uint16_t cost = explore::stockPrice(*state_, l.item);
+    const uint16_t cost = explore::linePrice(*state_, l);
     const int slip = alchemy::slipRecipe(*state_);
     char name[64];
     if (explore::buy(*state_, v.layout, v.region, v.merchantTile, line, count)) {
@@ -857,6 +1104,7 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
     case Screen::Regions:
     case Screen::Map:
     case Screen::Fight:
+    case Screen::Meeting:
     case Screen::Merchant:
     case Screen::MerchantSell:
     case Screen::Bag:
@@ -926,16 +1174,34 @@ bool CultivationActivity::handleExplore(const bool back, const bool confirm, con
       }
       return true;
 
+    case Screen::Meeting:
+      if (back) {  // the meeting waits in the save; the map offers it again
+        RenderLock lock(*this);
+        refreshCursor();
+        screen_ = Screen::Map;
+        requestUpdate();
+      } else if (confirm) {
+        answerMeeting();
+      } else {
+        handleList(meetRows(), up, down);
+      }
+      return true;
+
     case Screen::Merchant:
       if (back) {
         RenderLock lock(*this);
         notice_[0] = '\0';
-        screen_ = Screen::Map;
+        if (v.merchantTile == explore::kTraderTile) {  // v0.2.2: back to the cultivator
+          selected_ = 0;
+          screen_ = Screen::Meeting;
+        } else {
+          screen_ = Screen::Map;
+        }
         requestUpdate();
       } else if (confirm) {
         if (selected_ < v.stock.count) {
           const explore::StockLine& l = v.stock.lines[selected_];
-          if (!l.limited && explore::affordable(*state_, l.item) > 1) {
+          if (!l.limited && explore::affordable(*state_, l) > 1) {
             openMerchantQty(static_cast<uint8_t>(selected_));  // v0.2.1: herbs and ores in bulk
           } else if (!l.soldOut) {
             buyFromMerchant(static_cast<uint8_t>(selected_), 1);
@@ -1035,6 +1301,8 @@ const char* CultivationActivity::exploreTitle(char* buf, const size_t len) const
       return tr(STR_CULT_REGIONS);
     case Screen::Fight:
       return tr(STR_CULT_FIGHT_TITLE);
+    case Screen::Meeting:
+      return tr(STR_CULT_MEET_TITLE);
     case Screen::Merchant:
     case Screen::MerchantSell:
       return tr(STR_CULT_MERCHANT);
@@ -1066,6 +1334,8 @@ void CultivationActivity::exploreLabels(const char*& confirmLabel, const char*& 
       const uint8_t target = v.cursor < v.cursorCount ? v.cursorTiles[v.cursor] : here;
       if (explore::pendingRegion(*state_) == v.region) {
         confirmLabel = tr(STR_CULT_FIGHT_ROW);
+      } else if (explore::meetingRegion(*state_) == v.region) {
+        confirmLabel = tr(STR_CULT_MEET_ROW);
       } else if (target != here) {
         confirmLabel = explore::canStep(*state_, v.layout, v.region, target) == explore::StepError::None
                            ? tr(STR_CULT_STEP_IN)
@@ -1081,6 +1351,9 @@ void CultivationActivity::exploreLabels(const char*& confirmLabel, const char*& 
     }
     case Screen::Fight:
       if (fightRows() < 2) upLabel = downLabel = "";
+      return;
+    case Screen::Meeting:
+      if (meetRows() < 2) upLabel = downLabel = "";
       return;
     case Screen::Merchant:
       return;
@@ -1273,6 +1546,8 @@ void CultivationActivity::renderMapInfo(const int x, int y, const int width, con
 
   if (explore::pendingRegion(s) == v.region) {
     info(tr(STR_CULT_FIGHT_WAITS));
+  } else if (explore::meetingRegion(s) == v.region) {
+    info(tr(STR_CULT_MEET_WAITS));
   } else if (target != here && p.hp > 0) {
     info(tr(STR_CULT_TILE_STEP_COST));
     if (p.stamina == 0) info(tr(STR_CULT_NO_STAMINA));
@@ -1452,6 +1727,111 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
       });
 }
 
+void CultivationActivity::renderMeeting(const int x, int y, const int width, const int bottom) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  if (!explore_) return;
+  const ExploreView& v = *explore_;
+  const ProgressBlock& p = state_->progress;
+  const explore::Meeting m = explore::pendingMeeting(*state_, v.layout);
+  if (!m.active) return;
+  char line[224];
+
+  if (v.beast[0] != '\0') {
+    capitalized(v.beast, line, sizeof(line));
+    const auto header = renderer.wrappedText(UI_12_FONT_ID, line, width, 2, EpdFontFamily::BOLD);
+    for (const auto& h : header) {
+      renderer.drawText(UI_12_FONT_ID, x, y, h.c_str(), true, EpdFontFamily::BOLD);
+      y += renderer.getLineHeight(UI_12_FONT_ID);
+    }
+    y += 4;
+  }
+  if (m.offer != explore::Offer::Trade) {  // how you would rate them, as in a fight
+    snprintf(line, sizeof(line), tr(STR_CULT_FIGHT_KIND_FORMAT), dangerName(m.danger), tr(STR_CULT_ENEMY_CULTIVATOR));
+    renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
+    y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
+  }
+  if (v.fightText[0] != '\0') y = drawWrapped(UI_10_FONT_ID, x, y, width, v.fightText, 6) + metrics.verticalSpacing;
+
+  if (m.offer == explore::Offer::Challenge) {  // a real fight: show the HP at stake
+    snprintf(line, sizeof(line), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+    renderer.drawText(UI_10_FONT_ID, x, y, line);
+    y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
+    const int barHeight = metrics.progressBarHeight;
+    renderer.drawRect(x, y, width, barHeight);
+    const int fill = p.hpMax > 0 ? static_cast<int>(static_cast<int64_t>(width - 4) * p.hp / p.hpMax) : 0;
+    if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
+    y += barHeight + metrics.verticalSpacing;
+  }
+  if (v.fightResult[0] != '\0') {
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 3);
+  } else if (m.levelsAdded > 0) {
+    snprintf(line, sizeof(line), tr(STR_CULT_FOE_BACK_FORMAT), static_cast<unsigned>(m.levelsAdded));
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
+  }
+
+  const int rows = meetRows();
+  const int rowHeight = metrics.listWithSubtitleRowHeight;
+  const int listTop = bottom - rowHeight * rows;
+  GUI.drawList(
+      renderer, Rect{0, listTop, renderer.getScreenWidth(), rowHeight * rows}, rows, selected_,
+      [this](const int i) -> std::string {
+        MeetRow list[4];
+        const uint8_t n = meetRowList(list);
+        if (i >= n) return {};
+        const explore::Meeting mm = explore::pendingMeeting(*state_, explore_->layout);
+        char row[96];
+        char name[64];
+        switch (list[i]) {
+          case MeetRow::Offer:
+            return mm.offer == explore::Offer::Spar    ? tr(STR_CULT_SPAR_ROW)
+                   : mm.offer == explore::Offer::Trade ? tr(STR_CULT_TRADE)
+                                                       : tr(STR_CULT_CHALLENGE_ROW);
+          case MeetRow::Talk:
+            return tr(STR_CULT_TALK_ROW);
+          case MeetRow::Tonic:
+            snprintf(row, sizeof(row), tr(STR_CULT_TONIC_ROW_FORMAT),
+                     itemLabel(inventory::tonicFor(*state_, mm.damage), name, sizeof(name)));
+            return row;
+          case MeetRow::WalkOn:
+            return tr(STR_CULT_WALK_ON_ROW);
+        }
+        return {};
+      },
+      [this](const int i) -> std::string {
+        MeetRow list[4];
+        const uint8_t n = meetRowList(list);
+        if (i >= n) return {};
+        const explore::Meeting mm = explore::pendingMeeting(*state_, explore_->layout);
+        char sub[160];
+        switch (list[i]) {
+          case MeetRow::Offer:
+            if (mm.offer == explore::Offer::Spar) {
+              snprintf(sub, sizeof(sub), tr(STR_CULT_SPAR_SUB_FORMAT), static_cast<unsigned>(mm.chance));
+            } else if (mm.offer == explore::Offer::Trade) {
+              snprintf(sub, sizeof(sub), "%s", tr(STR_CULT_TRADE_SUB));
+            } else {
+              snprintf(sub, sizeof(sub), tr(STR_CULT_FIGHT_SUB_CULT_FORMAT), static_cast<unsigned>(mm.chance),
+                       static_cast<unsigned>(mm.damage));
+            }
+            break;
+          case MeetRow::Talk:
+            snprintf(sub, sizeof(sub), "%s", tr(STR_CULT_TALK_SUB));
+            break;
+          case MeetRow::Tonic: {
+            const inventory::Item tonic = inventory::tonicFor(*state_, mm.damage);
+            snprintf(sub, sizeof(sub), tr(STR_CULT_TONIC_SUB_FORMAT),
+                     static_cast<unsigned>(inventory::healAmount(*state_, tonic)),
+                     static_cast<unsigned>(inventory::count(*state_, tonic)));
+            break;
+          }
+          case MeetRow::WalkOn:
+            snprintf(sub, sizeof(sub), "%s", tr(STR_CULT_WALK_ON_SUB));
+            break;
+        }
+        return sub;
+      });
+}
+
 void CultivationActivity::renderMerchant(const int x, int y, const int width, const int bottom) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   if (!explore_) return;
@@ -1480,7 +1860,11 @@ void CultivationActivity::renderMerchant(const int x, int y, const int width, co
         if (i >= ev.stock.count) return tr(STR_CULT_SELL_ITEMS_SUB);
         const explore::StockLine& l = ev.stock.lines[i];
         if (l.soldOut) {
-          snprintf(sub, sizeof(sub), tr(STR_CULT_SOLD_OUT_FORMAT), ev.regionNames[ev.region]);
+          if (ev.merchantTile == explore::kTraderTile) {
+            snprintf(sub, sizeof(sub), "%s", tr(STR_CULT_TRADER_SOLD));
+          } else {
+            snprintf(sub, sizeof(sub), tr(STR_CULT_SOLD_OUT_FORMAT), ev.regionNames[ev.region]);
+          }
         } else {
           char desc[96];
           ui::itemDescription(l.item, desc, sizeof(desc));
@@ -1489,8 +1873,8 @@ void CultivationActivity::renderMerchant(const int x, int y, const int width, co
             snprintf(desc, sizeof(desc), tr(STR_CULT_ITEM_SLIP_DESC_FORMAT),
                      pillLabel(alchemy::recipesOf(*state_).recipes[slip].pill));
           }
-          snprintf(sub, sizeof(sub), tr(STR_CULT_BUY_SUB_FORMAT),
-                   static_cast<unsigned>(explore::stockPrice(*state_, l.item)), desc);
+          snprintf(sub, sizeof(sub), tr(STR_CULT_BUY_SUB_FORMAT), static_cast<unsigned>(explore::linePrice(*state_, l)),
+                   desc);
         }
         return sub;
       });
@@ -1554,22 +1938,23 @@ void CultivationActivity::renderMerchantQty(const int x, int y, const int width,
   char name[64];
   const inventory::Item item = v.stock.lines[v.qtyLine].item;
   snprintf(line, sizeof(line), tr(STR_CULT_QTY_HEADER_FORMAT), itemLabel(item, name, sizeof(name)),
-           static_cast<unsigned>(inventory::price(item)), static_cast<unsigned long>(state_->progress.stones));
+           static_cast<unsigned>(explore::linePrice(*state_, v.stock.lines[v.qtyLine])),
+           static_cast<unsigned long>(state_->progress.stones));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   const int rowHeight = metrics.listRowHeight;
   int height = rowHeight * v.qtyRows;
   if (y + height > bottom) height = bottom - y;
-  GUI.drawList(renderer, Rect{0, y, renderer.getScreenWidth(), height}, v.qtyRows, selected_,
-               [this](const int i) -> std::string {
-                 const ExploreView& ev = *explore_;
-                 const uint16_t n = ev.qtyCounts[i];
-                 const uint32_t cost = static_cast<uint32_t>(inventory::price(ev.stock.lines[ev.qtyLine].item)) * n;
-                 char row[96];
-                 snprintf(row, sizeof(row),
-                          i + 1 == ev.qtyRows && i > 0 ? tr(STR_CULT_QTY_MAX_FORMAT) : tr(STR_CULT_QTY_FORMAT),
-                          static_cast<unsigned>(n), static_cast<unsigned long>(cost));
-                 return row;
-               });
+  GUI.drawList(
+      renderer, Rect{0, y, renderer.getScreenWidth(), height}, v.qtyRows, selected_,
+      [this](const int i) -> std::string {
+        const ExploreView& ev = *explore_;
+        const uint16_t n = ev.qtyCounts[i];
+        const uint32_t cost = static_cast<uint32_t>(explore::linePrice(*state_, ev.stock.lines[ev.qtyLine])) * n;
+        char row[96];
+        snprintf(row, sizeof(row), i + 1 == ev.qtyRows && i > 0 ? tr(STR_CULT_QTY_MAX_FORMAT) : tr(STR_CULT_QTY_FORMAT),
+                 static_cast<unsigned>(n), static_cast<unsigned long>(cost));
+        return row;
+      });
 }
 
 void CultivationActivity::renderTalisman(const int x, int y, const int width, const int bottom) {

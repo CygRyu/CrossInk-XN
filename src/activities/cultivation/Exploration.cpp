@@ -21,7 +21,10 @@ constexpr uint32_t kKindEncounter = 84;
 constexpr uint32_t kKindBeastLevel = 85;
 constexpr uint32_t kKindFightRoll = 86;
 constexpr uint32_t kKindClearReward = 87;
-constexpr uint32_t kKindEnemy = 88;  // v0.2.0: lair and guardian kinds
+constexpr uint32_t kKindEnemy = 88;      // v0.2.0: lair and guardian kinds
+constexpr uint32_t kKindMeetRoll = 94;   // v0.2.2: does a cultivator walk the road
+constexpr uint32_t kKindMeetWho = 95;    // ... who: name, temperament, level (and the id of a new one)
+constexpr uint32_t kKindMeetStock = 96;  // ... what a traveller sells
 
 constexpr size_t kHeaderBytes = 8;
 constexpr size_t kRegionBytes = 19;
@@ -96,7 +99,7 @@ void setCounter(GameState& s, const uint32_t v) {
 void setPending(GameState& s, const uint8_t region, const FightKind kind) {
   s.exploration[4] = kind == FightKind::None ? 0 : static_cast<uint8_t>(region + 1);
   s.exploration[5] = static_cast<uint8_t>(kind);
-  if (kind != FightKind::Beast) s.exploration[7] = 0;
+  if (kind != FightKind::Beast && kind != FightKind::Meeting) s.exploration[7] = 0;
 }
 
 // --- Returning foes (v0.2.1): memory bytes 0-23, 6 bytes each ---------------------
@@ -136,6 +139,78 @@ int waitingFoeIn(const GameState& s, const uint8_t region) {
     if (foeBytes(s, i)[0] == region + 1) return i;
   }
   return -1;
+}
+
+// --- Cultivators met (v0.2.2): memory bytes 32-47, 4 bytes each ---------------------------
+constexpr uint8_t kMeetBase = 32;
+constexpr uint8_t kMeetFlagTalked = 0x02;
+constexpr uint8_t kMeetFlagSlip = 0x04;
+constexpr uint8_t kMeetFlagTreasure = 0x08;
+constexpr uint8_t kMeetFlagBought = 0x10;
+constexpr uint8_t kMeetBoughtShift = 5;  // bits 5-7: the traveller's ingredient bought (0-5)
+constexpr uint8_t kMeetFlags = 0xFE;     // everything about the waiting meeting (bit 0x01 is the step cap)
+
+struct Cult {
+  uint8_t region = 0;
+  uint8_t meets = 0;  // 1-3
+  uint16_t id = 0;    // 10 bits
+  MeetOutcome outcome = MeetOutcome::None;
+  uint16_t years = 0;  // age in years at the last meeting
+};
+
+uint8_t* cultBytes(GameState& s, const uint8_t i) { return s.memory.data() + kMeetBase + 4 * i; }
+const uint8_t* cultBytes(const GameState& s, const uint8_t i) { return s.memory.data() + kMeetBase + 4 * i; }
+
+bool readCult(const GameState& s, const uint8_t i, Cult& out) {
+  if (i >= kMeetRing) return false;
+  const uint8_t* b = cultBytes(s, i);
+  const uint8_t region = b[1] & 0x0F;
+  if (region == 0 || region > kRegionCount) return false;
+  out.region = static_cast<uint8_t>(region - 1);
+  out.meets = static_cast<uint8_t>((b[1] >> 4) & 0x03);
+  out.id = static_cast<uint16_t>(b[0] | (((b[1] >> 6) & 0x03) << 8));
+  out.years = static_cast<uint16_t>(b[2] | ((b[3] & 0x1F) << 8));
+  out.outcome = static_cast<MeetOutcome>(b[3] >> 5);
+  return true;
+}
+
+void writeCult(GameState& s, const uint8_t i, const Cult& c) {
+  uint8_t* b = cultBytes(s, i);
+  b[0] = static_cast<uint8_t>(c.id);
+  b[1] = static_cast<uint8_t>(((c.region + 1) & 0x0F) | ((c.meets & 0x03) << 4) | (((c.id >> 8) & 0x03) << 6));
+  const uint16_t years = c.years > 0x1FFF ? 0x1FFF : c.years;
+  b[2] = static_cast<uint8_t>(years);
+  b[3] = static_cast<uint8_t>(((years >> 8) & 0x1F) | (static_cast<uint8_t>(c.outcome) << 5));
+}
+
+void forgetCult(GameState& s, const uint8_t i) {
+  for (uint8_t k = i; k + 1 < kMeetRing; ++k) {
+    for (uint8_t j = 0; j < 4; ++j) cultBytes(s, k)[j] = cultBytes(s, static_cast<uint8_t>(k + 1))[j];
+  }
+  for (uint8_t j = 0; j < 4; ++j) cultBytes(s, kMeetRing - 1)[j] = 0;
+}
+
+// A new cultivator goes at the end; with the ring full the oldest is forgotten.
+void addCult(GameState& s, const Cult& c) {
+  uint8_t i = 0;
+  Cult tmp;
+  while (i < kMeetRing && readCult(s, i, tmp)) ++i;
+  if (i == kMeetRing) {
+    forgetCult(s, 0);
+    i = kMeetRing - 1;
+  }
+  writeCult(s, i, c);
+}
+
+// One of the cultivators met in `region` (picked by `pick`), or -1.
+int waitingCultIn(const GameState& s, const uint8_t region, const uint32_t pick) {
+  Cult c;
+  int found[kMeetRing];
+  uint8_t n = 0;
+  for (uint8_t i = 0; i < kMeetRing; ++i) {
+    if (readCult(s, i, c) && c.region == region) found[n++] = i;
+  }
+  return n == 0 ? -1 : found[pick % n];
 }
 
 // Reading time in 10-minute units, + 1 so that 0 means "not set".
@@ -705,6 +780,17 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     r.fight = true;
     return r;
   }
+  // v0.2.2: a cultivator on the road (shares the cap: never two interruptions in a row).
+  Rng roll(contentSeed(worldSeedOf(s), kKindMeetRoll, c));
+  if (!afterRandomFight && t != Tile::Merchant && roll.below(100) < kMeetPercent) {
+    const int waiting = waitingCultIn(s, region, roll.next());
+    const bool again = waiting >= 0 && roll.below(3) == 0;  // one meeting in three is a remembered face
+    s.exploration[7] = again ? static_cast<uint8_t>(waiting + 1) : 0;
+    s.exploration[6] = static_cast<uint8_t>((s.exploration[6] & ~kMeetFlags) | 0x01);
+    setPending(s, region, FightKind::Meeting);
+    r.meeting = true;
+    return r;
+  }
   resolveTile(s, l, region, r);
   checkClear(s, l, region, r);
   return r;
@@ -857,6 +943,294 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   return res;
 }
 
+// --- Meetings (v0.2.2) ---------------------------------------------------------------------
+
+int meetingRegion(const GameState& s) {
+  if (s.exploration[5] != static_cast<uint8_t>(FightKind::Meeting)) return -1;
+  if (s.exploration[4] == 0 || s.exploration[4] > kRegionCount) return -1;
+  return s.exploration[4] - 1;
+}
+
+int waitingRegion(const GameState& s) {
+  const int fightRegion = pendingRegion(s);
+  return fightRegion >= 0 ? fightRegion : meetingRegion(s);
+}
+
+namespace {
+uint16_t meetAgeYears(const GameState& s) {
+  const uint32_t years = s.progress.ageMonths / 12u;
+  return static_cast<uint16_t>(years > 0x1FFFu ? 0x1FFFu : years);
+}
+
+// The guardian's kind and how you would rate it, for a hint; false when there
+// is nothing left to tell (it is beaten).
+bool guardianHint(const GameState& s, const Layout& l, const uint8_t region, Enemy& kind, Danger& danger) {
+  if (guardianBeaten(s, region) || cleared(s, region)) return false;
+  kind = guardianEnemy(s, region);
+  int level = l.guardianLevel;
+  if (kind == Enemy::Cultivator) level += l.guardianLevel - (regionBase(region) + 6);
+  danger = dangerFor(playerLevel(s, kind == Enemy::Cultivator) - level);
+  return true;
+}
+
+uint16_t percentOf(const uint16_t price, const uint32_t percent) {
+  const uint32_t v = (static_cast<uint32_t>(price) * percent + 50u) / 100u;
+  return static_cast<uint16_t>(v < 1u ? 1u : v > 0xFFFFu ? 0xFFFFu : v);
+}
+}  // namespace
+
+Meeting pendingMeeting(const GameState& s, const Layout& l) {
+  Meeting m;
+  const int region = meetingRegion(s);
+  if (region < 0) return m;
+  m.active = true;
+  m.region = static_cast<uint8_t>(region);
+  Cult cult;
+  const uint8_t slot = s.exploration[7];
+  if (slot >= 1 && slot <= kMeetRing && readCult(s, static_cast<uint8_t>(slot - 1), cult) && cult.region == region) {
+    m.ring = slot - 1;
+    m.id = cult.id;
+    m.meets = cult.meets;
+    m.last = cult.outcome;
+    const uint16_t now = meetAgeYears(s);
+    m.yearsAgo = now > cult.years ? static_cast<uint16_t>(now - cult.years) : 0;
+  } else {
+    m.id = static_cast<uint16_t>(mix32(contentSeed(worldSeedOf(s), kKindMeetWho, counter(s)), 0x4D454554u) & 0x3FFu);
+  }
+  m.nameSeed = contentSeed(worldSeedOf(s), kKindMeetWho, (static_cast<uint32_t>(region) << 10) | m.id);
+
+  const uint32_t t = Rng(mix32(m.nameSeed, 0x54454D50u)).below(100);  // 35 proud, 35 cautious, 30 greedy
+  m.temperament = t < 35 ? Temperament::Proud : t < 70 ? Temperament::Cautious : Temperament::Greedy;
+  const int offset = -9 + static_cast<int>(Rng(mix32(m.nameSeed, 0x4F464653u)).below(16));  // -9 .. +6
+  m.levelsAdded = static_cast<uint8_t>(kMeetLevelStep * (m.meets < 2 ? m.meets : 2));
+  // Their level follows yours (techniques left out), so a meeting is always about as hard as the road.
+  const int with = playerLevel(s, true);
+  const int plain = 2 * playerLevel(s, false) - with;
+  m.level = plain + offset + m.levelsAdded;
+  if (m.level < 1) m.level = 1;
+  const int d = with - m.level;  // a cultivator: your Sword and Palm/Fist count double
+  m.danger = dangerFor(d);
+  m.chance = winChance(d);
+  m.dares = d <= 3;  // Dangerous or worse: weaker ones do not challenge you
+  const uint32_t raw = ceilPercent(s.progress.hpMax, lossPercent(m.danger));
+  m.damage = static_cast<uint16_t>(ceilPercent(raw, 100u - bodyCut(s)));
+
+  Rng o(mix32(m.nameSeed, 0x4F464652u + m.meets));
+  switch (m.temperament) {
+    case Temperament::Proud:
+      m.offer = m.dares ? Offer::Challenge : Offer::Spar;
+      break;
+    case Temperament::Cautious:
+      m.offer = o.below(100) < 70 ? Offer::Trade : Offer::Spar;
+      break;
+    default:
+      m.offer = m.dares ? Offer::Challenge : Offer::Trade;
+      break;
+  }
+  (void)l;
+  m.talked = (s.exploration[6] & kMeetFlagTalked) != 0;
+  m.traded = (s.exploration[6] & kMeetFlagBought) != 0;
+  return m;
+}
+
+bool metCultivator(const GameState& s, const uint8_t index, uint8_t& region, uint16_t& id, uint8_t& meets,
+                   MeetOutcome& outcome) {
+  Cult c;
+  if (!readCult(s, index, c)) return false;
+  region = c.region;
+  id = c.id;
+  meets = c.meets;
+  outcome = c.outcome;
+  return true;
+}
+
+namespace {
+// The meeting is over: remember the cultivator, free the map. `tileToo`: the
+// tile's content is still to be taken (everything but a lost challenge).
+void finishMeeting(GameState& s, const Layout& l, const Meeting& m, const MeetOutcome outcome, const bool tileToo,
+                   MeetResult& res) {
+  setCounter(s, counter(s) + 1);
+  setPending(s, m.region, FightKind::None);
+  s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
+  Cult c;
+  c.region = m.region;
+  c.id = m.id;
+  c.meets = static_cast<uint8_t>(m.meets < 3 ? m.meets + 1 : 3);
+  c.outcome = outcome;
+  c.years = meetAgeYears(s);
+  if (m.ring >= 0) {
+    writeCult(s, static_cast<uint8_t>(m.ring), c);
+  } else {
+    addCult(s, c);
+  }
+  res.done = true;
+  res.outcome = outcome;
+  if (tileToo) resolveTile(s, l, m.region, res.tile);
+  checkClear(s, l, m.region, res.tile);
+}
+}  // namespace
+
+MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
+  MeetResult res;
+  const Meeting m = pendingMeeting(s, l);
+  if (!m.active) {
+    res.refused = true;
+    return res;
+  }
+  ProgressBlock& p = s.progress;
+  uint8_t& flags = s.exploration[6];
+
+  if (choice == MeetChoice::Talk) {
+    if (m.talked) {
+      res.refused = true;
+      return res;
+    }
+    Enemy kind = Enemy::Beast;
+    Danger danger = Danger::Dangerous;
+    const bool hint = guardianHint(s, l, m.region, kind, danger);
+    uint32_t cost = 0;
+    bool tells = hint;
+    if (m.temperament == Temperament::Cautious) tells = hint && m.ring >= 0;  // only to a face they know
+    if (m.temperament == Temperament::Greedy && hint) cost = 10u * (m.region + 1u);
+    if (tells && cost > p.stones) {
+      res.talk = TalkResult::TooPoor;
+      res.talkCost = cost;
+      return res;  // nothing happened; they will ask again
+    }
+    flags = static_cast<uint8_t>(flags | kMeetFlagTalked);
+    if (tells) {
+      p.stones -= cost;
+      res.talk = TalkResult::Hint;
+      res.hintEnemy = kind;
+      res.hintDanger = danger;
+      res.talkPaid = cost;
+    } else {
+      res.talk = TalkResult::Nothing;
+    }
+    return res;
+  }
+
+  if (choice == MeetChoice::WalkOn) {
+    const MeetOutcome outcome = m.traded ? MeetOutcome::Traded : m.talked ? MeetOutcome::Talked : MeetOutcome::Passed;
+    finishMeeting(s, l, m, outcome, true, res);
+    return res;
+  }
+
+  // Offer: a spar or a challenge (a trade is the shop).
+  if (m.offer == Offer::Trade) {
+    res.refused = true;
+    return res;
+  }
+  const uint32_t c = counter(s);
+  Rng rng(contentSeed(worldSeedOf(s), kKindFightRoll, c));
+  res.roll = static_cast<uint8_t>(rng.below(100));
+  res.fought = true;
+  res.won = res.roll < m.chance;
+  const bool half = trivialYield(s, m.region);
+  if (m.offer == Offer::Spar) {
+    if (res.won) {
+      res.reward.stones = halve(rng.range(5, 10) * (m.region + 1u), half);  // like a beast, no herbs
+      p.stones += res.reward.stones;
+    }
+    finishMeeting(s, l, m, res.won ? MeetOutcome::Won : MeetOutcome::Lost, true, res);
+    return res;
+  }
+  // Challenge: a real fight.
+  if (res.won) {
+    res.reward.stones = halve(3u * rng.range(5, 10) * (m.region + 1u), half);
+    p.stones += res.reward.stones;
+    if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 30) {
+      res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
+    }
+    if (rng.below(100) < prizePercent(m.danger)) {  // the hard-fight prize, as in v0.2.1
+      if (res.reward.recipe < 0 && alchemy::slipRecipe(s) >= 0) {
+        res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
+      } else {
+        const inventory::Grade g = inventory::gradeOfRegion(m.region);
+        const uint8_t from = g == inventory::Grade::Common   ? 3
+                             : g == inventory::Grade::Spirit ? 6
+                                                             : static_cast<uint8_t>(6 + rng.below(4));
+        give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(from) : inventory::oreFor(from), 2);
+      }
+    }
+    finishMeeting(s, l, m, MeetOutcome::Won, true, res);
+    return res;
+  }
+  res.hpLost = m.damage < p.hp ? m.damage : p.hp;
+  p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
+  res.thrownTo = throwBack(s, l, m.region, rng);
+  finishMeeting(s, l, m, MeetOutcome::Lost, false, res);
+  return res;
+}
+
+// What a traveller carries (stable for the meeting): the next closed region's
+// ingredient at 1.5x (greedy: 2x), a recipe slip you could learn and one
+// treasure at the list price (greedy: +30%). Someone who traded with you
+// before takes 10% off.
+namespace {
+Stock traderStock(const GameState& s, const Layout& l, const uint8_t region) {
+  Stock st;
+  const Meeting m = pendingMeeting(s, l);
+  if (!m.active || m.region != region) return st;
+  const bool greedy = m.temperament == Temperament::Greedy;
+  const uint32_t discount = m.last == MeetOutcome::Traded ? 90u : 100u;
+  Rng rng(contentSeed(worldSeedOf(s), kKindMeetStock, mix32(m.nameSeed, m.meets)));
+  uint8_t next = unlockedCount(s);
+  if (next >= kRegionCount) next = kRegionCount - 1;
+  const inventory::Item ingredient = rng.below(2) == 0 ? inventory::herbFor(next) : inventory::oreFor(next);
+  const uint16_t base = inventory::price(ingredient);
+  StockLine line;
+  line.item = ingredient;
+  line.price = percentOf(percentOf(base, greedy ? 200u : 150u), discount);
+  const uint8_t bought = static_cast<uint8_t>(s.exploration[6] >> kMeetBoughtShift);
+  line.left = bought < kTraderIngredientMax ? static_cast<uint8_t>(kTraderIngredientMax - bought) : 0;
+  line.soldOut = line.left == 0;
+  st.lines[st.count++] = line;
+  const bool slip = alchemy::slipRecipe(s) >= 0;
+  if (slip) {
+    const uint16_t price = stockPrice(s, inventory::Item::RecipeSlip);
+    StockLine sl;
+    sl.item = inventory::Item::RecipeSlip;
+    sl.limited = true;
+    sl.soldOut = (s.exploration[6] & kMeetFlagSlip) != 0;
+    sl.price = percentOf(percentOf(price, greedy ? 130u : 100u), discount);
+    st.lines[st.count++] = sl;
+  }
+  StockLine tl;
+  tl.item = rng.below(2) == 0 ? inventory::Item::ThunderTalisman : inventory::Item::CalmIncense;
+  tl.limited = true;
+  tl.soldOut = (s.exploration[6] & kMeetFlagTreasure) != 0;
+  tl.price = percentOf(percentOf(inventory::price(tl.item), greedy ? 130u : 100u), discount);
+  st.lines[st.count++] = tl;
+  return st;
+}
+
+bool buyFromTrader(GameState& s, const Layout& l, const uint8_t region, const uint8_t line, const uint16_t count) {
+  const Stock st = traderStock(s, l, region);
+  if (line >= st.count || st.lines[line].soldOut || count == 0) return false;
+  const StockLine& sl = st.lines[line];
+  if (sl.limited && count != 1) return false;
+  if (!sl.limited && count > affordable(s, sl)) return false;
+  const uint32_t cost = static_cast<uint32_t>(sl.price) * count;
+  if (cost == 0 || s.progress.stones < cost) return false;
+  s.progress.stones -= cost;
+  uint8_t bits = kMeetFlagBought;
+  if (sl.item == inventory::Item::RecipeSlip) {
+    alchemy::learnSlip(s);
+    bits = static_cast<uint8_t>(bits | kMeetFlagSlip);
+  } else {
+    inventory::add(s, sl.item, count);
+    if (sl.limited) bits = static_cast<uint8_t>(bits | kMeetFlagTreasure);
+  }
+  s.exploration[6] = static_cast<uint8_t>(s.exploration[6] | bits);
+  if (!sl.limited) {  // the ingredient: count toward the cap (count <= left, so it fits in 3 bits)
+    const uint8_t bought = static_cast<uint8_t>((s.exploration[6] >> kMeetBoughtShift) + count);
+    s.exploration[6] = static_cast<uint8_t>((s.exploration[6] & 0x1F) | (bought << kMeetBoughtShift));
+  }
+  return true;
+}
+}  // namespace
+
 // --- Regrowth, upheaval ---------------------------------------------------------------------
 
 void reshape(GameState& s, const uint8_t region) {
@@ -867,7 +1241,10 @@ void reshape(GameState& s, const uint8_t region) {
   for (size_t i = 0; i < kRegionBytes; ++i) b[i] = 0;
   b[10] = next;
   b[17] = static_cast<uint8_t>(cycle + 1);  // a new layout's merchants have new stock
-  if (s.exploration[4] == region + 1) setPending(s, region, FightKind::None);
+  if (s.exploration[4] == region + 1) {
+    setPending(s, region, FightKind::None);
+    s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
+  }
 }
 
 uint16_t tick(GameState& s) {
@@ -907,6 +1284,7 @@ bool useRegionTalisman(GameState& s, const uint8_t region) {
 
 Stock stockFor(const GameState& s, const Layout& l, const uint8_t region, const uint8_t tile) {
   Stock st;
+  if (tile == kTraderTile) return traderStock(s, l, region);  // v0.2.2: the waiting meeting's traveller
   if (tile >= kTiles || l.tiles[tile] != Tile::Merchant) return st;
   const uint8_t* b = regionBytes(s, region);
   Rng rng(contentSeed(worldSeedOf(s), kKindStock,
@@ -961,8 +1339,8 @@ uint8_t prizePercent(const Danger danger) {
   }
 }
 
-uint16_t affordable(const GameState& s, const inventory::Item item) {
-  const uint16_t price = inventory::price(item);
+uint16_t affordable(const GameState& s, const inventory::Item item, const uint16_t unitPrice) {
+  const uint16_t price = unitPrice != 0 ? unitPrice : inventory::price(item);
   if (price == 0 || !inventory::isIngredient(item)) return 0;
   const uint32_t byStones = s.progress.stones / price;
   const uint16_t room = inventory::room(s, item);
@@ -971,6 +1349,7 @@ uint16_t affordable(const GameState& s, const inventory::Item item) {
 
 bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile, const uint8_t line,
          const uint16_t count) {
+  if (tile == kTraderTile) return buyFromTrader(s, l, region, line, count);
   const Stock st = stockFor(s, l, region, tile);
   if (line >= st.count || st.lines[line].soldOut || count == 0) return false;
   if (st.lines[line].limited && count != 1) return false;

@@ -37,7 +37,11 @@
 //   4     region of the waiting fight (+1; 0 = none)
 //   5     waiting fight: 0 none, 1 beast, 2 lair, 3 guardian
 //   6     v0.2.1: bit 0x01 the last step brought a random fight (no two in a row)
+//         v0.2.2: ... or a meeting; 0x02 talked, 0x04 slip bought, 0x08 treasure bought,
+//         0x10 bought something, bits 5-7 the traveller's ingredient bought (0-5)
+//         (all about the waiting meeting)
 //   7     v0.2.1: the waiting random fight is returning foe N - 1 (0 = a new one)
+//         v0.2.2: the waiting meeting is cultivator N - 1 of the ring in memory[32-47]
 //   8 + 19 x region:
 //     0-4   charted tiles (36 bits)     5-9   used-up tiles (36 bits)
 //     10    reshape counter             11    flags (cleared, guardian beaten)
@@ -160,7 +164,7 @@ uint8_t lossPercent(Danger danger);
 bool hasMovement(const GameState& state);
 uint8_t bodyCut(const GameState& state);  // the best equipped Body technique's cut, 0-50%
 
-enum class FightKind : uint8_t { None = 0, Beast, Lair, Guardian };
+enum class FightKind : uint8_t { None = 0, Beast, Lair, Guardian, Meeting };  // Meeting: v0.2.2, not a fight
 
 struct Fight {
   FightKind kind = FightKind::None;
@@ -220,7 +224,8 @@ enum class TileOutcome : uint8_t {
 
 struct StepResult {
   bool moved = false;
-  bool fight = false;  // pendingFight() now holds it
+  bool fight = false;    // pendingFight() now holds it
+  bool meeting = false;  // v0.2.2: pendingMeeting() now holds a cultivator
   TileOutcome outcome = TileOutcome::Nothing;
   Reward reward;
   uint16_t hpLost = 0;
@@ -263,6 +268,90 @@ struct FightResult {
 
 FightResult fight(GameState& state, const Layout& layout, FightChoice choice);
 
+// --- Meetings (v0.2.2) ---------------------------------------------------------------------
+//
+// Agreed with the user: on manual steps only, 4% of steps (never on a merchant
+// tile, never right after a random fight or another meeting), a named
+// cultivator walks the same road. Name, sect, temperament and level come from
+// the world seed and a 10-bit id; nothing is stored for a stranger. They are
+// proud (challenge you if they dare, otherwise spar), cautious (trade, or
+// spar; never challenge) or greedy (challenge if they dare, otherwise trade).
+// "Dare" = you would rate them Dangerous or worse. Spar: the cultivator fight
+// rules, no HP lost on a loss, a beast's stones on a win. Challenge: the same
+// maths and a real fight: 3x a beast's stones, 30% for a recipe slip. Trade: a
+// traveller's stock (up to 5 of the next region's ingredient, a recipe slip, a
+// treasure).
+// Talk: free, once; proud ones let slip the guardian's kind and danger,
+// cautious ones only once they remember you, greedy ones charge for it.
+//
+// They remember you: a ring of 4 in memory[32-47], 4 bytes each:
+//   b0 id bits 0-7 | b1 bits 0-3 region + 1, 4-5 meetings (1-3), 6-7 id bits 8-9
+//   b2-b3 u16: bits 0-12 your age in years at the meeting, 13-15 how it ended.
+// One meeting in three in that region is a remembered cultivator, 3 levels
+// stronger per earlier meeting (at most 6).
+constexpr uint8_t kMeetRing = 4;
+constexpr uint8_t kMeetPercent = 4;
+constexpr uint8_t kMeetLevelStep = 3;
+constexpr uint8_t kTraderTile = 0xFE;        // Stock/buy "tile" of the waiting meeting's traveller
+constexpr uint8_t kTraderIngredientMax = 5;  // per meeting (agreed with the user)
+
+enum class Temperament : uint8_t { Proud = 0, Cautious, Greedy };
+enum class Offer : uint8_t { Spar = 0, Trade, Challenge };
+enum class MeetOutcome : uint8_t { None = 0, Won, Lost, Traded, Talked, Passed };
+
+struct Meeting {
+  bool active = false;
+  uint8_t region = 0;
+  uint16_t id = 0;                       // 10 bits
+  uint32_t nameSeed = 0;                 // names the cultivator (exploretext::cultivatorName)
+  int ring = -1;                         // ring index of a remembered cultivator, else -1
+  uint8_t meets = 0;                     // times met before (0 = a stranger)
+  MeetOutcome last = MeetOutcome::None;  // how the last meeting ended
+  uint16_t yearsAgo = 0;                 // in-game years since
+  Temperament temperament = Temperament::Proud;
+  Offer offer = Offer::Spar;
+  int level = 0;
+  bool dares = false;
+  Danger danger = Danger::Dangerous;
+  uint8_t chance = 0;   // percent to win a spar or a challenge
+  uint16_t damage = 0;  // HP lost when a challenge is lost
+  bool talked = false;
+  bool traded = false;      // bought something
+  uint8_t levelsAdded = 0;  // 3 x earlier meetings (at most 6)
+};
+
+int meetingRegion(const GameState& state);  // the region whose map holds the waiting meeting, or -1
+int waitingRegion(const GameState& state);  // a waiting fight's or meeting's region, or -1
+Meeting pendingMeeting(const GameState& state, const Layout& layout);
+
+enum class MeetChoice : uint8_t { Offer, Talk, WalkOn };
+enum class TalkResult : uint8_t { None, Hint, Nothing, TooPoor };
+
+struct MeetResult {
+  bool refused = false;  // the answer was not available
+  bool done = false;     // the meeting is over (the map is free again)
+  bool fought = false;   // a spar or a challenge was played
+  bool won = false;
+  uint8_t roll = 0;
+  uint16_t hpLost = 0;
+  uint8_t thrownTo = kNoTile;
+  Reward reward;
+  StepResult tile;
+  MeetOutcome outcome = MeetOutcome::None;
+  TalkResult talk = TalkResult::None;
+  Enemy hintEnemy = Enemy::Beast;
+  Danger hintDanger = Danger::Dangerous;
+  uint32_t talkPaid = 0;
+  uint32_t talkCost = 0;  // what a greedy one asked when you were short
+};
+
+// Offer: play the spar or the challenge (a trade is the shop: stockFor / buy
+// with kTraderTile). Talk: once, the meeting stays open. WalkOn: leave.
+MeetResult meet(GameState& state, const Layout& layout, MeetChoice choice);
+// Ring entry i of the cultivators you have met (false when empty), for the tests.
+bool metCultivator(const GameState& state, uint8_t index, uint8_t& region, uint16_t& id, uint8_t& meets,
+                   MeetOutcome& outcome);
+
 // --- Regrowth, upheaval and talismans ---------------------------------------------------
 
 // Regrows used-up tiles whose time has come and reshapes regions 20 reading
@@ -278,6 +367,8 @@ struct StockLine {
   inventory::Item item = inventory::Item::None;
   bool limited = false;  // one unit per restock (tonics, treasures, talismans)
   bool soldOut = false;
+  uint16_t price = 0;  // v0.2.2: a traveller's price per unit (0 = the list price)
+  uint8_t left = 0;    // v0.2.2: units a traveller still sells (0 = no cap)
 };
 struct Stock {
   StockLine lines[kMerchantStockMax];
@@ -288,10 +379,19 @@ struct Stock {
 Stock stockFor(const GameState& state, const Layout& layout, uint8_t region, uint8_t tile);
 // What a stock line costs (a recipe slip by the grade of the recipe it teaches).
 uint16_t stockPrice(const GameState& state, inventory::Item item);
+// v0.2.2: what a line costs per unit, a traveller's own price when it has one.
+inline uint16_t linePrice(const GameState& state, const StockLine& line) {
+  return line.price != 0 ? line.price : stockPrice(state, line.item);
+}
 // v0.2.1: herbs and ores can be bought `count` at a time; limited lines one.
 bool buy(GameState& state, const Layout& layout, uint8_t region, uint8_t tile, uint8_t line, uint16_t count = 1);
 // How many of an unlimited line the stones and the bag allow (0 for limited lines).
-uint16_t affordable(const GameState& state, inventory::Item item);
+uint16_t affordable(const GameState& state, inventory::Item item, uint16_t unitPrice = 0);
+// v0.2.2: affordable() for a stock line, within a traveller's cap.
+inline uint16_t affordable(const GameState& state, const StockLine& line) {
+  const uint16_t most = affordable(state, line.item, line.price);
+  return line.left != 0 && line.left < most ? line.left : most;
+}
 bool sell(GameState& state, inventory::Item item);
 
 }  // namespace explore
