@@ -538,11 +538,146 @@ void CultivationActivity::openChronicle() {
     return;
   }
   {
+    // v0.2.3 (user): open on the newest page. Under the lock: laying a page
+    // out uses the renderer's fonts, and the render task reads the same file.
     RenderLock lock(*this);
     notice_[0] = '\0';
+    FsFile f;
+    if (Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+      view->size = static_cast<uint32_t>(f.fileSize());
+      view->starts[0] = chronicleNewestStart(f, view->size);
+      view->age = chronicle::pageAge(f, view->size, view->starts[0]);
+      f.close();
+    }
     chronicle_ = std::move(view);
     screen_ = Screen::Chronicle;
   }
+  requestUpdate();
+}
+
+// --- Chronicle viewer (v0.2.3): pages laid out by the renderer ------------------
+
+// The page area of the Chronicle screen, as render() works it out.
+uint32_t CultivationActivity::chronicleNextStart(FsFile& f, const uint32_t size, const uint32_t start) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const int x = metrics.contentSidePadding;
+  const int width = renderer.getScreenWidth() - metrics.contentSidePadding * 2;
+  const int top = CompactHeader::contentTop(metrics) + metrics.verticalSpacing;
+  const int bottom = renderer.getScreenHeight() - metrics.buttonHintsHeight - metrics.verticalSpacing;
+  bool drewAny = false;
+  return chronicleLayout(f, size, start, x, top, width, bottom, false, &drewAny);
+}
+
+// The newest page is the one that ends at the end of the file (`size`) and
+// holds as much as fits: the earliest of the last lines whose page still
+// reaches the end (a binary search over at most 48 line starts, about 6 page
+// layouts). With `size` set to a page's start it finds the page before it.
+uint32_t CultivationActivity::chronicleNewestStart(FsFile& f, const uint32_t size) {
+  if (size == 0) return 0;
+  constexpr uint8_t kCandidates = 48;
+  uint32_t window = 2048;  // a page holds about 1 KB of text
+  for (;;) {
+    const uint32_t from = size > window ? size - window : 0;
+    uint32_t candidates[kCandidates];
+    const uint8_t n = chronicle::lineStartsIn(f, size, from, size, candidates, kCandidates);
+    if (n == 0) return 0;
+    if (chronicleNextStart(f, size, candidates[0]) >= size) {
+      // Even the earliest fits: look further back unless that is the top or already a long way.
+      if (candidates[0] == 0 || n == kCandidates || window >= 16384) return candidates[0];
+      window *= 2;
+      continue;
+    }
+    int lo = 0;      // its page stops short of the end
+    int hi = n - 1;  // its page reaches the end (one paragraph always fits)
+    while (hi - lo > 1) {
+      const int mid = (lo + hi) / 2;
+      if (chronicleNextStart(f, size, candidates[mid]) >= size) {
+        hi = mid;
+      } else {
+        lo = mid;
+      }
+    }
+    // Never begin right under a heading: the page before would end on the
+    // heading apart from its entries. Begin an entry later instead.
+    while (hi + 1 < n && chronicle::withHeadingAbove(f, size, candidates[hi]) != candidates[hi]) ++hi;
+    return candidates[hi];
+  }
+}
+
+// The page before one starting at `start`, without reading from the top: the
+// fullest page that ends exactly at `start`, found as the newest page is, with
+// the file treated as ending there. Nothing is shown twice and nothing skipped.
+uint32_t CultivationActivity::chroniclePreviousStart(FsFile& f, const uint32_t start) {
+  return start == 0 ? 0 : chronicleNewestStart(f, start);
+}
+
+void CultivationActivity::chronicleRefreshAge() {
+  if (!chronicle_) return;
+  ChronicleView& v = *chronicle_;
+  FsFile f;
+  if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) return;
+  v.age = chronicle::pageAge(f, v.size, v.starts[v.cur]);
+  f.close();
+}
+
+void CultivationActivity::chronicleShow(const uint32_t start) {
+  if (!chronicle_) return;
+  ChronicleView& v = *chronicle_;
+  v.starts[0] = start;
+  v.count = 1;
+  v.cur = 0;
+  notice_[0] = '\0';
+  chronicleRefreshAge();
+}
+
+// The jump menu's rows, in order (user, session 9).
+enum ChronicleMenuRow : uint8_t { kRowNewest, kRowBeginning, kRowBack, kRowForward, kRowExport, kChronicleMenuRows };
+
+void CultivationActivity::chronicleMenuChoose(const int row) {
+  if (!chronicle_) return;
+  ChronicleView& v = *chronicle_;
+  RenderLock lock(*this);
+  selected_ = v.savedSelected;
+  screen_ = Screen::Chronicle;
+  if (row == kRowExport) {
+    // A copy the player can see and copy off the card; the notice says where.
+    char path[96];
+    if (chronicle::exportCopy(*state_, path, sizeof(path))) {
+      snprintf(notice_, sizeof(notice_), tr(STR_CULT_EXPORTED_FORMAT), path);
+    } else {
+      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_EXPORT_FAILED));
+    }
+    requestUpdate();
+    return;
+  }
+  FsFile f;
+  if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+    requestUpdate();
+    return;
+  }
+  const uint32_t here = v.starts[v.cur];
+  uint32_t target = here;
+  switch (row) {
+    case kRowNewest:
+      target = chronicleNewestStart(f, v.size);
+      break;
+    case kRowBeginning:
+      target = 0;
+      break;
+    case kRowBack:
+      target = chronicle::jumpBack(f, v.size, here, v.age);
+      break;
+    case kRowForward:
+      target = chronicle::jumpForward(f, v.size, here, v.age);
+      if (target == chronicle::kNotFound) target = chronicleNewestStart(f, v.size);
+      break;
+    default:
+      break;
+  }
+  f.close();
+  // Already on the newest page and asked for it (or for a jump that cannot
+  // move): stay, keeping the pages around it.
+  if (target != here) chronicleShow(target);
   requestUpdate();
 }
 
@@ -819,38 +954,64 @@ void CultivationActivity::loop() {
       ChronicleView& v = *chronicle_;
       if (back) {
         closeChronicle();
-      } else if (confirm) {
-        // Export (user request): a copy the player can see and copy off the card.
-        // Under the render lock: the page being drawn reads the same file.
+      } else if (confirm) {  // v0.2.3: the jump menu (Export moved into it)
         RenderLock lock(*this);
-        char path[96];
-        const bool ok = chronicle::exportCopy(*state_, path, sizeof(path));
-        if (ok) {
-          snprintf(notice_, sizeof(notice_), tr(STR_CULT_EXPORTED_FORMAT), path);
-        } else {
-          snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_EXPORT_FAILED));
-        }
+        v.savedSelected = selected_;
+        selected_ = 0;
+        screen_ = Screen::ChronicleMenu;
         requestUpdate();
-      } else if (down && v.more) {
+      } else if (down && (v.cur + 1 < v.count || v.more)) {
         RenderLock lock(*this);
         notice_[0] = '\0';
-        if (v.depth + 1 < ChronicleView::kHistory) {
-          ++v.depth;
-        } else {  // forget the oldest page
-          memmove(v.starts, v.starts + 1, sizeof(v.starts) - sizeof(v.starts[0]));
+        // The next page as drawn. A cached one is used only if it skips nothing
+        // (an export notice makes the page shorter than it was laid out).
+        if (v.cur + 1 >= v.count || v.starts[v.cur + 1] > v.next) {
+          if (v.cur + 1 >= ChronicleView::kCache) {  // full: forget the oldest page
+            memmove(v.starts, v.starts + 1, sizeof(v.starts) - sizeof(v.starts[0]));
+            --v.cur;
+          }
+          v.starts[v.cur + 1] = v.next;
+          v.count = static_cast<uint8_t>(v.cur + 2);
         }
-        v.starts[v.depth] = v.next;
-        ++v.pageNumber;
+        ++v.cur;
+        chronicleRefreshAge();
         requestUpdate();
-      } else if (up && v.depth > 0) {
+      } else if (up && (v.cur > 0 || v.starts[0] > 0)) {
         RenderLock lock(*this);
         notice_[0] = '\0';
-        --v.depth;
-        --v.pageNumber;
+        if (v.cur > 0) {
+          --v.cur;
+        } else {  // before the first page known: lay it out from a little earlier
+          FsFile f;
+          if (Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+            const uint32_t previous = chroniclePreviousStart(f, v.starts[0]);
+            f.close();
+            if (v.count >= ChronicleView::kCache) --v.count;  // full: forget the newest page
+            memmove(v.starts + 1, v.starts, v.count * sizeof(v.starts[0]));
+            v.starts[0] = previous;
+            ++v.count;
+          }
+        }
+        chronicleRefreshAge();
         requestUpdate();
       }
       return;
     }
+
+    case Screen::ChronicleMenu:
+      if (!chronicle_) {
+        closeChronicle();
+      } else if (back) {
+        RenderLock lock(*this);
+        selected_ = chronicle_->savedSelected;
+        screen_ = Screen::Chronicle;
+        requestUpdate();
+      } else if (confirm) {
+        chronicleMenuChoose(selected_);
+      } else {
+        handleList(kChronicleMenuRows, up, down);
+      }
+      return;
 
     case Screen::ScrollNews:
       if (back || confirm) {
@@ -1085,11 +1246,16 @@ void CultivationActivity::render(RenderLock&&) {
     title = recipeTitle;
   }
   char chronicleTitle[48];
-  if (screen_ == Screen::Chronicle && chronicle_) {
-    snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_TITLE_FORMAT),
-             static_cast<unsigned long>(chronicle_->pageNumber));
+  if (screen_ == Screen::Chronicle && chronicle_) {  // v0.2.3: the page's age, not a page number
+    if (chronicle_->age >= 0) {
+      snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_AGE_FORMAT),
+               static_cast<long>(chronicle_->age));
+    } else {
+      snprintf(chronicleTitle, sizeof(chronicleTitle), "%s", tr(STR_CULT_CHRONICLE_BIRTH));
+    }
     title = chronicleTitle;
   }
+  if (screen_ == Screen::ChronicleMenu) title = tr(STR_CULT_ACTION_CHRONICLE);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, title);
   } else {
@@ -1175,9 +1341,12 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Chronicle:
       renderChronicle(x, top, width, bottom);
-      confirmLabel = tr(STR_CULT_EXPORT);
-      upLabel = chronicle_ && chronicle_->depth > 0 ? tr(STR_CULT_PREVIOUS) : "";
-      downLabel = chronicle_ && chronicle_->more ? tr(STR_CULT_NEXT) : "";
+      confirmLabel = tr(STR_MENU);
+      upLabel = chronicle_ && (chronicle_->cur > 0 || chronicle_->starts[0] > 0) ? tr(STR_CULT_PREVIOUS) : "";
+      downLabel = chronicle_ && (chronicle_->cur + 1 < chronicle_->count || chronicle_->more) ? tr(STR_CULT_NEXT) : "";
+      break;
+    case Screen::ChronicleMenu:
+      renderChronicleMenu(top, bottom);
       break;
     case Screen::ScrollNews: {
       renderScrollNews(x, top, width, bottom);
@@ -1933,16 +2102,32 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, i
   }
   ChronicleView& v = *chronicle_;
   v.more = false;
-  v.next = v.starts[v.depth];
+  v.next = v.starts[v.cur];
 
   FsFile f;
   if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) {
     drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
     return;
   }
-  const size_t size = f.fileSize();
-  size_t offset = v.starts[v.depth];
   bool drewAny = false;
+  // A page whose next page is already known (found going back) stops there,
+  // so the same lines never show on both.
+  const uint32_t end = v.cur + 1 < v.count ? v.starts[v.cur + 1] : v.size;
+  const uint32_t next = chronicleLayout(f, end, v.starts[v.cur], x, y, width, bottom, true, &drewAny);
+  f.close();
+  v.next = next;
+  v.more = next < v.size;
+  if (!drewAny) drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
+}
+
+// Lays out (and with `draw`, draws) one page from `start`; returns where the
+// next page starts. The same code measures pages for Previous and Newest, so
+// the breaks it finds are the ones drawn.
+uint32_t CultivationActivity::chronicleLayout(FsFile& f, const uint32_t size, const uint32_t start, const int x, int y,
+                                              const int width, const int bottom, const bool draw, bool* drewAny) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  uint32_t offset = start;
+  *drewAny = false;
   char buf[256];
   while (offset < size) {
     if (!f.seek(offset)) break;
@@ -1959,7 +2144,7 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, i
     buf[len] = '\0';
 
     if (len == 0) {  // a blank line: a little space, but never at the top of a page
-      if (drewAny) y += metrics.verticalSpacing;
+      if (*drewAny) y += metrics.verticalSpacing;
       offset += consumed;
       continue;
     }
@@ -1972,19 +2157,28 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, i
     const int height = static_cast<int>(wrapped.size()) * lineHeight;
     // Keep a heading with what follows it: room for a full entry (up to 3 lines) below it.
     const int needed = heading ? height + 3 * renderer.getLineHeight(UI_10_FONT_ID) : height;
-    if (drewAny && y + needed > bottom) break;
+    if (*drewAny && y + needed > bottom) break;
     for (const auto& w : wrapped) {
-      renderer.drawText(font, x, y, w.c_str(), true, style);
+      if (draw) renderer.drawText(font, x, y, w.c_str(), true, style);
       y += lineHeight;
     }
     y += 4;
-    drewAny = true;
+    *drewAny = true;
     offset += consumed;
   }
-  f.close();
-  v.next = static_cast<uint32_t>(offset);
-  v.more = offset < size;
-  if (!drewAny) drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
+  return offset;
+}
+
+// v0.2.3: the jump menu; Select chooses, Back returns to the page.
+void CultivationActivity::renderChronicleMenu(const int top, const int bottom) {
+  static const StrId kRows[kChronicleMenuRows] = {
+      StrId::STR_CULT_CHRONICLE_NEWEST, StrId::STR_CULT_CHRONICLE_BEGINNING, StrId::STR_CULT_CHRONICLE_YEARS_BACK,
+      StrId::STR_CULT_CHRONICLE_YEARS_FORWARD, StrId::STR_CULT_CHRONICLE_EXPORT};
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  int height = metrics.listRowHeight * kChronicleMenuRows;
+  if (top + height > bottom) height = bottom - top;
+  GUI.drawList(renderer, Rect{0, top, renderer.getScreenWidth(), height}, kChronicleMenuRows, selected_,
+               [](const int i) -> std::string { return text(kRows[i]); });
 }
 
 #endif  // CROSSINK_CULTIVATION

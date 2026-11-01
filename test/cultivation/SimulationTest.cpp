@@ -143,7 +143,7 @@ TEST(Simulation, StoneMinutesCarryAcrossShortVisits) {
   EXPECT_EQ(absorb(s, g).stonesGained, 1u);  // the second half-minute completes one
 }
 
-TEST(Simulation, StaminaIsOnePerFifteenMinutesCappedAtTwelve) {
+TEST(Simulation, StaminaIsOnePerFifteenMinutesCappedAtTheBank) {
   GameState a = newCharacter();
   GameState b = newCharacter();
   for (int i = 0; i < 3; ++i) absorb(a, minutes(10));  // three short sessions

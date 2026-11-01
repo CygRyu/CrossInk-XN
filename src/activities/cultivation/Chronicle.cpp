@@ -5,6 +5,7 @@
 #include <HalStorage.h>
 #include <Logging.h>
 
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -247,6 +248,171 @@ bool exportCopy(const GameState& state, char* pathOut, const size_t pathLen) {
   }
   LOG_INF("CULT", "Chronicle exported to %s (%lu bytes)", path, static_cast<unsigned long>(copied));
   return true;
+}
+
+// --- Reading helpers for the viewer (v0.2.3) -----------------------------------
+
+namespace {
+
+constexpr uint32_t kWindow = 256;  // bytes looked at per read
+constexpr uint32_t kPeek = 24;     // bytes past a line start, enough for "Age 12345\r\n"
+
+// Calls visit(offset, text, len) for every line start in [lowest, before),
+// newest first; `text` is the first `len` (<= kPeek) bytes of that line.
+// visit returns false to stop. Reads at most kWindow + kPeek + 1 bytes a time.
+template <typename Visit>
+void scanBack(FsFile& f, const uint32_t size, uint32_t before, const uint32_t lowest, Visit visit) {
+  char buf[kWindow + kPeek + 1];
+  uint32_t hi = before < size ? before : size;
+  while (hi > lowest) {
+    const uint32_t lo = hi - lowest > kWindow ? hi - kWindow : lowest;
+    const uint32_t readFrom = lo > 0 ? lo - 1 : 0;
+    const uint32_t readTo = hi + kPeek < size ? hi + kPeek : size;
+    const uint32_t n = readTo - readFrom;
+    if (!f.seek(readFrom) || f.read(buf, n) != static_cast<int>(n)) return;
+    for (uint32_t p = hi; p-- > lo;) {
+      const uint32_t i = p - readFrom;
+      if (p != 0 && buf[i - 1] != '\n') continue;
+      const uint32_t avail = n - i < kPeek ? n - i : kPeek;
+      if (!visit(p, buf + i, static_cast<size_t>(avail))) return;
+    }
+    hi = lo;
+  }
+}
+
+// The same going forward: every line start in [from, size), oldest first.
+template <typename Visit>
+void scanForward(FsFile& f, const uint32_t size, const uint32_t from, Visit visit) {
+  char buf[kWindow + kPeek + 1];
+  uint32_t lo = from;
+  while (lo < size) {
+    const uint32_t hi = size - lo > kWindow ? lo + kWindow : size;
+    const uint32_t readFrom = lo > 0 ? lo - 1 : 0;
+    const uint32_t readTo = hi + kPeek < size ? hi + kPeek : size;
+    const uint32_t n = readTo - readFrom;
+    if (!f.seek(readFrom) || f.read(buf, n) != static_cast<int>(n)) return;
+    for (uint32_t p = lo; p < hi; ++p) {
+      const uint32_t i = p - readFrom;
+      if (p != 0 && buf[i - 1] != '\n') continue;
+      const uint32_t avail = n - i < kPeek ? n - i : kPeek;
+      if (!visit(p, buf + i, static_cast<size_t>(avail))) return;
+    }
+    lo = hi;
+  }
+}
+
+bool blankLine(const char* text, const size_t len) {
+  return len == 0 || text[0] == '\n' || (text[0] == '\r' && (len == 1 || text[1] == '\n'));
+}
+
+}  // namespace
+
+int32_t headingAge(const char* text, const size_t len) {
+  if (text == nullptr || len < 5 || strncmp(text, "Age ", 4) != 0) return -1;
+  int32_t age = 0;
+  size_t i = 4;
+  for (; i < len && text[i] >= '0' && text[i] <= '9'; ++i) {
+    if (age > 100000000) return -1;
+    age = age * 10 + (text[i] - '0');
+  }
+  if (i == 4) return -1;                                         // no digits
+  if (i < len && text[i] != '\n' && text[i] != '\r') return -1;  // "Age 5x": not a heading
+  return age;
+}
+
+uint32_t lineStartAtOrBefore(FsFile& f, const uint32_t size, const uint32_t pos) {
+  uint32_t found = 0;
+  scanBack(f, size, (pos < size ? pos : size) + 1, 0, [&](const uint32_t p, const char*, size_t) {
+    found = p;
+    return false;
+  });
+  return found;
+}
+
+uint8_t lineStartsIn(FsFile& f, const uint32_t size, const uint32_t from, const uint32_t to, uint32_t* out,
+                     const uint8_t max) {
+  if (max == 0) return 0;
+  uint8_t count = 0;
+  scanBack(f, size, to, from, [&](const uint32_t p, const char*, size_t) {
+    out[count++] = p;  // newest first for now
+    return count < max;
+  });
+  for (uint8_t i = 0; i < count / 2; ++i) {  // oldest first
+    const uint32_t t = out[i];
+    out[i] = out[count - 1 - i];
+    out[count - 1 - i] = t;
+  }
+  return count;
+}
+
+uint32_t findHeadingForward(FsFile& f, const uint32_t size, const uint32_t from, const int32_t minAge) {
+  uint32_t found = kNotFound;
+  scanForward(f, size, from, [&](const uint32_t p, const char* text, const size_t len) {
+    if (headingAge(text, len) < minAge) return true;  // -1 for non-headings, always below
+    found = p;
+    return false;
+  });
+  return found;
+}
+
+uint32_t findHeadingBackward(FsFile& f, const uint32_t size, const uint32_t before, const int32_t maxAge,
+                             int32_t* ageOut) {
+  uint32_t found = kNotFound;
+  scanBack(f, size, before, 0, [&](const uint32_t p, const char* text, const size_t len) {
+    const int32_t age = headingAge(text, len);
+    if (age < 0 || age > maxAge) return true;
+    found = p;
+    if (ageOut != nullptr) *ageOut = age;
+    return false;
+  });
+  return found;
+}
+
+uint32_t withHeadingAbove(FsFile& f, const uint32_t size, const uint32_t start) {
+  uint32_t result = start;
+  scanBack(f, size, start, 0, [&](const uint32_t p, const char* text, const size_t len) {
+    if (blankLine(text, len)) return true;
+    if (headingAge(text, len) >= 0 || (len >= 5 && strncmp(text, "Life ", 5) == 0)) result = p;
+    return false;
+  });
+  return result;
+}
+
+int32_t pageAge(FsFile& f, const uint32_t size, const uint32_t start) {
+  // The page's first line that is not blank.
+  uint32_t first = kNotFound;
+  scanForward(f, size, start, [&](const uint32_t p, const char* text, const size_t len) {
+    if (blankLine(text, len)) return true;
+    first = p;
+    return false;
+  });
+  if (first != kNotFound) {
+    char line[48];
+    if (f.seek(first)) {
+      const int got = f.read(line, sizeof(line) - 1);
+      if (got > 0) {
+        line[got] = '\0';
+        const int32_t heading = headingAge(line, static_cast<size_t>(got));
+        if (heading >= 0) return heading;
+        const int32_t season = ageInLine(line);
+        if (season >= 0) return season;
+      }
+    }
+  }
+  int32_t age = -1;
+  findHeadingBackward(f, size, start, INT32_MAX, &age);
+  return age;
+}
+
+uint32_t jumpBack(FsFile& f, const uint32_t size, const uint32_t start, const int32_t age) {
+  if (age < 0) return 0;  // already in the opening chapter
+  const uint32_t at = findHeadingBackward(f, size, start, age - kJumpYears);
+  return at == kNotFound ? 0 : at;
+}
+
+uint32_t jumpForward(FsFile& f, const uint32_t size, const uint32_t start, const int32_t age) {
+  const int32_t from = age < 0 ? static_cast<int32_t>(kStartAgeYears) : age;
+  return findHeadingForward(f, size, start + 1, from + kJumpYears);
 }
 
 }  // namespace chronicle

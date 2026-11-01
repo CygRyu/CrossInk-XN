@@ -23,7 +23,7 @@ constexpr uint8_t kHiddenTraitCount = 8;
 
 // Fairness decisions (session 1, see tools/cultivation/README.md):
 constexpr uint32_t kSecondsPerStamina = 15 * 60;      // 4A: +1 stamina per 15 min read, nothing per session
-constexpr uint8_t kStaminaCap = 12;                   // DOC: bank cap
+constexpr uint8_t kStaminaCap = 20;                   // DOC: bank cap (12 until v0.2.3)
 constexpr uint32_t kSecondsPerStone = 60;             // 5B: 1 stone per minute read ...
 constexpr uint32_t kPagesPerStone = 2;                // ... + 1 per 2 pages, at most half the minutes of the visit
 constexpr uint32_t kDaoHeartFullSeconds = 15 * 3600;  // 2B: Dao Heart 100 after 15 h read, never decays

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <HalStorage.h>
+
 #include <cstddef>
 #include <cstdint>
 
@@ -29,6 +31,8 @@
 // them, so nothing is written twice.
 //
 // Memory: a 256-byte stack buffer for the file's tail; nothing on the heap.
+// The viewer (v0.2.3) opens on the newest page; its titles and year jumps use
+// the "Age N" headings, so keep writing one whenever the age changes.
 namespace cultivation {
 namespace chronicle {
 
@@ -61,6 +65,51 @@ int32_t ageInLine(const char* line);
 constexpr char kExportDirectory[] = "/Chronicles";
 bool exportCopy(const GameState& state, char* pathOut, size_t pathLen);
 void exportPath(const GameState& state, char* out, size_t len);
+
+// --- Reading helpers for the viewer (v0.2.3) -----------------------------------
+// The viewer opens on the newest page and jumps by years, so it must never
+// read the whole file: a long life's Chronicle can pass 500 KB. Each helper
+// reads through a ~300-byte stack buffer, only near the offsets it is given.
+// Page layout itself stays in the viewer (it needs the renderer). `size` is
+// the open file's size.
+
+constexpr uint32_t kNotFound = 0xFFFFFFFFu;
+constexpr int32_t kJumpYears = 10;  // the jump menu's "10 years back / forward" (user, session 9)
+
+// "Age 52" -> 52; anything else, -1. `len` bytes (no terminator needed).
+int32_t headingAge(const char* text, size_t len);
+
+// The start of the line holding `pos` (0 at the top of the file).
+uint32_t lineStartAtOrBefore(FsFile& f, uint32_t size, uint32_t pos);
+
+// The line starts in [from, to), oldest first; at most `max`, keeping the
+// newest when there are more. Returns how many were written.
+uint8_t lineStartsIn(FsFile& f, uint32_t size, uint32_t from, uint32_t to, uint32_t* out, uint8_t max);
+
+// The first "Age N" heading at or after `from` with N >= minAge, or kNotFound.
+uint32_t findHeadingForward(FsFile& f, uint32_t size, uint32_t from, int32_t minAge);
+// The last "Age N" heading starting before `before` with N <= maxAge, or
+// kNotFound. Its age goes into `ageOut` when given.
+uint32_t findHeadingBackward(FsFile& f, uint32_t size, uint32_t before, int32_t maxAge, int32_t* ageOut = nullptr);
+
+// `start` moved up to a heading ("Age N", "Life N: ...") right above it,
+// blank lines between them skipped; else `start`. The viewer uses it so a
+// page found going back never begins right under a heading (which would
+// leave the heading at the bottom of the page before, apart from its entries).
+uint32_t withHeadingAbove(FsFile& f, uint32_t size, uint32_t start);
+
+// The age a page starting at `start` belongs to, for its title: its first
+// season line or "Age N" heading (blank lines skipped), else the nearest
+// heading above it. -1 for the opening chapter (birth, Awakening Test).
+int32_t pageAge(FsFile& f, uint32_t size, uint32_t start);
+
+// Where "10 years back" / "10 years forward" land from a page at `start`
+// whose age is `age` (pageAge). Back lands on the nearest heading at or below
+// age - 10, or the beginning (0). Forward lands on the first heading at or
+// above age + 10 (counted from the starting age on the opening chapter), or
+// kNotFound, meaning "the newest page".
+uint32_t jumpBack(FsFile& f, uint32_t size, uint32_t start, int32_t age);
+uint32_t jumpForward(FsFile& f, uint32_t size, uint32_t start, int32_t age);
 
 }  // namespace chronicle
 }  // namespace cultivation

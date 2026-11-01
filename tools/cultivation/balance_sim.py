@@ -82,7 +82,7 @@ TUNING = {
     "failure_bar_loss": 0.25,
     "start_age": 16,
     "rerolls": 3,
-    "stamina_cap": 12,
+    "stamina_cap": 20,              # v0.2.3 (user, session 9); was 12
     "stamina_minutes": 15,             # decision 4A: +1 stamina per 15 min read, nothing per session
     "stones_per_minute": 1,            # decision 5B: 1 stone per minute read ...
     "pages_per_stone": 2,              # ... + 1 per 2 pages, page part <= half the minutes of the visit

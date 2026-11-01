@@ -108,7 +108,7 @@ Fairness checks (DOC fairness rules, with decisions 1A 2B 4A 5B 6A):
     90 min/day                                749 h  (-0.1% vs evening)
     Weekends only, 210 min Sat+Sun            758 h  (+1.0% vs evening)
   Dao Heart at the end (0-100, full after 15 h read): daily 100, weekends-only 100
-  Stamina per week (+1 per 15 min read, nothing per session, bank cap 12):
+  Stamina per week (+1 per 15 min read, nothing per session, bank cap 20):
     30 min/day                              14.0/week earned
     3 x 10 min/day                          14.0/week earned
     Weekends only, 105 min Sat+Sun          14.0/week earned

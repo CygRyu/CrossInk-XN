@@ -47,7 +47,7 @@ The meridian row matters most. With the doc's own bonus sizes (grades at most ×
 | 1A | Night readers got ~12% more Qi (Dao of Flowing Water "+Qi at night") | No time-of-day Dao gives Qi. Flowing Water keeps +Water techniques and a non-power night perk (better event luck at night) |
 | 2B | Weekend-only readers' Dao Heart stuck near 4/100 (calendar streak) | Dao Heart grows with reading hours: full after 15 h, never decays. The streak stays as flavor and the Dao of Time unlock; streak decay and the Stillness Charm no longer touch Dao Heart |
 | 3A | Heavy readers reached bottlenecks with a weak Dao Heart | Fixed by 2B |
-| 4A | Stamina favoured many short sessions (+1 per session) | +1 per 15 minutes read, nothing per session; bank cap 12 |
+| 4A | Stamina favoured many short sessions (+1 per session) | +1 per 15 minutes read, nothing per session; bank cap 12 (20 since v0.2.3) |
 | 5B | Stones at 1 per page gave fast readers 2× | 1 per minute + 1 per 2 pages, the page part at most half the minutes of the visit. Dao of the Myriad Paths unlocks at 150 h instead of 10,000 pages |
 | 6A | The daily soft cap halved weekend binges (1,236 h vs 825 h) | Weekly allowance: 100% for the first 14 h of a calendar week (Mon–Sun), 50% for the next 14 h, 25% after |
 

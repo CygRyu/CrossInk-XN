@@ -4,6 +4,8 @@
 
 #if CROSSINK_CULTIVATION
 
+#include <HalStorage.h>
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -65,25 +67,26 @@ class CultivationActivity final : public Activity {
     GreatPerfection,  // what staying at the peak does; Confirm enters it
     Outcome,          // the result of either, with its Chronicle line
     Chronicle,
-    ScrollNews,    // scrolls minted, improved or sold this visit
-    BetterManual,  // a new manual beats the equipped one: offer to equip it
-    Techniques,    // the library
-    ScrollDetail,  // one scroll: equip, unequip, sell
-    SellConfirm,   // selling cannot be undone
-    Trial,         // a Tribulation strike or a Heart Demon scene (CultivationTrialScreens.cpp)
-    Regions,       // exploration (CultivationExploreScreens.cpp): the open regions and the bag
-    Map,           // one region's 6x6 map
-    Fight,         // a random encounter, a lair or the guardian
-    Meeting,       // v0.2.2: a cultivator on the road
-    Merchant,      // a wandering merchant's stock
-    MerchantSell,  // selling items back at a third
-    Bag,           // items; tonics are drunk here
-    Talisman,      // which cleared region a Region Talisman reshapes
-    MerchantQty,   // v0.2.1: how many herbs or ores to buy
-    Alchemy,       // v0.2.0 (CultivationAlchemyScreens.cpp): the cauldron and what to do with it
-    Recipes,       // the recipes known
-    RecipeDetail,  // one recipe: its parts, what it makes, the brew time; Confirm brews
-    Experiment,    // pick 2-3 ingredients and mix them
+    ChronicleMenu,  // v0.2.3: Newest, Beginning, 10 years back / forward, Export
+    ScrollNews,     // scrolls minted, improved or sold this visit
+    BetterManual,   // a new manual beats the equipped one: offer to equip it
+    Techniques,     // the library
+    ScrollDetail,   // one scroll: equip, unequip, sell
+    SellConfirm,    // selling cannot be undone
+    Trial,          // a Tribulation strike or a Heart Demon scene (CultivationTrialScreens.cpp)
+    Regions,        // exploration (CultivationExploreScreens.cpp): the open regions and the bag
+    Map,            // one region's 6x6 map
+    Fight,          // a random encounter, a lair or the guardian
+    Meeting,        // v0.2.2: a cultivator on the road
+    Merchant,       // a wandering merchant's stock
+    MerchantSell,   // selling items back at a third
+    Bag,            // items; tonics are drunk here
+    Talisman,       // which cleared region a Region Talisman reshapes
+    MerchantQty,    // v0.2.1: how many herbs or ores to buy
+    Alchemy,        // v0.2.0 (CultivationAlchemyScreens.cpp): the cauldron and what to do with it
+    Recipes,        // the recipes known
+    RecipeDetail,   // one recipe: its parts, what it makes, the brew time; Confirm brews
+    Experiment,     // pick 2-3 ingredients and mix them
     Error
   };
   // What the Cultivator screen's list offers right now.
@@ -101,6 +104,17 @@ class CultivationActivity final : public Activity {
   void leaveSummary();
   void openChronicle();
   void closeChronicle();
+  // v0.2.3 viewer for long lives: pages are laid out by the renderer, so these
+  // stay here; the file searches are in Chronicle.{h,cpp}. All under RenderLock.
+  uint32_t chronicleLayout(FsFile& f, uint32_t size, uint32_t start, int x, int y, int width, int bottom, bool draw,
+                           bool* drewAny);
+  uint32_t chronicleNextStart(FsFile& f, uint32_t size, uint32_t start);
+  uint32_t chronicleNewestStart(FsFile& f, uint32_t size);
+  uint32_t chroniclePreviousStart(FsFile& f, uint32_t start);
+  void chronicleShow(uint32_t start);  // a fresh page history starting there
+  void chronicleRefreshAge();
+  void chronicleMenuChoose(int row);
+  void renderChronicleMenu(int top, int bottom);
   void refreshActions();
   void runAction();
   void attemptBreakthrough();
@@ -278,15 +292,20 @@ class CultivationActivity final : public Activity {
   uint8_t summaryPage_ = 0;
   uint8_t summaryNext_ = 0;  // first line of the next page, set while drawing
 
-  // Chronicle viewer: byte offsets of the pages read so far, so Previous can
-  // go back. 512 pages of history; beyond that the oldest are forgotten.
+  // Chronicle viewer (v0.2.3: opens on the newest page). The starts of a run
+  // of consecutive pages already laid out, so Previous and Next after a step
+  // are instant; past either end the page is laid out again from the card.
+  // Only a cache: nothing here grows with the file.
   struct ChronicleView {
-    static constexpr uint16_t kHistory = 512;
-    uint32_t starts[kHistory] = {};
-    uint16_t depth = 0;       // starts[depth] is the page on screen
-    uint32_t pageNumber = 1;  // 1-based, for the title
-    uint32_t next = 0;        // where the next page starts, set while drawing
-    bool more = false;        // the file goes on past this page
+    static constexpr uint8_t kCache = 64;
+    uint32_t starts[kCache] = {};
+    uint8_t count = 1;      // pages known in starts[]
+    uint8_t cur = 0;        // starts[cur] is the page on screen
+    int32_t age = -1;       // the page's age for the title; -1 = the opening chapter
+    uint32_t size = 0;      // the file's size when opened (nothing writes it meanwhile)
+    uint32_t next = 0;      // where the next page starts, set while drawing
+    bool more = false;      // the file goes on past this page
+    int savedSelected = 0;  // the Cultivator's selection, kept while the menu borrows selected_
   };
   std::unique_ptr<ChronicleView> chronicle_;
   bool chronicleExists_ = false;
