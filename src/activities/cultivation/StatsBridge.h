@@ -19,6 +19,16 @@ struct StatsSample {
   std::array<uint32_t, 7> dayOfWeekSeconds{};
   uint32_t today = StatsSnapshot::kNoDay;  // readingStatsDayIndex(), or kNoDay when the clock is not set
   uint32_t resetRevision = 0;              // GlobalReadingStats::localResetRevision()
+  // v0.2.6: CrossInk's reading history, for the game's own streak. Bit i of
+  // historyBits (byte i / 8, bit i % 8) is day historyAnchorDay - i; all zero
+  // with anchor 0 means no history. 730 days.
+  static constexpr uint16_t kHistoryDays = 730;
+  static constexpr uint16_t kHistoryBytes = (kHistoryDays + 7) / 8;
+  uint32_t historyAnchorDay = 0;
+  std::array<uint8_t, kHistoryBytes> historyBits{};
+
+  // Whether CrossInk recorded reading on `day`.
+  bool readOn(uint32_t day) const;
 };
 
 // GlobalReadingStats::localResetRevision() is a RAM counter that restarts at 0
@@ -54,6 +64,7 @@ struct VisitGains {
   uint32_t sessions = 0;
   int32_t completedBooksDelta = 0;  // can be negative: a book was unmarked
   std::array<uint32_t, 4> timeOfDaySeconds{};
+  std::array<uint32_t, 7> dayOfWeekSeconds{};  // v0.2.6: per weekday (Monday = 0), for the daily tasks
 };
 
 namespace bridge {
@@ -70,6 +81,8 @@ constexpr uint32_t weekOf(const uint32_t dayIndex) { return (dayIndex + 5u) / 7u
 // First and last day index of a week (week 0 is cut short at day 0).
 constexpr uint32_t firstDayOfWeek(const uint32_t week) { return week == 0 ? 0u : week * 7u - 5u; }
 constexpr uint32_t lastDayOfWeek(const uint32_t week) { return week * 7u + 1u; }
+// How many of the days first..last (inclusive) fall on weekday w.
+uint32_t weekdayOccurrences(uint32_t first, uint32_t last, uint8_t w);
 
 // Snapshot at character creation: everything read before this moment stays
 // out of the game (DOC: "Starting fresh with existing stats").

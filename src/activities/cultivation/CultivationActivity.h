@@ -13,6 +13,8 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Daily.h"
+#include "Daos.h"
 #include "Exploration.h"
 #include "ExploreText.h"
 #include "GameState.h"
@@ -88,6 +90,8 @@ class CultivationActivity final : public Activity {
     RecipeDetail,   // one recipe: its parts, what it makes, the brew time; Confirm brews
     Experiment,     // pick 2-3 ingredients and mix them
     Meridians,      // v0.2.4 (CultivationMeridianScreens.cpp): one row per channel, Select opens its next point
+    Daily,          // v0.2.6 (CultivationDailyScreens.cpp): the omen, three tasks, the streak
+    Daos,           // v0.2.6: the five slots and the found Daos
     Error
   };
   // What the Cultivator screen's list offers right now.
@@ -99,10 +103,12 @@ class CultivationActivity final : public Activity {
     Explore,
     Alchemy,
     Meridians,  // v0.2.4, from Qi Condensation
+    Daily,      // v0.2.6
+    Daos,       // v0.2.6, from Qi Condensation
     Chronicle,
     Trial
   };
-  static constexpr uint8_t kMaxActions = 8;
+  static constexpr uint8_t kMaxActions = 10;
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -219,6 +225,24 @@ class CultivationActivity final : public Activity {
   void renderMeridians(int x, int y, int width, int bottom);
   void meridianChronicle(uint8_t point);
   int meridianReturn_ = 0;  // the Cultivator's selection while the screen borrows selected_
+
+  // Daily systems and Daos (v0.2.6, CultivationDailyScreens.cpp)
+  void openDaily();
+  void openDaos();
+  void closeDailyOrDaos();
+  bool handleDaily(bool back, bool confirm, bool up, bool down);  // true on the Daily or Daos screen
+  void renderDaily(int x, int y, int width, int bottom);
+  void renderDaos(int x, int y, int width, int bottom);
+  void dailyLabels(const char*& confirmLabel) const;
+  int dailyRows() const;
+  uint8_t dailySlotAt(int row) const;
+  void formatDailyReward(const cultivation::daily::Reward& r, char* out, size_t len) const;
+  // The Dao news of a visit or a breakthrough: Chronicle lines (before the
+  // save, like the life log) and the text for the Return summary or Outcome.
+  void writeDaoNews(const cultivation::daos::News& news);
+  int drawDaoNews(int x, int y, int width) const;
+  cultivation::daos::News daoNews_;
+  int dailyReturn_ = 0;
   void openAlchemy();
   void closeAlchemy();
   bool handleAlchemy(bool back, bool confirm, bool up, bool down);  // true when the screen is an alchemy one

@@ -1,6 +1,6 @@
 --- a/src/activities/cultivation/CultivationActivity.cpp
 +++ b/src/activities/cultivation/CultivationActivity.cpp
-@@ -135,6 +135,61 @@
+@@ -135,6 +135,69 @@
  
  }  // namespace
  
@@ -11,6 +11,9 @@
 +// CULT_SIM_FINISH_BOOKS="Title:minutes:bucket:percent;..." marks books as
 +// finished through the real CultivationHooks call (bucket 0-3 Morning..Night,
 +// 4 = spread evenly); a title starting with '-' marks it unfinished instead.
++// v0.2.6: CULT_SIM_READ_BUCKET (0-3 Morning..Night, default 2) picks the time
++// of day, CULT_SIM_READ_SESSIONS the book openings (default 1); the day is
++// marked in CrossInk's reading history. Run under faketime for other dates.
 +#include <cstdlib>
 +#include "CultivationHooks.h"
 +#include "activities/reader/BookReadingStats.h"
@@ -22,11 +25,16 @@
 +    GlobalReadingStats g = GlobalReadingStats::load();
 +    g.totalReadingSeconds += seconds;
 +    g.totalPagesTurned += seconds / 40u;
-+    g.totalSessions += 1;
++    const char* sessions = std::getenv("CULT_SIM_READ_SESSIONS");
++    g.totalSessions += sessions != nullptr ? static_cast<uint32_t>(std::strtoul(sessions, nullptr, 10)) : 1u;
 +    const StatsSample now = readLocalStats();
 +    const uint32_t weekday = now.today != StatsSnapshot::kNoDay ? (5u + now.today) % 7u : 0u;
 +    g.dayOfWeekSeconds[weekday] += seconds;
-+    g.timeOfDaySeconds[2] += seconds;
++    const char* bucket = std::getenv("CULT_SIM_READ_BUCKET");
++    g.timeOfDaySeconds[bucket != nullptr ? (std::atoi(bucket) & 3) : 2] += seconds;
++    if (now.today != StatsSnapshot::kNoDay && seconds > 0) {
++      markReadingHistoryDay(g.readingHistoryAnchorDay, g.readingHistoryBits, now.today);
++    }
 +    g.save();
 +    LOG_INF("CULT", "SIM: added %lu reading seconds", static_cast<unsigned long>(seconds));
 +  }
@@ -62,7 +70,7 @@
  namespace cultivation {
  namespace ui {
  const char* realmName(const uint8_t realm) { return text(kRealmNames[realm < kMortalRealmCount ? realm : 0]); }
-@@ -209,6 +264,9 @@
+@@ -369,6 +432,9 @@
    }
  
    loadPacks();

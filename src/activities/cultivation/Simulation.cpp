@@ -7,6 +7,7 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Daos.h"
 #include "Meridians.h"
 #include "Rng.h"
 #include "Scrolls.h"
@@ -286,6 +287,8 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   r.stonesGained = stonesForVisit(after / kSecondsPerStone - before / kSecondsPerStone, gains.pages, oddPage);
   p.progressFlags = static_cast<uint8_t>(oddPage ? (p.progressFlags | ProgressBlock::kOddPageCarry)
                                                  : (p.progressFlags & ~ProgressBlock::kOddPageCarry));
+  // v0.2.6: the Dao of the Myriad Paths, +5% per level (rounded down).
+  r.stonesGained = satAdd(r.stonesGained, r.stonesGained * daos::stonesPercentBonus(state) / 100u);
   p.stones = satAdd(p.stones, r.stonesGained);
 
   const uint32_t staminaSteps = after / kSecondsPerStamina - before / kSecondsPerStamina;
@@ -295,9 +298,10 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
 
   // v0.1.9 (user): HP heals 1 per minute of reading, never past max HP.
   // v0.2.4: Kidney points add half an HP a minute each (counted in half-HP steps).
-  const uint32_t halves = meridians::healHalvesPerMinute(state);
-  const uint32_t hpSteps = static_cast<uint32_t>(static_cast<uint64_t>(after) * halves / 120u -
-                                                 static_cast<uint64_t>(before) * halves / 120u);
+  // v0.2.6: the Dao of the Rising Sun, +10% per level (the same factor on both sides: no carry).
+  const uint64_t halves = static_cast<uint64_t>(meridians::healHalvesPerMinute(state)) * daos::healPermille(state);
+  const uint32_t hpSteps = static_cast<uint32_t>(static_cast<uint64_t>(after) * halves / 120000u -
+                                                 static_cast<uint64_t>(before) * halves / 120000u);
   const uint32_t hpRoom = p.hp < p.hpMax ? static_cast<uint32_t>(p.hpMax - p.hp) : 0u;
   r.hpGained = static_cast<uint16_t>(hpSteps < hpRoom ? hpSteps : hpRoom);
   p.hp = static_cast<uint16_t>(p.hp + r.hpGained);

@@ -210,6 +210,13 @@ struct Reward {
 // the next grade's first ingredient (a region-4 herb or ore in a common
 // region, region 7's in a spirit one, any rare region's in a rare one).
 uint8_t prizePercent(Danger danger);
+// v0.2.6: the chance with the Dao of Fate's +2 per level (0 when there is no prize).
+uint8_t prizeChance(const GameState& state, Danger danger);
+// v0.2.6: levels that are yours alone (Large Intestine points, the omen "Sharp blade"):
+// a cultivator you meet does not follow them.
+int ownLevelBonus(const GameState& state);
+// HP lost in fights, permille: Bladder points (v0.2.4) and the Dao of Metal (v0.2.6).
+uint16_t fightDamagePermille(const GameState& state);
 
 enum class TileOutcome : uint8_t {
   Nothing,      // a path, or a tile already used up

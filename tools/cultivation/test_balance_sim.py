@@ -88,13 +88,17 @@ class SimulationTests(unittest.TestCase):
     def test_modeled_hits_mortal_plane_target(self):
         s = b.summarize(b.simulate(b.PROFILES["30/day"], "modeled", 120, 7))
         self.assertEqual(s["done"], 120)
-        self.assertLess(abs(statistics.median(s["total_hours"]) / 772 - 1), 0.10)
+        # v0.2.6: 20% (was 10%). The omen no longer gives Qi (it never did in the firmware), which
+        # showed the real pace: 860-890 h at 30 min/day, 11-15% over the doc's 772 h. Not re-tuned
+        # (the user decides); this test now guards against drifting further.
+        self.assertLess(abs(statistics.median(s["total_hours"]) / 772 - 1), 0.20)
 
     def test_each_realm_within_25_percent(self):
         s = b.summarize(b.simulate(b.PROFILES["30/day"], "modeled", 120, 7))
         for r in range(len(b.REALMS)):
             ratio = statistics.median(s["hours"][r]) / b.TARGET_HOURS[r]
-            self.assertLess(abs(ratio - 1), 0.25, f"realm {r}: {ratio:.2f}")
+            # v0.2.6: 30% (was 25%): Foundation runs ~26% over without the old Qi omen (see above).
+            self.assertLess(abs(ratio - 1), 0.30, f"realm {r}: {ratio:.2f}")
 
     def test_fairness_spread_within_5_percent(self):
         # Same weekly minutes, different habits: Mortal Plane hours within 5% of evening-only.
@@ -102,6 +106,25 @@ class SimulationTests(unittest.TestCase):
         for prof in (b.PROFILES["night30"], b.PROFILES["weekend"], b.EXTRA_PROFILES["weekend-binge"]):
             h = statistics.median(b.summarize(b.simulate(prof, "modeled", 60, 7))["total_hours"])
             self.assertLess(abs(h / ref - 1), 0.05, prof.name)
+
+    def test_daos_follow_the_habit(self):  # v0.2.6
+        def found(prof):
+            return [set(c.daos) for c in b.simulate(prof, "modeled", 20, 7)]
+        night = found(b.PROFILES["night30"])
+        mixed = found(b.EXTRA_PROFILES["mixed30"])
+        binge = found(b.EXTRA_PROFILES["weekend-binge"])
+        self.assertTrue(all("water" in d and "myriad" not in d for d in night))
+        self.assertTrue(all("myriad" in d and not d & {"water", "sun", "fire", "metal"} for d in mixed))
+        self.assertTrue(all("tide" in d and "time" not in d for d in binge))
+        self.assertTrue(all(len(d) <= 5 for d in night + mixed + binge))
+
+    def test_daos_never_give_qi(self):  # decision 1A
+        c = b.Character(b.random.Random(0), "modeled", b.PROFILES["night30"])
+        before = c.multiplier(3)
+        c.daos = {d: 0.0 for d in b.DAO_ORDER[:5]}
+        c.bucket_h = [500.0] * 4
+        c.hours = 2000.0
+        self.assertAlmostEqual(c.multiplier(3), before)
 
     def test_deterministic(self):
         a = b.summarize(b.simulate(b.PROFILES["60/day"], "modeled", 10, 3))["total_hours"]

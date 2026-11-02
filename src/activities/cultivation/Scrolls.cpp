@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "Daos.h"
 #include "Rng.h"
 #include "Scrolls.h"
 #include "Simulation.h"
@@ -332,6 +333,12 @@ uint8_t mint(GameState& state, const BookRecord& book, const bool alreadyMinted,
   out[0].kind = EventKind::Minted;
   out[0].scroll = s;
   return static_cast<uint8_t>(events + 1);
+}
+
+Tier effectiveTier(const GameState& state, const Scroll& s) {
+  const uint32_t t = static_cast<uint32_t>(tierOf(s)) + daos::tierBoost(state, s.element);
+  const uint32_t top = static_cast<uint32_t>(Tier::Saint);
+  return static_cast<Tier>(t > top ? top : t);
 }
 
 }  // namespace scrolls

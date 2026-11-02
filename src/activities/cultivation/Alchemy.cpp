@@ -3,6 +3,8 @@
 #if CROSSINK_CULTIVATION
 
 #include "Alchemy.h"
+#include "Daily.h"
+#include "Daos.h"
 #include "Meridians.h"
 #include "Rng.h"
 #include "Simulation.h"
@@ -273,6 +275,7 @@ bool brew(GameState& s, const uint8_t recipe, const uint8_t batch) {
   const Recipe r = recipesOf(s).recipes[recipe];
   for (uint8_t b = 0; b < batch; ++b) useUp(s, r.part, r.parts);
   startBrew(s, recipe, batch);
+  daily::note(s, daily::Task::Brew);  // v0.2.6
   return true;
 }
 
@@ -310,7 +313,9 @@ Experiment experiment(GameState& s, const Item* in, const uint8_t count) {
 uint8_t qualityBonus(const GameState& s, const Recipe& r) {
   uint8_t bonus = r.grade == Grade::Rare ? 20 : r.grade == Grade::Spirit ? 10 : 0;
   if (isHerbalist(s)) bonus = static_cast<uint8_t>(bonus + kHerbalistBonus);
-  return static_cast<uint8_t>(bonus + meridians::brewQualityBonus(s));  // v0.2.4: Spleen
+  // v0.2.4: Spleen; v0.2.6: the Dao of Fire and the omen "Steady furnace".
+  return static_cast<uint8_t>(bonus + meridians::brewQualityBonus(s) + daos::brewQualityBonus(s) +
+                              daily::brewQualityBonus(s));
 }
 
 Collected collect(GameState& s) {
@@ -350,6 +355,7 @@ Collected collect(GameState& s) {
   s.timers[0] = 0;
   s.timers[1] = 0;
   set32(s.timers.data() + 2, 0);
+  daily::note(s, daily::Task::Brew);  // v0.2.6: taking a brew out counts too
   return c;
 }
 

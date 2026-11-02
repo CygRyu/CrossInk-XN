@@ -5,6 +5,7 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Daos.h"
 #include "GameState.h"
 #include "Inventory.h"
 #include "Scrolls.h"
@@ -33,6 +34,9 @@ const char* pillName(alchemy::Pill pill);   // "Core-Forming pill", "common brea
 // (the screens look those up first; this gives "Herb of region 3").
 void itemName(inventory::Item item, char* out, size_t len);
 void itemDescription(inventory::Item item, char* out, size_t len);
+
+// v0.2.6: "Dao of Flowing Water" (CultivationDailyScreens.cpp).
+const char* daoName(daos::Dao dao);
 
 }  // namespace ui
 }  // namespace cultivation

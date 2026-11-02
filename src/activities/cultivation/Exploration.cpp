@@ -3,6 +3,8 @@
 #if CROSSINK_CULTIVATION
 
 #include "Alchemy.h"
+#include "Daily.h"
+#include "Daos.h"
 #include "Exploration.h"
 #include "Meridians.h"
 #include "Rng.h"
@@ -308,24 +310,28 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
   const bool half = trivialYield(s, region);
   ProgressBlock& p = s.progress;
   switch (t) {
-    case Tile::Herb:  // v0.2.4: Liver points add one herb each
+    case Tile::Herb:  // v0.2.4: Liver points add one herb each; v0.2.6: and the omen "Herbs grow thick"
       give(s, r.reward, inventory::herbFor(region),
-           static_cast<uint16_t>(halve(rng.range(1, 3), half) + meridians::extraHerbs(s)));
+           static_cast<uint16_t>(halve(rng.range(1, 3), half) + meridians::extraHerbs(s) + daily::extraHerbs(s)));
+      daily::note(s, daily::Task::Gather, r.reward.itemCount);
       r.outcome = TileOutcome::Gathered;
       markUsed(s, region, tile);
       startRegrow(s, region);
       break;
     case Tile::Ore:
-      give(s, r.reward, inventory::oreFor(region), static_cast<uint16_t>(halve(rng.range(1, 2), half)));
+      give(s, r.reward, inventory::oreFor(region),
+           static_cast<uint16_t>(halve(rng.range(1, 2), half) + daily::extraOre(s)));  // v0.2.6: "Veins run shallow"
+      daily::note(s, daily::Task::Gather, r.reward.itemCount);
       r.outcome = TileOutcome::Gathered;
       markUsed(s, region, tile);
       startRegrow(s, region);
       break;
     case Tile::Ruin: {
-      const uint32_t luck = 50u + originBonus(s.character.origin).eventLuck;
+      // v0.2.6: the Dao of Time and the omen "Old ruins" add to the search.
+      const uint32_t luck = 50u + originBonus(s.character.origin).eventLuck + daos::ruinBonus(s) + daily::ruinBonus(s);
       if (rng.below(100) < luck) {
-        // v0.2.0: one won ruin in five holds a recipe slip instead of stones.
-        if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20) {
+        // v0.2.0: one won ruin in five holds a recipe slip instead of stones (v0.2.6: Fate adds).
+        if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20u + daos::prizeChanceBonus(s)) {
           r.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
         } else {
           r.reward.stones = halve(rng.range(20, 60) * (region + 1u), half);
@@ -342,7 +348,7 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
       break;
     }
     case Tile::Cave:
-      if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 15) {  // v0.2.0: a recipe slip
+      if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 15u + daos::prizeChanceBonus(s)) {  // v0.2.0: a recipe slip
         r.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
       } else if (rng.below(2) == 0) {
         give(s, r.reward, treasure(rng), 1);
@@ -591,15 +597,15 @@ int playerLevel(const GameState& s, const bool techniquesDouble) {
     const scrolls::Scroll sc = scrolls::get(s, i);
     if ((sc.flags & scrolls::Scroll::kEquippedTechnique) == 0) continue;
     if (sc.kind == scrolls::Kind::Sword || sc.kind == scrolls::Kind::PalmFist)
-      level += (1 + static_cast<int>(scrolls::tierOf(sc))) * (techniquesDouble ? 2 : 1);
+      level += (1 + static_cast<int>(scrolls::effectiveTier(s, sc))) * (techniquesDouble ? 2 : 1);  // v0.2.6: Daos
   }
   if (p.foundationGrade >= 5) {
     level += 3;  // Heavenly Dao Foundation
   } else if (p.foundationGrade == 4) {
     level += 2;  // Perfect Foundation
   }
-  if (p.coreGrade >= 7) level += 2;              // 3rd-grade Golden Core or better
-  return level + meridians::fightLevelBonus(s);  // v0.2.4: Large Intestine
+  if (p.coreGrade >= 7) level += 2;  // 3rd-grade Golden Core or better
+  return level + ownLevelBonus(s);   // v0.2.4: Large Intestine; v0.2.6: the omen "Sharp blade"
 }
 
 Danger dangerFor(const int d) {
@@ -732,17 +738,17 @@ Fight pendingFight(const GameState& s, const Layout& l) {
   f.danger = dangerFor(d);
   f.chance = winChance(d);
   f.canSlip = f.enemy != Enemy::Spirit;
-  f.slipChance = !f.canSlip       ? 0
-                 : hasMovement(s) ? 100
-                                  : static_cast<uint8_t>(50u + meridians::slipBonus(s));  // Gallbladder
+  f.slipChance = !f.canSlip ? 0
+                 : hasMovement(s)
+                     ? 100
+                     : static_cast<uint8_t>(50u + meridians::slipBonus(s) + daily::slipBonus(s));  // Gallbladder, omen
   if (f.enemy == Enemy::Bandit && kind != FightKind::Guardian) {
     f.payCost = (kind == FightKind::Lair ? 30u : 15u) * (f.region + 1u);
   }
   f.canIncense = f.enemy == Enemy::Spirit && inventory::count(s, inventory::Item::CalmIncense) > 0;
   // v0.2.4: reckoned without Lung's HP, then cut by Bladder points.
   const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(f.danger));
-  f.damage =
-      static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), meridians::fightDamagePermille(s)));
+  f.damage = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), fightDamagePermille(s)));
   f.slipDamage = static_cast<uint16_t>((f.damage + 1u) / 2u);
   return f;
 }
@@ -763,6 +769,7 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
   if (canStep(s, l, region, to) != StepError::None) return r;
   s.progress.stamina = static_cast<uint8_t>(s.progress.stamina - 1);
   setPosition(s, region, to);
+  if (!charted(s, region, to)) daily::note(s, daily::Task::Chart);  // v0.2.6: a daily task
   chart(s, region, to);
   r.moved = true;
   const uint32_t c = counter(s);
@@ -886,6 +893,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     damage = f.slipDamage;
   } else if (res.roll < f.chance) {
     res.won = true;
+    daily::note(s, daily::Task::WinFight);  // v0.2.6
     switch (f.kind) {
       case FightKind::Beast:
         res.reward.stones = halve(kindStones(f.enemy, rng.range(5, 10) * (f.region + 1u)), half);
@@ -922,11 +930,12 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
       }
     }
     // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
-    if (f.enemy == Enemy::Cultivator && alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20) {
+    if (f.enemy == Enemy::Cultivator && alchemy::slipRecipe(s) >= 0 &&
+        rng.below(100) < 20u + daos::prizeChanceBonus(s)) {
       res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
     }
     // v0.2.1: a hard fight sometimes pays with something better.
-    if (rng.below(100) < prizePercent(f.danger)) {
+    if (rng.below(100) < prizeChance(s, f.danger)) {
       if (res.reward.recipe < 0 && alchemy::slipRecipe(s) >= 0) {
         res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
       } else {
@@ -1013,7 +1022,7 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   // Their level follows yours (techniques left out), so a meeting is always about as hard as the road.
   const int with = playerLevel(s, true);
   // Large Intestine points are yours alone: left out of what their level follows.
-  const int plain = 2 * playerLevel(s, false) - with - meridians::fightLevelBonus(s);
+  const int plain = 2 * playerLevel(s, false) - with - ownLevelBonus(s);
   m.level = plain + offset + m.levelsAdded;
   if (m.level < 1) m.level = 1;
   const int d = with - m.level;  // a cultivator: your Sword and Palm/Fist count double
@@ -1021,8 +1030,7 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   m.chance = winChance(d);
   m.dares = d <= 3;  // Dangerous or worse: weaker ones do not challenge you
   const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(m.danger));
-  m.damage =
-      static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), meridians::fightDamagePermille(s)));
+  m.damage = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), fightDamagePermille(s)));
 
   Rng o(mix32(m.nameSeed, 0x4F464652u + m.meets));
   switch (m.temperament) {
@@ -1135,6 +1143,7 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   res.roll = static_cast<uint8_t>(rng.below(100));
   res.fought = true;
   res.won = res.roll < m.chance;
+  if (res.won) daily::note(s, daily::Task::WinFight);  // v0.2.6
   const bool half = trivialYield(s, m.region);
   if (m.offer == Offer::Spar) {
     if (res.won) {
@@ -1148,10 +1157,10 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   if (res.won) {
     res.reward.stones = halve(3u * rng.range(5, 10) * (m.region + 1u), half);
     p.stones += res.reward.stones;
-    if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 30) {
+    if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 30u + daos::prizeChanceBonus(s)) {
       res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
     }
-    if (rng.below(100) < prizePercent(m.danger)) {  // the hard-fight prize, as in v0.2.1
+    if (rng.below(100) < prizeChance(s, m.danger)) {  // the hard-fight prize, as in v0.2.1
       if (res.reward.recipe < 0 && alchemy::slipRecipe(s) >= 0) {
         res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
       } else {
@@ -1188,7 +1197,9 @@ uint16_t listPrice(const GameState& s, const inventory::Item item) {
 
 uint16_t buyPrice(const GameState& s, const uint16_t price) {
   if (price == 0) return 0;
-  const uint32_t p = (static_cast<uint32_t>(price) * meridians::buyPermille(s) + 500u) / 1000u;
+  // v0.2.4: Pericardium points; v0.2.6: the omen "Generous road".
+  const uint32_t permille = static_cast<uint32_t>(meridians::buyPermille(s)) * daily::buyPermille(s) / 1000u;
+  const uint32_t p = (static_cast<uint32_t>(price) * permille + 500u) / 1000u;
   return static_cast<uint16_t>(p == 0 ? 1u : p);
 }
 
@@ -1251,6 +1262,7 @@ bool buyFromTrader(GameState& s, const Layout& l, const uint8_t region, const ui
     const uint8_t bought = static_cast<uint8_t>((s.exploration[6] >> kMeetBoughtShift) + count);
     s.exploration[6] = static_cast<uint8_t>((s.exploration[6] & 0x1F) | (bought << kMeetBoughtShift));
   }
+  daily::note(s, daily::Task::Merchant);  // v0.2.6
   return true;
 }
 }  // namespace
@@ -1380,6 +1392,7 @@ bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile
   } else {
     inventory::add(s, st.lines[line].item, count);
   }
+  daily::note(s, daily::Task::Merchant);  // v0.2.6
   if (st.lines[line].limited) {
     const uint8_t bitIndex = static_cast<uint8_t>(merchantOrdinal(l, tile) * 3 + line - 2);
     if (bitIndex < 8) regionBytes(s, region)[18] = static_cast<uint8_t>(regionBytes(s, region)[18] | (1u << bitIndex));
@@ -1391,7 +1404,20 @@ bool sell(GameState& s, const inventory::Item item) {
   const uint16_t price = inventory::sellPrice(item);
   if (price == 0 || !inventory::remove(s, item)) return false;
   s.progress.stones += price;
+  daily::note(s, daily::Task::Merchant);  // v0.2.6
   return true;
+}
+
+uint8_t prizeChance(const GameState& s, const Danger danger) {
+  const uint8_t p = prizePercent(danger);
+  return p == 0 ? 0 : static_cast<uint8_t>(p + daos::prizeChanceBonus(s));  // v0.2.6: Fate
+}
+
+int ownLevelBonus(const GameState& s) { return meridians::fightLevelBonus(s) + daily::fightLevelBonus(s); }
+
+uint16_t fightDamagePermille(const GameState& s) {
+  return static_cast<uint16_t>(static_cast<uint32_t>(meridians::fightDamagePermille(s)) * daos::fightDamagePermille(s) /
+                               1000u);
 }
 
 }  // namespace explore

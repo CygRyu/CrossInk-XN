@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Daily.h"
 #include "Meridians.h"
 #include "Simulation.h"
 
@@ -172,6 +173,7 @@ bool open(GameState& s, const uint8_t point) {
     s.progress.hpMax = static_cast<uint16_t>(s.progress.hpMax + kLungHp);
     s.progress.hp = static_cast<uint16_t>(s.progress.hp + kLungHp);
   }
+  daily::note(s, daily::Task::Meridian);  // v0.2.6
   return true;
 }
 

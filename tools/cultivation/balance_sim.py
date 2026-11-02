@@ -93,7 +93,7 @@ TUNING = {
     "element_match_breakthrough": 5,
     "element_match_grade": 15,
     "pill_grade_max": 20,
-    "omen_bucket_bonus": 0.20,         # "Water Qi surges at night: +20%"
+    "omen_bucket_bonus": 0.0,          # v0.2.6 (user): omens never give Qi (the DOC had "+20% Qi from night reading today")
     # --- PROPOSED (not specified in the design document) -----------------
     # Talent table: the doc names only Choked Meridians x0.6 (common) and
     # Heaven-Blessed Root x1.5 (rare). Middle tiers and weights are proposed.
@@ -155,11 +155,32 @@ TUNING = {
     "incense_bonus": 25,
     "tonic_greater_heal": 50,          # % of max HP
     "dao_heart_full_hours": 15,        # decision 2B: Dao Heart 100 after 15 h read, never decays
-    "flowing_water_unlock_night_h": 5,  # DOC
-    "dao_time_of_day_unlock_any_h": 40,  # DOC
-    "dao_level_hours": 10,             # hours in bucket per extra Dao level
-    "myriad_paths_unlock_h": 150,      # decision 5B: Dao of the Myriad Paths unlocks at 150 h read (was 10,000 pages)
+    # v0.2.6 Daos (user, HANDOFF 14r; steps and rule A chosen in session 10): five per life, hidden.
+    # Slots open on entering realms 1 (two), 2, 3 and 4; an open slot takes the first Dao to reach 100%
+    # of its condition (the furthest along when several do at once). Level = 1 + (measure - condition)
+    # // step, cap 9. Measure per Dao:
+    #   time: longest streak (days, one missed day a week covered), stillness: days with 60+ min,
+    #   tide: days with 3+ h, water/sun/fire/metal: hours in Night/Morning/Afternoon/Evening,
+    #   myriad: hours read, fate: books finished.  (condition, level step)
+    "daos": True,
+    # Session 10 (user): the slower steps. The first proposal (7, 4, 2, 5, 5, 5, 5, 8, 1) put every
+    # Dao at level 9 by Core Formation (~55 h) and made Daos the key of every breakthrough after it.
+    "dao_rules": {"time": (14, 50), "stillness": (8, 20), "tide": (3, 8), "water": (10, 25), "sun": (10, 25),
+                  "fire": (10, 25), "metal": (10, 25), "myriad": (15, 25), "fate": (2, 3)},
+    "dao_share": 0.40,                 # time-of-day Daos need >= 40% of reading there; Myriad Paths none over 40%
+    "dao_slots_by_realm": {1: 2, 2: 1, 3: 1, 4: 1},
+    "dao_keys": True,                  # 5B: a found Dao at level >= target realm + 2 (cap 9) is a key, never spent
+    "tide_pity_per_level": 2,          # +2 pity per failure per level
+    "stillness_consolidation_per_level": 0.10,  # +10% consolidation per level (Great Perfection)
+    "water_heart_demon_per_level": 2,  # +2 on Heart Demon scenes per level
+    "dao_levels": True,                # False: Daos found but every level stays 1 (for comparison)
+    # "furthest": a slot is filled the moment it opens by the Dao furthest along (progress > 0),
+    # "complete": a slot waits until a Dao reaches 100% of its condition.
+    "dao_fill": "complete",            # rule A (user, session 10)
 }
+
+DAO_BUCKET = {"sun": 0, "fire": 1, "metal": 2, "water": 3}   # BUCKETS: Morning, Afternoon, Evening, Night
+DAO_ORDER = ["time", "stillness", "tide", "water", "sun", "fire", "metal", "myriad", "fate"]
 
 
 def mhat(r: int) -> float:
@@ -319,6 +340,14 @@ class Character:
         self.bucket_h = [0.0] * 4
         self.streak = 0                # kept as flavor and for the Dao of Time unlock only
         self.longest = 0
+        self.charm_week = -1           # v0.2.6: the week whose Stillness Charm was used
+        self.day_minutes = 0.0
+        self.days60 = 0                # days with 60+ minutes read (Dao of Stillness)
+        self.days180 = 0               # days with 3+ hours read (Dao of the Tide)
+        self.daos = {}                 # found Dao -> reading hours when found
+        self.dao_slots = 0
+        self.dao_keys_used = 0         # successful breakthroughs where a Dao was the key
+        self.keys_used = 0
         self.read_today = False
         self.omen_bucket = 0
         self.stamina_earned = 0
@@ -356,12 +385,72 @@ class Character:
         return min(100.0, 100.0 * self.hours / TUNING["dao_heart_full_hours"])
 
     # -- multipliers ------------------------------------------------------
-    def dao_level(self, bucket: int) -> int:
-        t = TUNING
-        h = self.bucket_h[bucket]
-        if h < t["flowing_water_unlock_night_h"] and self.hours < t["dao_time_of_day_unlock_any_h"]:
+    def dao_measure(self, d: str) -> float:
+        if d == "time":
+            return self.longest
+        if d == "stillness":
+            return self.days60
+        if d == "tide":
+            return self.days180
+        if d in DAO_BUCKET:
+            return self.bucket_h[DAO_BUCKET[d]]
+        if d == "myriad":
+            return self.hours
+        return self.books_finished
+
+    def dao_progress(self, d: str) -> float:
+        """Share of the condition reached (1.0 = found when a slot is open)."""
+        cond = TUNING["dao_rules"][d][0]
+        p = self.dao_measure(d) / cond
+        total = self.hours
+        if d in DAO_BUCKET:
+            share = self.bucket_h[DAO_BUCKET[d]] / total if total > 0 else 0.0
+            p *= min(1.0, share / TUNING["dao_share"])
+        elif d == "myriad":   # balance: penalised hard when one time of day dominates
+            top = max(self.bucket_h) / total if total > 0 else 1.0
+            p *= min(1.0, TUNING["dao_share"] / top) ** 2 if top > 0 else 0.0
+        return p
+
+    def dao_complete(self, d: str) -> bool:
+        """The condition itself: the measure reached, and the share rule holds."""
+        if self.dao_measure(d) < TUNING["dao_rules"][d][0]:
+            return False
+        total = self.hours
+        if d in DAO_BUCKET:
+            return total > 0 and self.bucket_h[DAO_BUCKET[d]] / total >= TUNING["dao_share"] - 1e-9
+        if d == "myriad":
+            return total > 0 and max(self.bucket_h) / total <= TUNING["dao_share"] + 1e-9
+        return True
+
+    def dao_level(self, d: str) -> int:
+        if d not in self.daos:
             return 0
-        return min(9, 1 + int(max(0.0, h - t["flowing_water_unlock_night_h"]) // t["dao_level_hours"]))
+        if not TUNING["dao_levels"]:
+            return 1
+        cond, step = TUNING["dao_rules"][d]
+        return min(9, 1 + int(max(0.0, self.dao_measure(d) - cond) // step))
+
+    def check_daos(self):
+        t = TUNING
+        if not t["daos"]:
+            return
+        while self.dao_slots > 0 and len(self.daos) < 5:
+            if t["dao_fill"] == "complete":
+                ready = [d for d in DAO_ORDER if d not in self.daos and self.dao_complete(d)]
+            else:
+                ready = [d for d in DAO_ORDER if d not in self.daos and self.dao_progress(d) > 0]
+            if not ready:
+                return
+            best = max(self.dao_progress(d) for d in ready)
+            pick = self.rng.choice([d for d in ready if self.dao_progress(d) >= best - 1e-9])
+            self.daos[pick] = self.hours
+            self.dao_slots -= 1
+
+    def dao_key(self, target: int) -> bool:
+        if not (TUNING["daos"] and TUNING["dao_keys"]):
+            return False
+        need = min(9, target + 2)
+        return any(self.dao_level(d) >= need for d in self.daos)
 
     def multiplier(self, bucket: int) -> float:
         if self.mode == "nominal":
@@ -394,6 +483,9 @@ class Character:
             pts = t["meridian_points_per_realm"][r]
             self.meridian_points += pts
             self.extra_cost = pts * t["meridian_cost_frac"] * realm_qi(r)
+            if t["daos"]:
+                self.dao_slots += t["dao_slots_by_realm"].get(r, 0)
+                self.check_daos()
         self.records.append(RealmRecord(entered_day=day, entered_hours=self.hours,
                                         multiplier_at_entry=self.base_multiplier()))
 
@@ -438,7 +530,8 @@ class Character:
             c += t["element_match_breakthrough"]
         c = min(99.0, c)
         if self.failures:
-            c = max(c, min(t["pity_cap"], c + t["pity_per_failure"] * self.failures))
+            per = t["pity_per_failure"] + t["tide_pity_per_level"] * self.dao_level("tide")
+            c = max(c, min(t["pity_cap"], c + per * self.failures))
         return c
 
     def scroll_key(self, target: int):
@@ -507,7 +600,8 @@ class Character:
             return True
         if target in t["heart_demon_realms"]:
             core_bonus = min(20.0, (self.core_mult - 1.0) / 0.30 * 20.0)
-            chance = min(95.0, t["heart_demon_base"] + 30 * self.dao_heart / 100 + core_bonus)
+            chance = min(95.0, t["heart_demon_base"] + 30 * self.dao_heart / 100 + core_bonus
+                         + t["water_heart_demon_per_level"] * self.dao_level("water"))
             won = lost = 0
             while won < 2 and lost < 2:
                 scene = chance
@@ -525,7 +619,7 @@ class Character:
     def has_key(self, target: int, hours_in_realm: float) -> bool:
         if TUNING["key_tier_by_target"][target] is None:   # small bottleneck into Qi Condensation needs no key
             return True
-        if self.scroll_key(target) is not None:
+        if self.dao_key(target) or self.scroll_key(target) is not None:
             return True
         return TUNING["pill_keys"] and hours_in_realm >= TUNING["pill_key_hours"]
 
@@ -534,9 +628,20 @@ class Character:
         self.day = day
         # The streak is flavor now (and the Dao of Time unlock); Dao Heart comes from hours (2B).
         if day > 0:
-            self.streak = self.streak + 1 if self.read_today else 0
+            if self.read_today:
+                self.streak += 1
+            elif self.streak > 0 and self.charm_week != (day - 1) // 7:   # v0.2.6: Stillness Charm
+                self.charm_week = (day - 1) // 7
+            else:
+                self.streak = 0
             self.longest = max(self.longest, self.streak)
+            if self.day_minutes >= 60:
+                self.days60 += 1
+            if self.day_minutes >= 180:
+                self.days180 += 1
+            self.check_daos()
         self.read_today = False
+        self.day_minutes = 0.0
         if day % 7 == 0:   # day 0 is a Monday: calendar weeks, Mon-Sun (decision 6A)
             self.qual_minutes_week = 0.0
         self.omen_bucket = self.rng.randrange(4)
@@ -544,6 +649,7 @@ class Character:
     def read_session(self, bucket: int, minutes: float, day: int):
         t = TUNING
         self.read_today = True
+        self.day_minutes += minutes
         self.stamina_sessions += 1
         # Stamina (decision 4A): +1 per 15 min read, accumulated across sessions; nothing per session. Cap 12.
         step_min = t["stamina_minutes"]
@@ -637,8 +743,9 @@ class Character:
                 # Model the linger as extra reading time spent at Peak, earning consolidation.
                 extra = self.gp_linger_hours
                 self.hours += extra
-                self.consolidation = min(TUNING["consolidation_max"],
-                                         self.consolidation + TUNING["consolidation_per_hour"] * extra)
+                rate = TUNING["consolidation_per_hour"] * (
+                    1 + TUNING["stillness_consolidation_per_level"] * self.dao_level("stillness"))
+                self.consolidation = min(TUNING["consolidation_max"], self.consolidation + rate * extra)
                 when_day += extra * 60 / max(1e-9, self._minutes_per_day())
                 hours_in_realm += extra
             if not self.has_key(r + 1, hours_in_realm):
@@ -660,9 +767,14 @@ class Character:
                 self.failures += 1
                 self.qi = need * (1 - TUNING["failure_bar_loss"])
                 return
-            key = self.scroll_key(r + 1)
-            if key is not None:   # a scroll is spent only on success; otherwise a pill was the key
-                self.spare_scrolls.pop(key)
+            needs_key = TUNING["key_tier_by_target"][r + 1] is not None
+            self.keys_used += needs_key
+            if needs_key and self.dao_key(r + 1):   # v0.2.6: a Dao is the key first, never spent
+                self.dao_keys_used += 1
+            else:
+                key = self.scroll_key(r + 1)
+                if key is not None:   # a scroll is spent only on success; otherwise a pill was the key
+                    self.spare_scrolls.pop(key)
             self._set_grade(r + 1)
         else:
             rec.attempts += 1
@@ -865,6 +977,25 @@ def fairness(runs: int, seed: int, gp_linger: float, w):
         where = f", the rest stop in realm {statistics.median(stuck):.0f}" if stuck else ""
         w(f"    30 min/day, {label:<34}{hours:>6.0f} h, {r30['done']}/{runs} finish in 40 y{where}\n")
 
+    w("  Daos (v0.2.6; five per life, slots on entering realms 1-4, keys at level >= target + 2):\n")
+    saved_daos = TUNING["daos"]
+    TUNING["daos"] = False
+    try:
+        nodaos = summarize(simulate(EXTRA_PROFILES["evening30"], "modeled", runs, seed, gp_linger))
+    finally:
+        TUNING["daos"] = saved_daos
+    w(f"    Evening only, 30 min/day: {statistics.median(nodaos['total_hours']):.0f} h without Daos, "
+      f"{med_h('evening30'):.0f} h with them\n")
+    for k in ("evening30", "night30", "mixed30", "weekend", "weekend-binge", "60/day"):
+        cs = res[k]["chars"]
+        sets = {}
+        for c in cs:
+            key = " ".join(d.capitalize() for d in DAO_ORDER if d in c.daos)
+            sets[key] = sets.get(key, 0) + 1
+        top = max(sets, key=sets.get)
+        keyed = sum(c.keys_used for c in cs)
+        share = sum(c.dao_keys_used for c in cs) / keyed * 100 if keyed else 0.0
+        w(f"    {cmp[k].name:<38}{top} ({sets[top]}/{len(cs)}), keys from Daos {share:.0f}%\n")
     ppm_slow, ppm_fast = 0.7, 1.4
     slow = stones_for_visit(30, 30 * ppm_slow)
     fast = stones_for_visit(30, 30 * ppm_fast)

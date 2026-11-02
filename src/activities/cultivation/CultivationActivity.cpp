@@ -453,6 +453,7 @@ bool CultivationActivity::persist() {
 // simply counted again next time: nothing is lost or doubled.
 void CultivationActivity::startVisit() {
   const StatsSample now = readLocalStats();
+  const uint32_t lastVisitDay = state_->snapshot.lastVisitDay;  // v0.2.6: the daily systems need it
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
   originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
   // v0.2.0: a v0.1.10 bag moves to the new one; an older Herbalist learns the Qi Gathering recipe.
@@ -467,6 +468,10 @@ void CultivationActivity::startVisit() {
   // Only the first time the bar fills in a realm: after a failed breakthrough,
   // refilling it is not news (found in the simulator).
   change.reachedBottleneck = !bottleneckBefore && atBottleneck(*state_) && state_->progress.failures == 0;
+  // v0.2.6: the day's omen and tasks, the streak, time of day for the Daos, then any Dao found.
+  daily::update(*state_, gains, now, lastVisitDay);
+  daos::addReading(*state_, gains, state_->snapshot);
+  daoNews_ = daos::settle(*state_);
   // v0.1.10: herbs regrow and cleared regions reshape on reading time.
   upheavals_ = explore::tick(*state_);
   updateRumor();
@@ -488,6 +493,7 @@ void CultivationActivity::startVisit() {
   // Books finished since the last visit become scrolls (Chronicle lines first,
   // like the life log). minted.bin and the pending list are only updated
   // once the save holds the new scrolls, so a failed save mints them again.
+  writeDaoNews(daoNews_);  // Chronicle lines before the save, like the life log
   auto minting = mintScrolls();
   persist();
   if (minting && !saveFailed_) finishMinting(*minting);
@@ -698,6 +704,8 @@ void CultivationActivity::refreshActions() {
     if (meridians::allowance(*state_) > 0 || meridians::openCount(*state_) > 0) {
       actions_[actionCount_++] = Action::Meridians;
     }
+    actions_[actionCount_++] = Action::Daily;  // v0.2.6
+    if (state_->progress.realm >= 1 || daos::foundCount(*state_) > 0) actions_[actionCount_++] = Action::Daos;
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
   if (selected_ >= actionCount_) selected_ = 0;
@@ -726,6 +734,12 @@ void CultivationActivity::runAction() {
     case Action::Meridians:
       openMeridians();
       return;
+    case Action::Daily:
+      openDaily();
+      return;
+    case Action::Daos:
+      openDaos();
+      return;
     case Action::GreatPerfection:
       screen_ = Screen::GreatPerfection;
       requestUpdate();
@@ -752,6 +766,9 @@ void CultivationActivity::attemptBreakthrough() {
     outcome_ = breakthrough::attempt(*state_);
     outcomeKind_ = outcome_.success ? OutcomeKind::BreakthroughSuccess : OutcomeKind::BreakthroughFailure;
     recordOutcome(outcome_.success ? "log.breakthrough" : "log.failure", seed);
+    // v0.2.6: a new realm may open a Dao slot that a habit fills at once.
+    daoNews_ = outcome_.success ? daos::settle(*state_) : daos::News{};
+    writeDaoNews(daoNews_);
     if (outcome_.keyUsed) {  // the Chronicle records which scroll opened which realm
       scrollName(outcome_.key, nameBuf_, sizeof(nameBuf_));
       appendScrollLine("scroll.line.key", outcome_.key);
@@ -870,6 +887,7 @@ void CultivationActivity::loop() {
   if (handleExplore(back, confirm, up, down)) return;    // exploration screens (CultivationExploreScreens.cpp)
   if (handleAlchemy(back, confirm, up, down)) return;    // alchemy screens (CultivationAlchemyScreens.cpp)
   if (handleMeridians(back, confirm, up, down)) return;  // v0.2.4 (CultivationMeridianScreens.cpp)
+  if (handleDaily(back, confirm, up, down)) return;      // v0.2.6 (CultivationDailyScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -897,7 +915,7 @@ void CultivationActivity::loop() {
       } else if (up || down) {  // v0.2.0: which breakthrough pill to take (or none)
         RenderLock lock(*this);
         const breakthrough::Chance c = breakthrough::chanceFor(*state_);
-        alchemy::cycleChoice(*state_, c.target, c.needsKey && c.keyIndex < 0);
+        alchemy::cycleChoice(*state_, c.target, c.needsKey && c.keyIndex < 0 && c.daoKey == 0xFF);
         persist();
         requestUpdate();
       } else if (confirm) {
@@ -1246,6 +1264,8 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = ctr(CULT_ALCHEMY_TITLE);
   if (screen_ == Screen::Experiment) title = ctr(CULT_ALCHEMY_EXPERIMENT);
   if (screen_ == Screen::Meridians) title = ctr(CULT_ACTION_MERIDIANS);
+  if (screen_ == Screen::Daily) title = ctr(CULT_ACTION_DAILY);
+  if (screen_ == Screen::Daos) title = ctr(CULT_ACTION_DAOS);
   char recipeTitle[64];
   if (screen_ == Screen::RecipeDetail && alchemy_) {
     snprintf(recipeTitle, sizeof(recipeTitle), "%s",
@@ -1324,7 +1344,7 @@ void CultivationActivity::render(RenderLock&&) {
           const auto pill = static_cast<inventory::Item>(i);
           if (inventory::count(*state_, pill) > 0 && alchemy::pillFits(pill, c.target)) ++fitting;
         }
-        const bool onlyKey = c.needsKey && c.keyIndex < 0;
+        const bool onlyKey = c.needsKey && c.keyIndex < 0 && c.daoKey == 0xFF;
         if (fitting + (onlyKey ? 0 : 1) > 1) downLabel = ctr(CULT_CHANGE_PILL);
       }
       break;
@@ -1431,6 +1451,14 @@ void CultivationActivity::render(RenderLock&&) {
     case Screen::Meridians:
       renderMeridians(x, top, width, bottom);
       confirmLabel = ctr(CULT_OPEN);
+      break;
+    case Screen::Daily:
+      renderDaily(x, top, width, bottom);
+      dailyLabels(confirmLabel);
+      break;
+    case Screen::Daos:
+      renderDaos(x, top, width, bottom);
+      confirmLabel = "";
       break;
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
@@ -1770,6 +1798,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
       const int cy = listTop + (i / 2) * cellHeight;
       const char* label = "";
       char meridianLabel[40];
+      char dailyLabel[40];
       switch (actions_[i]) {
         case Action::Breakthrough:
           label = ctr(CULT_ACTION_BREAKTHROUGH);
@@ -1796,6 +1825,19 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
           }
           break;
         }
+        case Action::Daily: {
+          const unsigned waiting = daily::waiting(*state_);
+          if (waiting > 0) {
+            snprintf(dailyLabel, sizeof(dailyLabel), ctr(CULT_ACTION_DAILY_COLLECT_FORMAT), waiting);
+            label = dailyLabel;
+          } else {
+            label = ctr(CULT_ACTION_DAILY);
+          }
+          break;
+        }
+        case Action::Daos:
+          label = ctr(CULT_ACTION_DAOS);
+          break;
         case Action::Chronicle:
           label = ctr(CULT_ACTION_CHRONICLE);
           break;
@@ -1902,13 +1944,22 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
                cultivation::ui::tierName(need), static_cast<unsigned>(kTierHours[static_cast<int>(need)]));
     }
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5);
+    if (daos::foundCount(s) > 0) {  // v0.2.6
+      snprintf(line, sizeof(line), ctr(CULT_BT_DAO_HINT_FORMAT), static_cast<unsigned>(daos::keyLevelFor(c.target)));
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
+    }
     const alchemy::Pill pill = c.target <= 4   ? alchemy::Pill::BreakthroughCommon
                                : c.target <= 7 ? alchemy::Pill::BreakthroughSpirit
                                                : alchemy::Pill::BreakthroughRare;
     snprintf(line, sizeof(line), ctr(CULT_BT_PILL_HINT_FORMAT), ui::pillName(pill));
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   } else {
-    if (c.needsKey && c.keyIndex >= 0 && nameBuf_[0] != '\0') {
+    if (c.needsKey && c.daoKey < daos::kCount) {  // v0.2.6: a Dao, never spent
+      const auto dao = static_cast<daos::Dao>(c.daoKey);
+      snprintf(line, sizeof(line), ctr(CULT_BT_DAO_KEY_FORMAT), ui::daoName(dao),
+               static_cast<unsigned>(daos::level(s, dao)));
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + 4;
+    } else if (c.needsKey && c.keyIndex >= 0 && nameBuf_[0] != '\0') {
       snprintf(line, sizeof(line), ctr(CULT_KEY_FORMAT), nameBuf_);
       y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + 4;
     }
@@ -1989,6 +2040,14 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.keyUsed && nameBuf_[0] != '\0') {
     snprintf(line, sizeof(line), ctr(CULT_KEY_USED_FORMAT), nameBuf_);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  }
+  if (outcomeKind_ == OutcomeKind::BreakthroughSuccess) {  // v0.2.6: a Dao found in the new realm's slot
+    const int before = y;
+    y = drawDaoNews(x, y - 4, width);
+    if (y != before - 4)
+      y += metrics.verticalSpacing;
+    else
+      y = before;
   }
   // v0.1.10: each realm opens the next region.
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.toRealm >= 1 &&
@@ -2086,6 +2145,14 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
     if (alchemy::ready(s)) {
       snprintf(line, sizeof(line), ctr(CULT_CAULDRON_READY_SUMMARY_FORMAT),
                ui::pillName(alchemy::recipesOf(s).recipes[alchemy::brewingRecipe(s)].pill));
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
+    }
+    // v0.2.6: Daos found or grown, and daily tasks waiting.
+    y = drawDaoNews(x, y + 4, width);
+    if (daily::waiting(s) == 1) {
+      y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, ctr(CULT_DAILY_WAITING_ONE), 2);
+    } else if (daily::waiting(s) > 1) {
+      snprintf(line, sizeof(line), ctr(CULT_DAILY_WAITING_SUMMARY_FORMAT), static_cast<unsigned>(daily::waiting(s)));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
     }
     y += metrics.verticalSpacing * 2;

@@ -5,6 +5,14 @@
 #include "StatsBridge.h"
 
 namespace cultivation {
+
+bool StatsSample::readOn(const uint32_t day) const {
+  if (day > historyAnchorDay) return false;
+  const uint32_t delta = historyAnchorDay - day;
+  if (delta >= kHistoryDays) return false;
+  return (historyBits[delta / 8] & (1u << (delta % 8))) != 0;
+}
+
 namespace bridge {
 namespace {
 
@@ -52,17 +60,6 @@ void splitIntoTiers(uint32_t seconds, const uint32_t alreadyCounted, const uint3
 }
 
 // How many days in [first, last] fall on weekday w (Monday = 0).
-uint32_t weekdayOccurrences(const uint32_t first, const uint32_t last, const uint8_t w) {
-  if (last < first) return 0;
-  const uint32_t span = last - first + 1;
-  uint32_t n = span / 7;
-  const uint32_t remainder = span % 7;
-  // The `remainder` days at the end of the span are last, last-1, ...
-  for (uint32_t k = 0; k < remainder; ++k) {
-    if (weekdayOf(last - k) == w) ++n;
-  }
-  return n;
-}
 
 }  // namespace
 
@@ -81,6 +78,18 @@ BaselineTotals baselineTotals(const StatsSample& now) {
   b.sessions = now.sessions;
   b.completedBooks = now.completedBooks;
   return b;
+}
+
+uint32_t weekdayOccurrences(const uint32_t first, const uint32_t last, const uint8_t w) {
+  if (last < first) return 0;
+  const uint32_t span = last - first + 1;
+  uint32_t n = span / 7;
+  const uint32_t remainder = span % 7;
+  // The `remainder` days at the end of the span are last, last-1, ...
+  for (uint32_t k = 0; k < remainder; ++k) {
+    if (weekdayOf(last - k) == w) ++n;
+  }
+  return n;
 }
 
 VisitGains collect(StatsSnapshot& snapshot, const StatsSample& now, RevisionWatch& watch) {
@@ -107,6 +116,9 @@ VisitGains collect(StatsSnapshot& snapshot, const StatsSample& now, RevisionWatc
   g.completedBooksDelta = static_cast<int32_t>(now.completedBooks - snapshot.completedBooks);
   for (size_t i = 0; i < g.timeOfDaySeconds.size(); ++i) {
     g.timeOfDaySeconds[i] = now.timeOfDaySeconds[i] - snapshot.timeOfDaySeconds[i];
+  }
+  for (size_t i = 0; i < g.dayOfWeekSeconds.size(); ++i) {
+    g.dayOfWeekSeconds[i] = now.dayOfWeekSeconds[i] - snapshot.dayOfWeekSeconds[i];
   }
 
   uint32_t countedThisWeek = 0;

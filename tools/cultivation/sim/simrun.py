@@ -18,6 +18,10 @@ Home menu: "Cultivation" is the 3rd entry, or the 4th once reading stats exist
     simrun.py create "DOWN DOWN CONFIRM DOWN CONFIRM DOWN CONFIRM CONFIRM CONFIRM SHOT:awakening CONFIRM SHOT:home"
     simrun.py visit "DOWN DOWN DOWN CONFIRM SHOT:summary CONFIRM SHOT:cultivator" 20
 
+CULTSIM_DATE="2026-11-03 20:00:00" runs the simulator with its clock set to that
+local time (libfaketime, preloaded into the simulator only; Debian/Ubuntu:
+faketime), for the daily systems (v0.2.6).
+
 Needs xvfb-run (Debian/Ubuntu: xvfb) and Pillow.
 """
 import os
@@ -33,6 +37,7 @@ SD = WORK / "sd"
 SHOTS = WORK / "shots"
 BOOT_MS = 4500
 GAP_MS = 1400  # long enough for the simulated e-ink refresh
+FAKETIME_LIB = "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1"
 
 
 def main():
@@ -65,11 +70,16 @@ def main():
     })
     if read_minutes:
         env["CULT_SIM_READ_MINUTES"] = read_minutes
+    env.pop("LD_PRELOAD", None)
     log = SHOTS / f"{name}.log"
     with open(log, "w") as f:
         try:
-            subprocess.run(["xvfb-run", "-a", str(BINARY)], cwd=SD, env=env, stdout=f, stderr=subprocess.STDOUT,
-                           timeout=t / 1000 + 60)
+            command = ["xvfb-run", "-a", str(BINARY)]
+            date = os.environ.get("CULTSIM_DATE")
+            if date:  # only the simulator gets the fake clock (it breaks Python's own sleep)
+                command[2:2] = ["env", "LD_PRELOAD=" + FAKETIME_LIB, f"FAKETIME=@{date}",
+                                "FAKETIME_DONT_FAKE_MONOTONIC=1"]
+            subprocess.run(command, cwd=SD, env=env, stdout=f, stderr=subprocess.STDOUT, timeout=t / 1000 + 60)
         except subprocess.TimeoutExpired:
             # A screen that blocks the loop (File Transfer's network setup) keeps QUIT from arriving.
             print("TIMEOUT: the script probably opened a screen that blocks (check the Home menu position)")

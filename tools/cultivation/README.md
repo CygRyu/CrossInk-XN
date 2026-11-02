@@ -149,3 +149,17 @@ These came straight from the document's rules and led to the decisions above:
 6. **Spirit Stones at 1 per page break "pace is neutral".** A fast reader earns about 2× the stones of a slow one in the same minutes. Page counts also change with font size, which the doc already avoids for scroll tiers.
 
 Not modelled yet: Tribulation strikes, Heart Demon scenes, alchemy and stamina spending, later planes, legacy.
+
+### v0.2.6: Daos, and the omen's Qi removed
+
+The daily omen no longer gives Qi (`omen_bucket_bonus` 0.0): the agreed omen never touches Qi, and the firmware never had the doc's "+20% Qi from night reading today". The old reports therefore ran about 2.5% fast. Daos are modelled as built: five per life, slots on entering realms 1 (two), 2, 3 and 4 once 5 hours are tracked, rule A (a slot takes the first Dao whose condition is met), the session-10 level steps, Dao keys at level >= target + 2 (checked first, never spent), Tide's +2 pity per level, Stillness's +10% consolidation per level (only matters with `--linger`) and Flowing Water's +2 on Heart Demon scenes. Daily tasks, omens and the other Dao effects do not change pace and are left out.
+
+| 30 min/day (300 characters) | v0.2.4 report | Without the old omen | v0.2.6 with Daos |
+| --- | --- | --- | --- |
+| Mortal Plane, reading hours (median) | 840 h | 861 h | 854 h |
+| Spread of habits vs evening-only | -2.3% to 0% | | -0.7% to +2.5% (weekend binge) |
+| Keys from Daos | - | - | 61% (68% at 60 min/day) |
+
+Dao sets found (300 of 300 each): evening, night or morning daily readers Time + their time of day + Fate; rotating readers Time + Myriad Paths + Fate; weekend readers Stillness + Fire + Fate (binge: + Tide). Most characters find 3-4 of the 5; the empty slots wait for a habit. With the steps first proposed (7 / 4 / 2 / 5 h / 8 h / 1) every Dao reached level 9 by Core Formation and was the key of every breakthrough after it; the user chose the slower steps. Side effect: the "scrolls only, short books" case no longer stalls (300 of 300 finish), since Daos become keys late in the game.
+
+`test_balance_sim.py`: the Mortal Plane bound is now 20% of 772 h and the per-realm bound 30% (were 10% and 25%): without the phantom omen the real pace is 11-15% over the doc's 772 h and Foundation about 26% over its 30 h. Not re-tuned; the user decides.

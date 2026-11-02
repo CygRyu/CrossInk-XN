@@ -4,6 +4,8 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Daily.h"
+#include "Daos.h"
 #include "Inventory.h"
 #include "Meridians.h"
 #include "Rng.h"
@@ -91,7 +93,7 @@ uint8_t bodyCutPercent(const GameState& s) {
   for (uint8_t i = 0; i < n; ++i) {
     const scrolls::Scroll sc = scrolls::get(s, i);
     if ((sc.flags & scrolls::Scroll::kEquippedTechnique) != 0 && sc.kind == scrolls::Kind::Body) {
-      const uint8_t c = kBodyCut[static_cast<int>(scrolls::tierOf(sc))];
+      const uint8_t c = kBodyCut[static_cast<int>(scrolls::effectiveTier(s, sc))];  // v0.2.6: Daos
       if (c > cut) cut = c;
     }
   }
@@ -129,8 +131,10 @@ Strike currentStrike(const GameState& s) {
   st.index = step(s) < st.count ? step(s) : static_cast<uint8_t>(st.count - 1);
   st.percent = strikePercent(st.count, st.index);
   // v0.2.4: reckoned without Lung's HP; Small Intestine points soften it.
-  st.base = static_cast<uint16_t>(
-      meridians::scaleUp(ceilPercent(meridians::damageHpBase(s), st.percent), meridians::lightningPermille(s)));
+  // v0.2.6: the omen "Calm sky" softens it by 10% more.
+  const uint32_t lightning =
+      static_cast<uint32_t>(meridians::lightningPermille(s)) * daily::lightningPermille(s) / 1000u;
+  st.base = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(meridians::damageHpBase(s), st.percent), lightning));
 
   // Endure, cut by the best equipped Body technique.
   const uint8_t cut = bodyCutPercent(s);
@@ -210,7 +214,8 @@ uint8_t sceneChance(const GameState& s) {
       break;
     }
   }
-  chance += meridians::heartDemonBonus(s);  // v0.2.4: Heart
+  chance += meridians::heartDemonBonus(s);                         // v0.2.4: Heart
+  chance += daos::heartDemonBonus(s) + daily::heartDemonBonus(s);  // v0.2.6: Flowing Water, "Clear heart"
   return static_cast<uint8_t>(chance > 95 ? 95 : chance);
 }
 

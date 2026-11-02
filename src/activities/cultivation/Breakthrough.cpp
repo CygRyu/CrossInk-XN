@@ -4,6 +4,8 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Daily.h"
+#include "Daos.h"
 #include "Meridians.h"
 #include "Rng.h"
 #include "Simulation.h"
@@ -57,7 +59,8 @@ Chance chanceFor(const GameState& state) {
   if (total > kChanceCap) total = kChanceCap;
   // balance_sim.py: pity raises the chance by 15 per failure, but never past 90.
   if (p.failures > 0) {
-    uint32_t withPity = total + static_cast<uint32_t>(kPityPerFailure) * p.failures;
+    const uint32_t perFailure = static_cast<uint32_t>(kPityPerFailure) + daos::pityPerFailureBonus(state);  // Tide
+    uint32_t withPity = total + perFailure * p.failures;
     if (withPity > kPityCap) withPity = kPityCap;
     if (withPity > total) {
       c.pity = static_cast<uint8_t>(withPity - total);
@@ -67,9 +70,14 @@ Chance chanceFor(const GameState& state) {
   c.total = static_cast<uint8_t>(total);
   c.needsKey = c.target >= 2;  // the small bottleneck into Qi Condensation needs none
   if (c.needsKey) {
-    c.keyIndex = scrolls::keyFor(state, c.target);  // Daos join in a later milestone
-    c.pillIsKey = c.keyIndex < 0 && c.pillItem != inventory::Item::None;
-    c.hasKey = c.keyIndex >= 0 || c.pillIsKey;
+    const daos::Dao dao = daos::keyFor(state, c.target);  // v0.2.6: never spent, so first
+    if (dao != daos::Dao::Count) {
+      c.daoKey = static_cast<uint8_t>(dao);
+    } else {
+      c.keyIndex = scrolls::keyFor(state, c.target);
+    }
+    c.pillIsKey = c.daoKey == 0xFF && c.keyIndex < 0 && c.pillItem != inventory::Item::None;
+    c.hasKey = c.daoKey != 0xFF || c.keyIndex >= 0 || c.pillIsKey;
   }
   return c;
 }
@@ -90,7 +98,14 @@ void enterGreatPerfection(GameState& state) {
 
 uint8_t consolidationGained(const GameState& state, const uint32_t before, const uint32_t after) {
   if (!inGreatPerfection(state) || after <= before) return 0;
-  const uint32_t steps = after / kSecondsPerConsolidation - before / kSecondsPerConsolidation;
+  // Whole steps of the scaled reading time: the same factor on both sides, so
+  // no carry is needed (a factor that changes between visits shifts by under one point).
+  const uint64_t permille =
+      static_cast<uint64_t>(daos::consolidationPermille(state)) * daily::consolidationPermille(state) / 1000u;
+  const uint64_t unit = static_cast<uint64_t>(kSecondsPerConsolidation) * 1000u;
+  const uint64_t hi = static_cast<uint64_t>(after) * permille / unit;
+  const uint64_t lo = static_cast<uint64_t>(before) * permille / unit;
+  const uint32_t steps = hi > lo ? static_cast<uint32_t>(hi - lo) : 0u;
   const uint8_t have = state.progress.consolidation;
   const uint8_t room = have < kConsolidationMax ? static_cast<uint8_t>(kConsolidationMax - have) : 0;
   return static_cast<uint8_t>(steps < room ? steps : room);

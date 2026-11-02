@@ -55,6 +55,10 @@ struct Scroll {
 
 Tier tierForHours(uint32_t hours);  // DOC: <3 Mortal, 3-8 Yellow, 8-15 Earth, 15-25 Heaven, 25+ Saint
 inline Tier tierOf(const Scroll& s) { return tierForHours(s.hours); }
+// v0.2.6: an equipped technique's tier in fights and Body cuts: one higher at
+// levels 3, 6 and 9 of the Dao of its element (Daos.h), at most Saint. Never
+// used for Cultivation manuals (no Dao touches the Qi rate).
+Tier effectiveTier(const GameState& state, const Scroll& s);
 Quality qualityFor(uint8_t comprehension);  // <50, 50-74, 75-89, 90-97, 98+
 // DOC: Morning Wood, Afternoon Fire, Evening Metal, Night Water; Earth when no
 // time-of-day bucket holds more than 40% of the book's reading.

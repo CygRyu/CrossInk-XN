@@ -15,7 +15,9 @@
 // used up only when the attempt succeeds. v0.2.0: a breakthrough pill of a
 // fitting grade (Alchemy.h) is a key too and adds chance; it is used up on
 // every attempt. When both are held the scroll is the key and the pill adds
-// chance. Daos, the doc's third key, come later. Body Tempering -> Qi
+// chance. v0.2.6: a found Dao at level >= target + 2 (Daos.h) is the third
+// key; it is never spent, so it is checked first (the scroll then stays in
+// the library and the pill only adds chance). Body Tempering -> Qi
 // Condensation is the doc's "small bottleneck" and needs no key.
 namespace cultivation {
 namespace breakthrough {
@@ -46,13 +48,14 @@ struct Chance {
   uint8_t depth = 0;          // v0.2.1: depth's part (together with consolidation at most +15)
   uint8_t element = 0;        // +5 when the equipped manual's element matches the root
   uint8_t pill = 0;           // v0.2.0: the breakthrough pill's +10 / +17 / +25
-  uint8_t pity = 0;           // what pity added on top of the rest
+  uint8_t pity = 0;           // what pity added on top of the rest (v0.2.6: +2 per failure per Tide level)
   uint8_t total = 0;
   bool needsKey = false;                             // every bottleneck after the small one into Qi Condensation
   bool hasKey = false;                               // a qualifying unequipped scroll is in the library
   int keyIndex = -1;                                 // that scroll (Scrolls.h keyFor), -1 if none or none needed
   inventory::Item pillItem = inventory::Item::None;  // the pill the attempt takes (or took)
   bool pillIsKey = false;                            // no key scroll: the pill is the key
+  uint8_t daoKey = 0xFF;                             // v0.2.6: the Dao (daos::Dao) that is the key, 0xFF when none
 };
 
 Chance chanceFor(const GameState& state);
@@ -70,6 +73,8 @@ void enterGreatPerfection(GameState& state);
 // Consolidation points earned by a visit's reading while in Great
 // Perfection: whole half-hours of this character's reading time, so no carry
 // field is needed (the same trick as stamina). Applied by absorb().
+// v0.2.6: the Dao of Stillness (+10% per level) and the omen "Quiet mind"
+// (+20%) make the half-hours count more.
 uint8_t consolidationGained(const GameState& state, uint32_t readingSecondsBefore, uint32_t readingSecondsAfter);
 
 // v0.2.1: depth (see kDepthMax). `barWasFull`: the Peak bar was already full
