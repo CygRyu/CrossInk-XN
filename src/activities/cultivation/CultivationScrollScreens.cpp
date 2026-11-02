@@ -14,6 +14,7 @@
 #include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
+#include "GameText.h"
 #include "MappedInputManager.h"
 #include "components/CompactHeader.h"
 #include "components/UITheme.h"
@@ -32,15 +33,15 @@ using namespace cultivation;
 
 namespace {
 
-static const StrId kTierNames[static_cast<int>(scrolls::Tier::Count)] = {
-    StrId::STR_CULT_TIER_MORTAL, StrId::STR_CULT_TIER_YELLOW, StrId::STR_CULT_TIER_EARTH, StrId::STR_CULT_TIER_HEAVEN,
-    StrId::STR_CULT_TIER_SAINT};
-static const StrId kKindNames[static_cast<int>(scrolls::Kind::Count)] = {
-    StrId::STR_CULT_KIND_SWORD,    StrId::STR_CULT_KIND_PALM, StrId::STR_CULT_KIND_BODY,
-    StrId::STR_CULT_KIND_MOVEMENT, StrId::STR_CULT_KIND_MIND, StrId::STR_CULT_KIND_MANUAL};
-static const StrId kQualityNames[static_cast<int>(scrolls::Quality::Count)] = {
-    StrId::STR_CULT_QUALITY_FRAGMENTARY, StrId::STR_CULT_QUALITY_INCOMPLETE, StrId::STR_CULT_QUALITY_COMPLETE,
-    StrId::STR_CULT_QUALITY_REFINED, StrId::STR_CULT_QUALITY_PERFECTED};
+static const GameStr kTierNames[static_cast<int>(scrolls::Tier::Count)] = {
+    GameStr::CULT_TIER_MORTAL, GameStr::CULT_TIER_YELLOW, GameStr::CULT_TIER_EARTH, GameStr::CULT_TIER_HEAVEN,
+    GameStr::CULT_TIER_SAINT};
+static const GameStr kKindNames[static_cast<int>(scrolls::Kind::Count)] = {
+    GameStr::CULT_KIND_SWORD,    GameStr::CULT_KIND_PALM, GameStr::CULT_KIND_BODY,
+    GameStr::CULT_KIND_MOVEMENT, GameStr::CULT_KIND_MIND, GameStr::CULT_KIND_MANUAL};
+static const GameStr kQualityNames[static_cast<int>(scrolls::Quality::Count)] = {
+    GameStr::CULT_QUALITY_FRAGMENTARY, GameStr::CULT_QUALITY_INCOMPLETE, GameStr::CULT_QUALITY_COMPLETE,
+    GameStr::CULT_QUALITY_REFINED, GameStr::CULT_QUALITY_PERFECTED};
 
 int clampIndex(const int v, const int count) { return v < 0 ? 0 : (v >= count ? count - 1 : v); }
 
@@ -49,13 +50,13 @@ int clampIndex(const int v, const int count) { return v < 0 ? 0 : (v >= count ? 
 namespace cultivation {
 namespace ui {
 const char* tierName(const scrolls::Tier t) {
-  return I18N.get(kTierNames[clampIndex(static_cast<int>(t), static_cast<int>(scrolls::Tier::Count))]);
+  return gameText(kTierNames[clampIndex(static_cast<int>(t), static_cast<int>(scrolls::Tier::Count))]);
 }
 const char* kindName(const scrolls::Kind k) {
-  return I18N.get(kKindNames[clampIndex(static_cast<int>(k), static_cast<int>(scrolls::Kind::Count))]);
+  return gameText(kKindNames[clampIndex(static_cast<int>(k), static_cast<int>(scrolls::Kind::Count))]);
 }
 const char* qualityName(const scrolls::Quality q) {
-  return I18N.get(kQualityNames[clampIndex(static_cast<int>(q), static_cast<int>(scrolls::Quality::Count))]);
+  return gameText(kQualityNames[clampIndex(static_cast<int>(q), static_cast<int>(scrolls::Quality::Count))]);
 }
 }  // namespace ui
 }  // namespace cultivation
@@ -155,12 +156,12 @@ void CultivationActivity::appendScrollLine(const char* listKey, const scrolls::S
 void CultivationActivity::scrollName(const scrolls::Scroll& s, char* out, const size_t len) {
   if (grammar_ && scrollnames::name(s, worldSeedOf(*state_), *grammar_, out, len)) return;
   // Without generated text: "Earth tier Sword scroll".
-  snprintf(out, len, tr(STR_CULT_SCROLL_FALLBACK_FORMAT), ui::tierName(scrolls::tierOf(s)), ui::kindName(s.kind));
+  snprintf(out, len, ctr(CULT_SCROLL_FALLBACK_FORMAT), ui::tierName(scrolls::tierOf(s)), ui::kindName(s.kind));
 }
 
 // "Earth tier, Water, Sword"
 void CultivationActivity::scrollAttributes(const scrolls::Scroll& s, char* out, const size_t len) const {
-  snprintf(out, len, tr(STR_CULT_SCROLL_ATTRS_FORMAT), ui::tierName(scrolls::tierOf(s)), ui::elementName(s.element),
+  snprintf(out, len, ctr(CULT_SCROLL_ATTRS_FORMAT), ui::tierName(scrolls::tierOf(s)), ui::elementName(s.element),
            ui::kindName(s.kind));
 }
 
@@ -410,17 +411,16 @@ void CultivationActivity::handleScrollDetail(const bool back, const bool confirm
       case DetailAction::Equip:
         if (scrolls::equip(*state_, index)) {
           persist();
-          snprintf(
-              notice_, sizeof(notice_), "%s",
-              s.kind == scrolls::Kind::Manual ? tr(STR_CULT_EQUIPPED_MANUAL_NOTICE) : tr(STR_CULT_EQUIPPED_NOTICE));
+          snprintf(notice_, sizeof(notice_), "%s",
+                   s.kind == scrolls::Kind::Manual ? ctr(CULT_EQUIPPED_MANUAL_NOTICE) : ctr(CULT_EQUIPPED_NOTICE));
         } else {
-          snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_EQUIP_FULL_NOTICE));
+          snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_EQUIP_FULL_NOTICE));
         }
         break;
       case DetailAction::Unequip:
         scrolls::unequip(*state_, index);
         persist();
-        snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_UNEQUIPPED_NOTICE));
+        snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_UNEQUIPPED_NOTICE));
         break;
       case DetailAction::Sell:
         screen_ = Screen::SellConfirm;
@@ -441,7 +441,7 @@ void CultivationActivity::sellSelected() {
         appendScrollLine("scroll.line.sold", s);  // the Chronicle first, as every event
         const uint32_t price = scrolls::sell(*state_, static_cast<uint8_t>(slot));
         persist();
-        snprintf(notice_, sizeof(notice_), tr(STR_CULT_SOLD_FORMAT), nameBuf_, static_cast<unsigned long>(price));
+        snprintf(notice_, sizeof(notice_), ctr(CULT_SOLD_FORMAT), nameBuf_, static_cast<unsigned long>(price));
         LOG_INF("CULT", "Sold a scroll for %lu stones", static_cast<unsigned long>(price));
       }
     }
@@ -475,32 +475,32 @@ void CultivationActivity::renderScrollNews(const int x, int y, const int width, 
     const scrolls::Event& e = n.events[i];
     const scrolls::Scroll& s = e.scroll;
     const bool named = e.kind != scrolls::EventKind::TooShort && e.kind != scrolls::EventKind::AlreadyUsed;
-    const char* heading = named ? n.names[i] : tr(STR_CULT_NEWS_BOOK);
+    const char* heading = named ? n.names[i] : ctr(CULT_NEWS_BOOK);
 
     line[0] = '\0';
     switch (e.kind) {
       case scrolls::EventKind::Minted:
         scrollAttributes(s, attrs, sizeof(attrs));
-        snprintf(line, sizeof(line), tr(STR_CULT_NEWS_NEW_FORMAT), attrs,
+        snprintf(line, sizeof(line), ctr(CULT_NEWS_NEW_FORMAT), attrs,
                  ui::qualityName(scrolls::qualityFor(s.comprehension)));
         break;
       case scrolls::EventKind::Improved:
-        snprintf(line, sizeof(line), tr(STR_CULT_NEWS_IMPROVED_FORMAT),
+        snprintf(line, sizeof(line), ctr(CULT_NEWS_IMPROVED_FORMAT),
                  ui::qualityName(scrolls::qualityFor(e.oldComprehension)),
                  ui::qualityName(scrolls::qualityFor(s.comprehension)), static_cast<unsigned>(e.oldComprehension),
                  static_cast<unsigned>(s.comprehension));
         break;
       case scrolls::EventKind::Unchanged:
-        snprintf(line, sizeof(line), "%s", tr(STR_CULT_NEWS_UNCHANGED));
+        snprintf(line, sizeof(line), "%s", ctr(CULT_NEWS_UNCHANGED));
         break;
       case scrolls::EventKind::AlreadyUsed:
-        snprintf(line, sizeof(line), "%s", tr(STR_CULT_NEWS_ALREADY_USED));
+        snprintf(line, sizeof(line), "%s", ctr(CULT_NEWS_ALREADY_USED));
         break;
       case scrolls::EventKind::TooShort:
-        snprintf(line, sizeof(line), tr(STR_CULT_NEWS_TOO_SHORT_FORMAT), static_cast<unsigned>(e.minutes));
+        snprintf(line, sizeof(line), ctr(CULT_NEWS_TOO_SHORT_FORMAT), static_cast<unsigned>(e.minutes));
         break;
       case scrolls::EventKind::AutoSold:
-        snprintf(line, sizeof(line), tr(STR_CULT_NEWS_AUTOSOLD_FORMAT), static_cast<unsigned>(scrolls::kCapacity),
+        snprintf(line, sizeof(line), ctr(CULT_NEWS_AUTOSOLD_FORMAT), static_cast<unsigned>(scrolls::kCapacity),
                  static_cast<unsigned long>(e.stones));
         break;
     }
@@ -521,16 +521,16 @@ void CultivationActivity::renderScrollNews(const int x, int y, const int width, 
   }
   if (n.next >= n.count) {  // the last page: what did not fit in the news
     if (n.soldHidden > 0) {
-      snprintf(line, sizeof(line), tr(STR_CULT_NEWS_SOLD_MORE_FORMAT), static_cast<unsigned>(n.soldHidden),
+      snprintf(line, sizeof(line), ctr(CULT_NEWS_SOLD_MORE_FORMAT), static_cast<unsigned>(n.soldHidden),
                static_cast<unsigned long>(n.soldHiddenStones));
       y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + 4;
     }
     if (n.hidden > 0) {
-      snprintf(line, sizeof(line), tr(STR_CULT_NEWS_MORE_FORMAT), static_cast<unsigned>(n.hidden));
+      snprintf(line, sizeof(line), ctr(CULT_NEWS_MORE_FORMAT), static_cast<unsigned>(n.hidden));
       y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + 4;
     }
-    if (n.overflow) y = drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_NEWS_OVERFLOW), 3) + 4;
-    if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_SAVE_FAILED), 2);
+    if (n.overflow) y = drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_NEWS_OVERFLOW), 3) + 4;
+    if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_SAVE_FAILED), 2);
   }
 }
 
@@ -560,15 +560,15 @@ void CultivationActivity::renderBetterManual(const int x, int y, const int width
   char to[16];
   ui::formatPermille(from, sizeof(from), now);
   ui::formatPermille(to, sizeof(to), with);
-  snprintf(line, sizeof(line), tr(STR_CULT_BETTER_MANUAL_FORMAT), from, to);
+  snprintf(line, sizeof(line), ctr(CULT_BETTER_MANUAL_FORMAT), from, to);
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   if (m.element == s.character.rootElement) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_SCROLL_ELEMENT_MATCH), 3) + metrics.verticalSpacing;
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_SCROLL_ELEMENT_MATCH), 3) + metrics.verticalSpacing;
   }
   if (scrolls::equippedManual(s) >= 0) {
-    drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_BETTER_MANUAL_KEEPS_OLD), 3);
+    drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_BETTER_MANUAL_KEEPS_OLD), 3);
   } else {
-    drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_BETTER_MANUAL_FIRST), 3);
+    drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_BETTER_MANUAL_FIRST), 3);
   }
 }
 
@@ -582,9 +582,9 @@ void CultivationActivity::renderTechniques(const int x, int y, const int width, 
   // The equipped manual and what it does to the Qi rate.
   const int manual = scrolls::equippedManual(s);
   if (manual >= 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_LIBRARY_MANUAL_FORMAT), library_->manualName);
+    snprintf(line, sizeof(line), ctr(CULT_LIBRARY_MANUAL_FORMAT), library_->manualName);
   } else {
-    snprintf(line, sizeof(line), "%s", tr(STR_CULT_LIBRARY_NO_MANUAL));
+    snprintf(line, sizeof(line), "%s", ctr(CULT_LIBRARY_NO_MANUAL));
   }
   const std::string manualLine = renderer.truncatedText(UI_10_FONT_ID, line, width, EpdFontFamily::BOLD);
   renderer.drawText(UI_10_FONT_ID, x, y, manualLine.c_str(), true, EpdFontFamily::BOLD);
@@ -595,22 +595,21 @@ void CultivationActivity::renderTechniques(const int x, int y, const int width, 
   char manualText[16];
   ui::formatPermille(rateText, sizeof(rateText), rate);
   ui::formatPermille(manualText, sizeof(manualText), scrolls::equippedManualPermille(s));
-  snprintf(line, sizeof(line), tr(STR_CULT_LIBRARY_RATE_FORMAT), rateText, manualText);
+  snprintf(line, sizeof(line), ctr(CULT_LIBRARY_RATE_FORMAT), rateText, manualText);
   renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
   if (notice_[0] != '\0') {
     drawWrapped(SMALL_FONT_ID, x, y, width, notice_, 2);
   } else {
-    snprintf(line, sizeof(line), tr(STR_CULT_LIBRARY_COUNTS_FORMAT),
-             static_cast<unsigned>(scrolls::equippedTechniques(s)),
+    snprintf(line, sizeof(line), ctr(CULT_LIBRARY_COUNTS_FORMAT), static_cast<unsigned>(scrolls::equippedTechniques(s)),
              static_cast<unsigned>(scrolls::kMaxEquippedTechniques), static_cast<unsigned>(library_->count),
              static_cast<unsigned>(scrolls::kCapacity));
     drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
   }
 
   if (library_->count == 0) {
-    drawWrapped(UI_10_FONT_ID, x, layout.listTop, width, tr(STR_CULT_LIBRARY_EMPTY), 8);
+    drawWrapped(UI_10_FONT_ID, x, layout.listTop, width, ctr(CULT_LIBRARY_EMPTY), 8);
     return;
   }
 
@@ -635,17 +634,16 @@ void CultivationActivity::renderTechniques(const int x, int y, const int width, 
         snprintf(sub, sizeof(sub), "%s, %s", attrs, ui::qualityName(scrolls::qualityFor(sc.comprehension)));
         std::string out = sub;
         if ((sc.flags & scrolls::Scroll::kEquippedManual) != 0) {
-          out += tr(STR_CULT_TAG_MANUAL);
+          out += ctr(CULT_TAG_MANUAL);
         } else if ((sc.flags & scrolls::Scroll::kEquippedTechnique) != 0) {
-          out += tr(STR_CULT_TAG_EQUIPPED);
+          out += ctr(CULT_TAG_EQUIPPED);
         } else if (slot == best) {
-          out += tr(STR_CULT_TAG_BEST_MANUAL);
+          out += ctr(CULT_TAG_BEST_MANUAL);
         }
         return out;
       });
   if (pages > 1) {
-    snprintf(line, sizeof(line), tr(STR_CULT_PAGE_FORMAT), static_cast<unsigned>(page + 1),
-             static_cast<unsigned>(pages));
+    snprintf(line, sizeof(line), ctr(CULT_PAGE_FORMAT), static_cast<unsigned>(page + 1), static_cast<unsigned>(pages));
     renderer.drawText(SMALL_FONT_ID, x + width - renderer.getTextWidth(SMALL_FONT_ID, line), layout.pageLineTop, line);
   }
 }
@@ -667,38 +665,37 @@ void CultivationActivity::renderScrollDetail(const int x, int y, const int width
   y += 4;
   scrollAttributes(sc, attrs, sizeof(attrs));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, attrs, 2);
-  snprintf(line, sizeof(line), tr(STR_CULT_SCROLL_QUALITY_FORMAT),
-           ui::qualityName(scrolls::qualityFor(sc.comprehension)), static_cast<unsigned>(sc.comprehension));
+  snprintf(line, sizeof(line), ctr(CULT_SCROLL_QUALITY_FORMAT), ui::qualityName(scrolls::qualityFor(sc.comprehension)),
+           static_cast<unsigned>(sc.comprehension));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
-  snprintf(line, sizeof(line), tr(STR_CULT_SCROLL_HOURS_FORMAT), static_cast<unsigned>(sc.hours));
+  snprintf(line, sizeof(line), ctr(CULT_SCROLL_HOURS_FORMAT), static_cast<unsigned>(sc.hours));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
 
   // What it is for.
   if (sc.kind == scrolls::Kind::Manual) {
     char rate[16];
     ui::formatPermille(rate, sizeof(rate), scrolls::manualPermille(sc));
-    snprintf(line, sizeof(line), tr(STR_CULT_SCROLL_MANUAL_RATE_FORMAT), rate);
+    snprintf(line, sizeof(line), ctr(CULT_SCROLL_MANUAL_RATE_FORMAT), rate);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
     if (sc.element == s.character.rootElement) {
-      y = drawWrapped(SMALL_FONT_ID, x, y + 2, width, tr(STR_CULT_SCROLL_ELEMENT_MATCH), 3);
+      y = drawWrapped(SMALL_FONT_ID, x, y + 2, width, ctr(CULT_SCROLL_ELEMENT_MATCH), 3);
     }
   } else {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_SCROLL_TECHNIQUE_USE), 3);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_SCROLL_TECHNIQUE_USE), 3);
   }
   const scrolls::Tier tier = scrolls::tierOf(sc);
   if (tier >= scrolls::Tier::Heaven) {
-    snprintf(line, sizeof(line), "%s", tr(STR_CULT_SCROLL_KEY_ANY));
+    snprintf(line, sizeof(line), "%s", ctr(CULT_SCROLL_KEY_ANY));
   } else {
     // The highest realm this tier opens: Mortal Foundation (2), Yellow Core (3), Earth Nascent Soul (4).
     const uint8_t upTo = static_cast<uint8_t>(2 + static_cast<int>(tier));
-    snprintf(line, sizeof(line), tr(STR_CULT_SCROLL_KEY_UPTO_FORMAT), ui::realmName(upTo));
+    snprintf(line, sizeof(line), ctr(CULT_SCROLL_KEY_UPTO_FORMAT), ui::realmName(upTo));
   }
   y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   if (sc.equipped()) {
     y = drawWrapped(
         UI_10_FONT_ID, x, y + 4, width,
-        sc.kind == scrolls::Kind::Manual ? tr(STR_CULT_SCROLL_EQUIPPED_MANUAL) : tr(STR_CULT_SCROLL_EQUIPPED_TECHNIQUE),
-        2);
+        sc.kind == scrolls::Kind::Manual ? ctr(CULT_SCROLL_EQUIPPED_MANUAL) : ctr(CULT_SCROLL_EQUIPPED_TECHNIQUE), 2);
   }
 
   // Actions at the bottom; a notice just above them.
@@ -715,13 +712,13 @@ void CultivationActivity::renderScrollDetail(const int x, int y, const int width
                    case DetailAction::Equip:
                      if (sc.kind != scrolls::Kind::Manual &&
                          scrolls::equippedTechniques(*state_) >= scrolls::kMaxEquippedTechniques) {
-                       return tr(STR_CULT_EQUIP_FULL);
+                       return ctr(CULT_EQUIP_FULL);
                      }
-                     return sc.kind == scrolls::Kind::Manual ? tr(STR_CULT_EQUIP_MANUAL) : tr(STR_CULT_EQUIP);
+                     return sc.kind == scrolls::Kind::Manual ? ctr(CULT_EQUIP_MANUAL) : ctr(CULT_EQUIP);
                    case DetailAction::Unequip:
-                     return tr(STR_CULT_UNEQUIP);
+                     return ctr(CULT_UNEQUIP);
                    case DetailAction::Sell:
-                     snprintf(label, sizeof(label), tr(STR_CULT_SELL_FORMAT),
+                     snprintf(label, sizeof(label), ctr(CULT_SELL_FORMAT),
                               static_cast<unsigned long>(scrolls::sellPrice(sc)));
                      return label;
                  }
@@ -734,7 +731,7 @@ void CultivationActivity::renderSellConfirm(const int x, const int y, const int 
   if (slot < 0) return;
   const scrolls::Scroll sc = scrolls::get(*state_, static_cast<uint8_t>(slot));
   char line[320];
-  snprintf(line, sizeof(line), tr(STR_CULT_SELL_CONFIRM_FORMAT), nameBuf_,
+  snprintf(line, sizeof(line), ctr(CULT_SELL_CONFIRM_FORMAT), nameBuf_,
            static_cast<unsigned long>(scrolls::sellPrice(sc)));
   drawWrapped(UI_10_FONT_ID, x, y, width, line, 10);
 }

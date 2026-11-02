@@ -15,8 +15,12 @@
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "ImageFolderIndex.h"
+#include "activities/cultivation/CultivationConfig.h"
 #include "fontIds.h"
 #include "images/Logo120.h"
+#if CROSSINK_CULTIVATION
+#include "activities/cultivation/CultivationBootScreen.h"
+#endif
 
 namespace {
 
@@ -115,6 +119,10 @@ bool tryDrawRotatingBootImage(const GfxRenderer& renderer) {
 }
 
 void drawDefaultBootLogo(const GfxRenderer& renderer) {
+#if CROSSINK_CULTIVATION
+  cultivation::boot::drawBootScreen(renderer);  // the game build's own (Path of Immortal Reading)
+  return;
+#endif
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
 

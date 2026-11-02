@@ -20,6 +20,7 @@
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "CultivatorSleepScreen.h"
+#include "GameText.h"
 #include "GameValues.h"
 #include "MappedInputManager.h"
 #include "Meridians.h"
@@ -44,55 +45,53 @@ RevisionWatch s_revisionWatch;
 constexpr char kDamagedSavePath[] = "/.crosspoint/cultivation/save.damaged.bin";
 
 // Text tables: static const, so they stay in flash.
-static const StrId kRealmNames[kMortalRealmCount] = {
-    StrId::STR_CULT_REALM_0, StrId::STR_CULT_REALM_1, StrId::STR_CULT_REALM_2, StrId::STR_CULT_REALM_3,
-    StrId::STR_CULT_REALM_4, StrId::STR_CULT_REALM_5, StrId::STR_CULT_REALM_6, StrId::STR_CULT_REALM_7,
-    StrId::STR_CULT_REALM_8, StrId::STR_CULT_REALM_9};
-static const StrId kStageNames[4] = {StrId::STR_CULT_STAGE_EARLY, StrId::STR_CULT_STAGE_MIDDLE,
-                                     StrId::STR_CULT_STAGE_LATE, StrId::STR_CULT_STAGE_PEAK};
-static const StrId kGenderNames[static_cast<int>(Gender::Count)] = {
-    StrId::STR_CULT_GENDER_MALE, StrId::STR_CULT_GENDER_FEMALE, StrId::STR_CULT_GENDER_NONBINARY,
-    StrId::STR_CULT_GENDER_UNSPECIFIED};
-static const StrId kOriginNames[static_cast<int>(Origin::Count)] = {
-    StrId::STR_CULT_ORIGIN_FARMER, StrId::STR_CULT_ORIGIN_CLAN_HEIR, StrId::STR_CULT_ORIGIN_ORPHAN,
-    StrId::STR_CULT_ORIGIN_SECT_SERVANT, StrId::STR_CULT_ORIGIN_HERBALIST};
-static const StrId kBirthLines[static_cast<int>(Origin::Count)] = {
-    StrId::STR_CULT_BIRTH_FARMER, StrId::STR_CULT_BIRTH_CLAN_HEIR, StrId::STR_CULT_BIRTH_ORPHAN,
-    StrId::STR_CULT_BIRTH_SECT_SERVANT, StrId::STR_CULT_BIRTH_HERBALIST};
-static const StrId kOriginGifts[static_cast<int>(Origin::Count)] = {
-    StrId::STR_CULT_GIFT_FARMER, StrId::STR_CULT_GIFT_CLAN_HEIR, StrId::STR_CULT_GIFT_ORPHAN,
-    StrId::STR_CULT_GIFT_SECT_SERVANT, StrId::STR_CULT_GIFT_HERBALIST};
-static const StrId kElementNames[static_cast<int>(Element::Count)] = {
-    StrId::STR_CULT_ELEMENT_WOOD, StrId::STR_CULT_ELEMENT_FIRE, StrId::STR_CULT_ELEMENT_EARTH,
-    StrId::STR_CULT_ELEMENT_METAL, StrId::STR_CULT_ELEMENT_WATER};
-static const StrId kElementColors[static_cast<int>(Element::Count)] = {
-    StrId::STR_CULT_COLOR_WOOD, StrId::STR_CULT_COLOR_FIRE, StrId::STR_CULT_COLOR_EARTH, StrId::STR_CULT_COLOR_METAL,
-    StrId::STR_CULT_COLOR_WATER};
-static const StrId kFoundationGrades[5] = {StrId::STR_CULT_FOUNDATION_1, StrId::STR_CULT_FOUNDATION_2,
-                                           StrId::STR_CULT_FOUNDATION_3, StrId::STR_CULT_FOUNDATION_4,
-                                           StrId::STR_CULT_FOUNDATION_5};
-static const StrId kCoreGrades[10] = {StrId::STR_CULT_CORE_1, StrId::STR_CULT_CORE_2, StrId::STR_CULT_CORE_3,
-                                      StrId::STR_CULT_CORE_4, StrId::STR_CULT_CORE_5, StrId::STR_CULT_CORE_6,
-                                      StrId::STR_CULT_CORE_7, StrId::STR_CULT_CORE_8, StrId::STR_CULT_CORE_9,
-                                      StrId::STR_CULT_CORE_10};
-static const StrId kSoulClarities[4] = {StrId::STR_CULT_SOUL_1, StrId::STR_CULT_SOUL_2, StrId::STR_CULT_SOUL_3,
-                                        StrId::STR_CULT_SOUL_4};
+static const GameStr kRealmNames[kMortalRealmCount] = {
+    GameStr::CULT_REALM_0, GameStr::CULT_REALM_1, GameStr::CULT_REALM_2, GameStr::CULT_REALM_3, GameStr::CULT_REALM_4,
+    GameStr::CULT_REALM_5, GameStr::CULT_REALM_6, GameStr::CULT_REALM_7, GameStr::CULT_REALM_8, GameStr::CULT_REALM_9};
+static const GameStr kStageNames[4] = {GameStr::CULT_STAGE_EARLY, GameStr::CULT_STAGE_MIDDLE, GameStr::CULT_STAGE_LATE,
+                                       GameStr::CULT_STAGE_PEAK};
+static const GameStr kGenderNames[static_cast<int>(Gender::Count)] = {
+    GameStr::CULT_GENDER_MALE, GameStr::CULT_GENDER_FEMALE, GameStr::CULT_GENDER_NONBINARY,
+    GameStr::CULT_GENDER_UNSPECIFIED};
+static const GameStr kOriginNames[static_cast<int>(Origin::Count)] = {
+    GameStr::CULT_ORIGIN_FARMER, GameStr::CULT_ORIGIN_CLAN_HEIR, GameStr::CULT_ORIGIN_ORPHAN,
+    GameStr::CULT_ORIGIN_SECT_SERVANT, GameStr::CULT_ORIGIN_HERBALIST};
+static const GameStr kBirthLines[static_cast<int>(Origin::Count)] = {
+    GameStr::CULT_BIRTH_FARMER, GameStr::CULT_BIRTH_CLAN_HEIR, GameStr::CULT_BIRTH_ORPHAN,
+    GameStr::CULT_BIRTH_SECT_SERVANT, GameStr::CULT_BIRTH_HERBALIST};
+static const GameStr kOriginGifts[static_cast<int>(Origin::Count)] = {
+    GameStr::CULT_GIFT_FARMER, GameStr::CULT_GIFT_CLAN_HEIR, GameStr::CULT_GIFT_ORPHAN, GameStr::CULT_GIFT_SECT_SERVANT,
+    GameStr::CULT_GIFT_HERBALIST};
+static const GameStr kElementNames[static_cast<int>(Element::Count)] = {
+    GameStr::CULT_ELEMENT_WOOD, GameStr::CULT_ELEMENT_FIRE, GameStr::CULT_ELEMENT_EARTH, GameStr::CULT_ELEMENT_METAL,
+    GameStr::CULT_ELEMENT_WATER};
+static const GameStr kElementColors[static_cast<int>(Element::Count)] = {
+    GameStr::CULT_COLOR_WOOD, GameStr::CULT_COLOR_FIRE, GameStr::CULT_COLOR_EARTH, GameStr::CULT_COLOR_METAL,
+    GameStr::CULT_COLOR_WATER};
+static const GameStr kFoundationGrades[5] = {GameStr::CULT_FOUNDATION_1, GameStr::CULT_FOUNDATION_2,
+                                             GameStr::CULT_FOUNDATION_3, GameStr::CULT_FOUNDATION_4,
+                                             GameStr::CULT_FOUNDATION_5};
+static const GameStr kCoreGrades[10] = {
+    GameStr::CULT_CORE_1, GameStr::CULT_CORE_2, GameStr::CULT_CORE_3, GameStr::CULT_CORE_4, GameStr::CULT_CORE_5,
+    GameStr::CULT_CORE_6, GameStr::CULT_CORE_7, GameStr::CULT_CORE_8, GameStr::CULT_CORE_9, GameStr::CULT_CORE_10};
+static const GameStr kSoulClarities[4] = {GameStr::CULT_SOUL_1, GameStr::CULT_SOUL_2, GameStr::CULT_SOUL_3,
+                                          GameStr::CULT_SOUL_4};
 constexpr uint32_t kKindOutcomeLine = 56;  // contentSeed kinds: 55 is the breakthrough roll
 constexpr uint32_t kKindGreatPerfectionLine = 57;
 
-static const StrId kTalentNames[kTalentCount] = {StrId::STR_CULT_TALENT_CHOKED, StrId::STR_CULT_TALENT_DULL,
-                                                 StrId::STR_CULT_TALENT_ORDINARY, StrId::STR_CULT_TALENT_KEEN,
-                                                 StrId::STR_CULT_TALENT_HEAVEN_BLESSED};
+static const GameStr kTalentNames[kTalentCount] = {GameStr::CULT_TALENT_CHOKED, GameStr::CULT_TALENT_DULL,
+                                                   GameStr::CULT_TALENT_ORDINARY, GameStr::CULT_TALENT_KEEN,
+                                                   GameStr::CULT_TALENT_HEAVEN_BLESSED};
 
 constexpr int kNameRows = 3;  // Name, Suggest, Continue
 constexpr int kNameRowName = 0;
 constexpr int kNameRowSuggest = 1;
 
-const char* text(const StrId id) { return I18N.get(id); }
+const char* text(const GameStr id) { return gameText(id); }
 
 // "x0.60" style multiplier from permille.
 void formatRate(char* buf, const size_t len, const uint32_t permille) {
-  snprintf(buf, len, tr(STR_CULT_QI_RATE_FORMAT), static_cast<unsigned>(permille / 1000),
+  snprintf(buf, len, ctr(CULT_QI_RATE_FORMAT), static_cast<unsigned>(permille / 1000),
            static_cast<unsigned>((permille % 1000) / 10));
 }
 
@@ -168,22 +167,22 @@ void formatTitles(const GameState& s, char* out, const size_t len) {
   add(gradeName(breakthrough::GradeKind::Soul, p.soulClarity));
   if (breakthrough::isHalfStep(s) && p.realm + 1 < kMortalRealmCount) {
     char halfStep[64];
-    snprintf(halfStep, sizeof(halfStep), tr(STR_CULT_HALF_STEP_FORMAT), text(kRealmNames[p.realm + 1]));
+    snprintf(halfStep, sizeof(halfStep), ctr(CULT_HALF_STEP_FORMAT), text(kRealmNames[p.realm + 1]));
     add(halfStep);
   }
 }
 void stageName(const GameState& s, char* out, const size_t len) {
   const ProgressBlock& p = s.progress;
   if (breakthrough::inGreatPerfection(s)) {
-    snprintf(out, len, "%s", tr(STR_CULT_GREAT_PERFECTION));
+    snprintf(out, len, "%s", ctr(CULT_GREAT_PERFECTION));
   } else if (realmInfo(p.realm).layered) {
-    snprintf(out, len, tr(STR_CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
+    snprintf(out, len, ctr(CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
   } else {
     snprintf(out, len, "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
   }
 }
 void versionLine(char* out, const size_t len) {
-  snprintf(out, len, tr(STR_CULT_VERSION_FORMAT), CULTIVATION_GAME_VERSION);
+  snprintf(out, len, ctr(CULT_VERSION_FORMAT), CULTIVATION_GAME_VERSION);
 }
 void formatPermille(char* buf, const size_t len, const uint32_t permille) {
   snprintf(buf, len, "x%u.%02u", static_cast<unsigned>(permille / 1000), static_cast<unsigned>((permille % 1000) / 10));
@@ -192,11 +191,11 @@ void formatPermille(char* buf, const size_t len, const uint32_t permille) {
 const char* gradeWord(const inventory::Grade g) {
   switch (g) {
     case inventory::Grade::Spirit:
-      return tr(STR_CULT_GRADE_SPIRIT);
+      return ctr(CULT_GRADE_SPIRIT);
     case inventory::Grade::Rare:
-      return tr(STR_CULT_GRADE_RARE);
+      return ctr(CULT_GRADE_RARE);
     default:
-      return tr(STR_CULT_GRADE_COMMON);
+      return ctr(CULT_GRADE_COMMON);
   }
 }
 
@@ -204,25 +203,25 @@ const char* pillName(const alchemy::Pill pill) {
   using alchemy::Pill;
   switch (pill) {
     case Pill::QiGathering:
-      return tr(STR_CULT_PILL_QI);
+      return ctr(CULT_PILL_QI);
     case Pill::TonicMinor:
-      return tr(STR_CULT_ITEM_TONIC_MINOR);
+      return ctr(CULT_ITEM_TONIC_MINOR);
     case Pill::BreakthroughCommon:
-      return tr(STR_CULT_PILL_BT_COMMON);
+      return ctr(CULT_PILL_BT_COMMON);
     case Pill::FoundationBuilding:
-      return tr(STR_CULT_PILL_FOUNDATION);
+      return ctr(CULT_PILL_FOUNDATION);
     case Pill::CoreForming:
-      return tr(STR_CULT_PILL_CORE);
+      return ctr(CULT_PILL_CORE);
     case Pill::TonicGreater:
-      return tr(STR_CULT_ITEM_TONIC_GREATER);
+      return ctr(CULT_ITEM_TONIC_GREATER);
     case Pill::SoulClearing:
-      return tr(STR_CULT_PILL_SOUL);
+      return ctr(CULT_PILL_SOUL);
     case Pill::BreakthroughSpirit:
-      return tr(STR_CULT_PILL_BT_SPIRIT);
+      return ctr(CULT_PILL_BT_SPIRIT);
     case Pill::TonicFull:
-      return tr(STR_CULT_ITEM_TONIC_FULL);
+      return ctr(CULT_ITEM_TONIC_FULL);
     case Pill::BreakthroughRare:
-      return tr(STR_CULT_PILL_BT_RARE);
+      return ctr(CULT_PILL_BT_RARE);
     default:
       return "";
   }
@@ -232,16 +231,16 @@ namespace {
 const char* qualityWord(const inventory::Quality q) {
   switch (q) {
     case inventory::Quality::High:
-      return tr(STR_CULT_PILL_HIGH);
+      return ctr(CULT_PILL_HIGH);
     case inventory::Quality::Medium:
-      return tr(STR_CULT_PILL_MEDIUM);
+      return ctr(CULT_PILL_MEDIUM);
     default:
-      return tr(STR_CULT_PILL_LOW);
+      return ctr(CULT_PILL_LOW);
   }
 }
 // "Core-Forming pill · high", with the first letter capitalised.
 void withQuality(const char* base, const inventory::Quality q, char* out, const size_t len) {
-  snprintf(out, len, tr(STR_CULT_PILL_QUALITY_FORMAT), base, qualityWord(q));
+  snprintf(out, len, ctr(CULT_PILL_QUALITY_FORMAT), base, qualityWord(q));
   if (out[0] >= 'a' && out[0] <= 'z') out[0] = static_cast<char>(out[0] - 'a' + 'A');
 }
 static const alchemy::Pill kBreakthroughPills[3] = {alchemy::Pill::BreakthroughCommon,
@@ -254,9 +253,9 @@ void itemName(const inventory::Item item, char* out, const size_t len) {
   using inventory::Item;
   out[0] = '\0';
   if (inventory::isHerb(item)) {
-    snprintf(out, len, tr(STR_CULT_ITEM_HERB_FALLBACK_FORMAT), static_cast<unsigned>(inventory::regionOf(item) + 1));
+    snprintf(out, len, ctr(CULT_ITEM_HERB_FALLBACK_FORMAT), static_cast<unsigned>(inventory::regionOf(item) + 1));
   } else if (inventory::isOre(item)) {
-    snprintf(out, len, tr(STR_CULT_ITEM_ORE_FALLBACK_FORMAT), static_cast<unsigned>(inventory::regionOf(item) + 1));
+    snprintf(out, len, ctr(CULT_ITEM_ORE_FALLBACK_FORMAT), static_cast<unsigned>(inventory::regionOf(item) + 1));
   } else if (inventory::isBreakthroughPill(item)) {
     withQuality(pillName(kBreakthroughPills[inventory::pillGroup(item)]), inventory::pillQuality(item), out, len);
   } else if (inventory::isGradePill(item)) {
@@ -265,31 +264,31 @@ void itemName(const inventory::Item item, char* out, const size_t len) {
     const char* name = "";
     switch (item) {
       case Item::TonicMinor:
-        name = tr(STR_CULT_ITEM_TONIC_MINOR);
+        name = ctr(CULT_ITEM_TONIC_MINOR);
         break;
       case Item::TonicGreater:
-        name = tr(STR_CULT_ITEM_TONIC_GREATER);
+        name = ctr(CULT_ITEM_TONIC_GREATER);
         break;
       case Item::TonicFull:
-        name = tr(STR_CULT_ITEM_TONIC_FULL);
+        name = ctr(CULT_ITEM_TONIC_FULL);
         break;
       case Item::ThunderTalisman:
-        name = tr(STR_CULT_ITEM_THUNDER);
+        name = ctr(CULT_ITEM_THUNDER);
         break;
       case Item::CalmIncense:
-        name = tr(STR_CULT_ITEM_INCENSE);
+        name = ctr(CULT_ITEM_INCENSE);
         break;
       case Item::RegionTalisman:
-        name = tr(STR_CULT_ITEM_REGION);
+        name = ctr(CULT_ITEM_REGION);
         break;
       case Item::QiPill:
-        name = tr(STR_CULT_PILL_QI);
+        name = ctr(CULT_PILL_QI);
         break;
       case Item::RecipeSlip:
-        name = tr(STR_CULT_ITEM_SLIP);
+        name = ctr(CULT_ITEM_SLIP);
         break;
       case Item::Dross:
-        name = tr(STR_CULT_ITEM_DROSS);
+        name = ctr(CULT_ITEM_DROSS);
         break;
       default:
         break;
@@ -302,7 +301,7 @@ void itemDescription(const inventory::Item item, char* out, const size_t len) {
   using inventory::Item;
   out[0] = '\0';
   if (inventory::isIngredient(item)) {
-    snprintf(out, len, inventory::isHerb(item) ? tr(STR_CULT_ITEM_HERB_DESC_FORMAT) : tr(STR_CULT_ITEM_ORE_DESC_FORMAT),
+    snprintf(out, len, inventory::isHerb(item) ? ctr(CULT_ITEM_HERB_DESC_FORMAT) : ctr(CULT_ITEM_ORE_DESC_FORMAT),
              gradeWord(inventory::gradeOfRegion(inventory::regionOf(item))));
     return;
   }
@@ -310,39 +309,39 @@ void itemDescription(const inventory::Item item, char* out, const size_t len) {
     const unsigned bonus = alchemy::breakthroughBonus(item);
     const uint8_t group = inventory::pillGroup(item);
     if (group >= 2) {
-      snprintf(out, len, tr(STR_CULT_ITEM_BT_DESC_ANY_FORMAT), bonus);
+      snprintf(out, len, ctr(CULT_ITEM_BT_DESC_ANY_FORMAT), bonus);
     } else {
-      snprintf(out, len, tr(STR_CULT_ITEM_BT_DESC_FORMAT), bonus, realmName(group == 0 ? 4 : 7));
+      snprintf(out, len, ctr(CULT_ITEM_BT_DESC_FORMAT), bonus, realmName(group == 0 ? 4 : 7));
     }
     return;
   }
   if (inventory::isGradePill(item)) {
-    static const StrId kKinds[3] = {StrId::STR_CULT_GRADE_KIND_FOUNDATION, StrId::STR_CULT_GRADE_KIND_CORE,
-                                    StrId::STR_CULT_GRADE_KIND_SOUL};
-    snprintf(out, len, tr(STR_CULT_ITEM_GRADE_DESC_FORMAT), static_cast<unsigned>(alchemy::gradePillPoints(item)),
-             I18N.get(kKinds[inventory::pillGroup(item)]));
+    static const GameStr kKinds[3] = {GameStr::CULT_GRADE_KIND_FOUNDATION, GameStr::CULT_GRADE_KIND_CORE,
+                                      GameStr::CULT_GRADE_KIND_SOUL};
+    snprintf(out, len, ctr(CULT_ITEM_GRADE_DESC_FORMAT), static_cast<unsigned>(alchemy::gradePillPoints(item)),
+             gameText(kKinds[inventory::pillGroup(item)]));
     return;
   }
   switch (item) {
     case Item::TonicMinor:
     case Item::TonicGreater:
     case Item::TonicFull:
-      snprintf(out, len, tr(STR_CULT_ITEM_TONIC_DESC_FORMAT), static_cast<unsigned>(inventory::healPercent(item)));
+      snprintf(out, len, ctr(CULT_ITEM_TONIC_DESC_FORMAT), static_cast<unsigned>(inventory::healPercent(item)));
       return;
     case Item::ThunderTalisman:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_THUNDER_DESC));
+      snprintf(out, len, "%s", ctr(CULT_ITEM_THUNDER_DESC));
       return;
     case Item::CalmIncense:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_INCENSE_DESC));
+      snprintf(out, len, "%s", ctr(CULT_ITEM_INCENSE_DESC));
       return;
     case Item::RegionTalisman:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_REGION_DESC));
+      snprintf(out, len, "%s", ctr(CULT_ITEM_REGION_DESC));
       return;
     case Item::QiPill:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_QI_DESC));
+      snprintf(out, len, "%s", ctr(CULT_ITEM_QI_DESC));
       return;
     case Item::Dross:
-      snprintf(out, len, "%s", tr(STR_CULT_ITEM_DROSS_DESC));
+      snprintf(out, len, "%s", ctr(CULT_ITEM_DROSS_DESC));
       return;
     default:
       return;
@@ -644,9 +643,9 @@ void CultivationActivity::chronicleMenuChoose(const int row) {
     // A copy the player can see and copy off the card; the notice says where.
     char path[96];
     if (chronicle::exportCopy(*state_, path, sizeof(path))) {
-      snprintf(notice_, sizeof(notice_), tr(STR_CULT_EXPORTED_FORMAT), path);
+      snprintf(notice_, sizeof(notice_), ctr(CULT_EXPORTED_FORMAT), path);
     } else {
-      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_EXPORT_FAILED));
+      snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_EXPORT_FAILED));
     }
     requestUpdate();
     return;
@@ -1162,7 +1161,7 @@ void CultivationActivity::onNameConfirm() {
 }
 
 void CultivationActivity::openKeyboard() {
-  auto keyboard = makeUniqueNoThrow<KeyboardEntryActivity>(renderer, mappedInput, tr(STR_CULT_NAME_PROMPT),
+  auto keyboard = makeUniqueNoThrow<KeyboardEntryActivity>(renderer, mappedInput, ctr(CULT_NAME_PROMPT),
                                                            std::string(draft_.name), kNameMaxBytes, InputType::Text);
   if (!keyboard) {
     LOG_ERR("CULT", "Could not allocate the keyboard");
@@ -1218,36 +1217,35 @@ void CultivationActivity::render(RenderLock&&) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   renderer.clearScreen();
 
-  const char* title = tr(STR_CULT_TITLE);
-  if (screen_ == Screen::Name || screen_ == Screen::Gender || screen_ == Screen::Origin) title = tr(STR_CULT_NEW_LIFE);
-  if (screen_ == Screen::Awakening) title = tr(STR_CULT_AWAKENING);
-  if (screen_ == Screen::Breakthrough) title = tr(STR_CULT_BREAKTHROUGH);
+  const char* title = ctr(CULT_TITLE);
+  if (screen_ == Screen::Name || screen_ == Screen::Gender || screen_ == Screen::Origin) title = ctr(CULT_NEW_LIFE);
+  if (screen_ == Screen::Awakening) title = ctr(CULT_AWAKENING);
+  if (screen_ == Screen::Breakthrough) title = ctr(CULT_BREAKTHROUGH);
   if (screen_ == Screen::Trial) {
-    title = trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon ? tr(STR_CULT_HEART_DEMON)
-                                                                                    : tr(STR_CULT_TRIBULATION);
+    title = trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon ? ctr(CULT_HEART_DEMON)
+                                                                                    : ctr(CULT_TRIBULATION);
   }
-  if (screen_ == Screen::GreatPerfection) title = tr(STR_CULT_GREAT_PERFECTION);
+  if (screen_ == Screen::GreatPerfection) title = ctr(CULT_GREAT_PERFECTION);
   if (screen_ == Screen::Outcome) {
-    title =
-        outcomeKind_ == OutcomeKind::EnteredGreatPerfection ? tr(STR_CULT_GREAT_PERFECTION) : tr(STR_CULT_BREAKTHROUGH);
+    title = outcomeKind_ == OutcomeKind::EnteredGreatPerfection ? ctr(CULT_GREAT_PERFECTION) : ctr(CULT_BREAKTHROUGH);
     if (outcomeKind_ == OutcomeKind::TrialLost) {
-      title = trials::kindFor(outcome_.toRealm) == trials::Kind::HeartDemon ? tr(STR_CULT_HEART_DEMON)
-                                                                            : tr(STR_CULT_TRIBULATION);
+      title =
+          trials::kindFor(outcome_.toRealm) == trials::Kind::HeartDemon ? ctr(CULT_HEART_DEMON) : ctr(CULT_TRIBULATION);
     }
   }
-  if (screen_ == Screen::ScrollNews) title = tr(STR_CULT_SCROLLS_TITLE);
-  if (screen_ == Screen::BetterManual) title = tr(STR_CULT_BETTER_MANUAL);
-  if (screen_ == Screen::Techniques || screen_ == Screen::ScrollDetail) title = tr(STR_CULT_TECHNIQUES);
-  if (screen_ == Screen::SellConfirm) title = tr(STR_CULT_SELL);
+  if (screen_ == Screen::ScrollNews) title = ctr(CULT_SCROLLS_TITLE);
+  if (screen_ == Screen::BetterManual) title = ctr(CULT_BETTER_MANUAL);
+  if (screen_ == Screen::Techniques || screen_ == Screen::ScrollDetail) title = ctr(CULT_TECHNIQUES);
+  if (screen_ == Screen::SellConfirm) title = ctr(CULT_SELL);
   char exploreTitleBuf[ExploreView::kRegionNameSize];
   if (screen_ == Screen::Regions || screen_ == Screen::Map || screen_ == Screen::Fight || screen_ == Screen::Meeting ||
       screen_ == Screen::Merchant || screen_ == Screen::MerchantSell || screen_ == Screen::Bag ||
       screen_ == Screen::Talisman || screen_ == Screen::MerchantQty) {
     title = exploreTitle(exploreTitleBuf, sizeof(exploreTitleBuf));
   }
-  if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = tr(STR_CULT_ALCHEMY_TITLE);
-  if (screen_ == Screen::Experiment) title = tr(STR_CULT_ALCHEMY_EXPERIMENT);
-  if (screen_ == Screen::Meridians) title = tr(STR_CULT_ACTION_MERIDIANS);
+  if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = ctr(CULT_ALCHEMY_TITLE);
+  if (screen_ == Screen::Experiment) title = ctr(CULT_ALCHEMY_EXPERIMENT);
+  if (screen_ == Screen::Meridians) title = ctr(CULT_ACTION_MERIDIANS);
   char recipeTitle[64];
   if (screen_ == Screen::RecipeDetail && alchemy_) {
     snprintf(recipeTitle, sizeof(recipeTitle), "%s",
@@ -1258,14 +1256,14 @@ void CultivationActivity::render(RenderLock&&) {
   char chronicleTitle[48];
   if (screen_ == Screen::Chronicle && chronicle_) {  // v0.2.3: the page's age, not a page number
     if (chronicle_->age >= 0) {
-      snprintf(chronicleTitle, sizeof(chronicleTitle), tr(STR_CULT_CHRONICLE_AGE_FORMAT),
+      snprintf(chronicleTitle, sizeof(chronicleTitle), ctr(CULT_CHRONICLE_AGE_FORMAT),
                static_cast<long>(chronicle_->age));
     } else {
-      snprintf(chronicleTitle, sizeof(chronicleTitle), "%s", tr(STR_CULT_CHRONICLE_BIRTH));
+      snprintf(chronicleTitle, sizeof(chronicleTitle), "%s", ctr(CULT_CHRONICLE_BIRTH));
     }
     title = chronicleTitle;
   }
-  if (screen_ == Screen::ChronicleMenu) title = tr(STR_CULT_ACTION_CHRONICLE);
+  if (screen_ == Screen::ChronicleMenu) title = ctr(CULT_ACTION_CHRONICLE);
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, title);
   } else {
@@ -1292,17 +1290,17 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Awakening: {
       renderAwakening(x, top, width);
-      confirmLabel = tr(STR_CULT_KEEP);
-      upLabel = rollView_ > 0 ? tr(STR_CULT_PREVIOUS) : "";
+      confirmLabel = ctr(CULT_KEEP);
+      upLabel = rollView_ > 0 ? ctr(CULT_PREVIOUS) : "";
       const bool canReroll = static_cast<uint8_t>(rollCount_ - 1) < draft_.rerollsAllowed && rollCount_ < kMaxRolls;
-      downLabel = rollView_ + 1 < rollCount_ ? tr(STR_CULT_NEXT) : (canReroll ? tr(STR_CULT_REROLL) : "");
+      downLabel = rollView_ + 1 < rollCount_ ? ctr(CULT_NEXT) : (canReroll ? ctr(CULT_REROLL) : "");
       break;
     }
     case Screen::Summary:
       renderSummary(x, top, width, bottom);
-      confirmLabel = tr(STR_CULT_CONTINUE);
-      upLabel = summaryPage_ > 0 ? tr(STR_CULT_PREVIOUS) : "";
-      downLabel = lifeLog_ && summaryNext_ < lifeLog_->count ? tr(STR_CULT_NEXT) : "";
+      confirmLabel = ctr(CULT_CONTINUE);
+      upLabel = summaryPage_ > 0 ? ctr(CULT_PREVIOUS) : "";
+      downLabel = lifeLog_ && summaryNext_ < lifeLog_->count ? ctr(CULT_NEXT) : "";
       break;
     case Screen::Cultivator:
       renderCultivator(x, top, width, bottom);
@@ -1314,7 +1312,7 @@ void CultivationActivity::render(RenderLock&&) {
       renderBreakthrough(x, top, width);
       const bool lightning = trials::kindFor(state_->progress.realm + 1) == trials::Kind::Tribulation;
       confirmLabel =
-          breakthrough::canAttempt(*state_) && !(lightning && state_->progress.hp == 0) ? tr(STR_CULT_ATTEMPT) : "";
+          breakthrough::canAttempt(*state_) && !(lightning && state_->progress.hp == 0) ? ctr(CULT_ATTEMPT) : "";
       upLabel = "";
       downLabel = "";
       {
@@ -1327,7 +1325,7 @@ void CultivationActivity::render(RenderLock&&) {
           if (inventory::count(*state_, pill) > 0 && alchemy::pillFits(pill, c.target)) ++fitting;
         }
         const bool onlyKey = c.needsKey && c.keyIndex < 0;
-        if (fitting + (onlyKey ? 0 : 1) > 1) downLabel = tr(STR_CULT_CHANGE_PILL);
+        if (fitting + (onlyKey ? 0 : 1) > 1) downLabel = ctr(CULT_CHANGE_PILL);
       }
       break;
     }
@@ -1339,21 +1337,21 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::GreatPerfection:
       renderGreatPerfection(x, top, width);
-      confirmLabel = tr(STR_CULT_ENTER);
+      confirmLabel = ctr(CULT_ENTER);
       upLabel = "";
       downLabel = "";
       break;
     case Screen::Outcome:
       renderOutcome(x, top, width);
-      confirmLabel = tr(STR_CULT_CONTINUE);
+      confirmLabel = ctr(CULT_CONTINUE);
       upLabel = "";
       downLabel = "";
       break;
     case Screen::Chronicle:
       renderChronicle(x, top, width, bottom);
       confirmLabel = tr(STR_MENU);
-      upLabel = chronicle_ && (chronicle_->cur > 0 || chronicle_->starts[0] > 0) ? tr(STR_CULT_PREVIOUS) : "";
-      downLabel = chronicle_ && (chronicle_->cur + 1 < chronicle_->count || chronicle_->more) ? tr(STR_CULT_NEXT) : "";
+      upLabel = chronicle_ && (chronicle_->cur > 0 || chronicle_->starts[0] > 0) ? ctr(CULT_PREVIOUS) : "";
+      downLabel = chronicle_ && (chronicle_->cur + 1 < chronicle_->count || chronicle_->more) ? ctr(CULT_NEXT) : "";
       break;
     case Screen::ChronicleMenu:
       renderChronicleMenu(top, bottom);
@@ -1361,14 +1359,14 @@ void CultivationActivity::render(RenderLock&&) {
     case Screen::ScrollNews: {
       renderScrollNews(x, top, width, bottom);
       const bool more = news_ && news_->next < news_->count && news_->next > news_->pageStarts[news_->page];
-      confirmLabel = more ? tr(STR_CULT_NEXT) : tr(STR_CULT_CONTINUE);
-      upLabel = news_ && news_->page > 0 ? tr(STR_CULT_PREVIOUS) : "";
-      downLabel = more ? tr(STR_CULT_NEXT) : "";
+      confirmLabel = more ? ctr(CULT_NEXT) : ctr(CULT_CONTINUE);
+      upLabel = news_ && news_->page > 0 ? ctr(CULT_PREVIOUS) : "";
+      downLabel = more ? ctr(CULT_NEXT) : "";
       break;
     }
     case Screen::BetterManual:
       renderBetterManual(x, top, width);
-      confirmLabel = tr(STR_CULT_EQUIP);
+      confirmLabel = ctr(CULT_EQUIP);
       upLabel = "";
       downLabel = "";
       break;
@@ -1386,7 +1384,7 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::SellConfirm:
       renderSellConfirm(x, top, width);
-      confirmLabel = tr(STR_CULT_SELL);
+      confirmLabel = ctr(CULT_SELL);
       upLabel = "";
       downLabel = "";
       break;
@@ -1432,7 +1430,7 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Meridians:
       renderMeridians(x, top, width, bottom);
-      confirmLabel = tr(STR_CULT_OPEN);
+      confirmLabel = ctr(CULT_OPEN);
       break;
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
@@ -1447,7 +1445,7 @@ void CultivationActivity::render(RenderLock&&) {
       alchemyLabels(confirmLabel, upLabel, downLabel);
       break;
     case Screen::Error:
-      drawWrapped(UI_10_FONT_ID, x, top, width, tr(STR_CULT_OUT_OF_MEMORY), 4);
+      drawWrapped(UI_10_FONT_ID, x, top, width, ctr(CULT_OUT_OF_MEMORY), 4);
       confirmLabel = "";
       upLabel = "";
       downLabel = "";
@@ -1467,19 +1465,19 @@ void CultivationActivity::renderName(const int top, const int bottom) {
     const int width = renderer.getScreenWidth() - metrics.contentSidePadding * 2;
     const int noteHeight = renderer.getLineHeight(SMALL_FONT_ID) * 2;
     listBottom = bottom - noteHeight;
-    drawWrapped(SMALL_FONT_ID, x, listBottom, width, tr(STR_CULT_NAME_INVALID), 2);
+    drawWrapped(SMALL_FONT_ID, x, listBottom, width, ctr(CULT_NAME_INVALID), 2);
   }
   GUI.drawList(
       renderer, Rect{0, top, renderer.getScreenWidth(), listBottom - top}, kNameRows, selected_,
       [](const int i) -> std::string {
-        if (i == kNameRowName) return tr(STR_CULT_NAME);
-        if (i == kNameRowSuggest) return tr(STR_CULT_NAME_SUGGEST);
-        return tr(STR_CULT_CONTINUE);
+        if (i == kNameRowName) return ctr(CULT_NAME);
+        if (i == kNameRowSuggest) return ctr(CULT_NAME_SUGGEST);
+        return ctr(CULT_CONTINUE);
       },
       nullptr, nullptr,
       [this](const int i) -> std::string {
         if (i != kNameRowName) return {};
-        return draft_.name[0] != '\0' ? std::string(draft_.name) : std::string(tr(STR_CULT_NAME_NONE));
+        return draft_.name[0] != '\0' ? std::string(draft_.name) : std::string(ctr(CULT_NAME_NONE));
       });
 }
 
@@ -1488,7 +1486,7 @@ void CultivationActivity::renderGender(const int top, const int bottom) {
   const int x = metrics.contentSidePadding;
   const int width = renderer.getScreenWidth() - metrics.contentSidePadding * 2;
   const int noteTop = bottom - renderer.getLineHeight(SMALL_FONT_ID) * 2;
-  drawWrapped(SMALL_FONT_ID, x, noteTop, width, tr(STR_CULT_GENDER_HINT), 2);
+  drawWrapped(SMALL_FONT_ID, x, noteTop, width, ctr(CULT_GENDER_HINT), 2);
   GUI.drawList(renderer, Rect{0, top, renderer.getScreenWidth(), noteTop - top}, static_cast<int>(Gender::Count),
                selected_, [](const int i) -> std::string { return text(kGenderNames[i]); });
 }
@@ -1511,25 +1509,25 @@ void CultivationActivity::renderAwakening(const int x, int y, const int width) {
   const DestinyRoll& roll = rolls_[rollView_];
   char line[128];
 
-  snprintf(line, sizeof(line), tr(STR_CULT_ROLL_FORMAT), static_cast<unsigned>(rollView_ + 1),
+  snprintf(line, sizeof(line), ctr(CULT_ROLL_FORMAT), static_cast<unsigned>(rollView_ + 1),
            static_cast<unsigned>(rollCount_));
   renderer.drawText(UI_12_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_12_FONT_ID) + metrics.verticalSpacing;
 
   // DOC: "The elder's testing stone glowed a murky green."
-  const StrId glow = roll.purity < 34   ? StrId::STR_CULT_GLOW_MURKY
-                     : roll.purity < 67 ? StrId::STR_CULT_GLOW_STEADY
-                                        : StrId::STR_CULT_GLOW_BRILLIANT;
-  snprintf(line, sizeof(line), tr(STR_CULT_STONE_FORMAT), text(glow),
+  const GameStr glow = roll.purity < 34   ? GameStr::CULT_GLOW_MURKY
+                       : roll.purity < 67 ? GameStr::CULT_GLOW_STEADY
+                                          : GameStr::CULT_GLOW_BRILLIANT;
+  snprintf(line, sizeof(line), ctr(CULT_STONE_FORMAT), text(glow),
            text(kElementColors[static_cast<int>(roll.element)]));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
 
-  snprintf(line, sizeof(line), tr(STR_CULT_ROOT_FORMAT), text(kElementNames[static_cast<int>(roll.element)]),
+  snprintf(line, sizeof(line), ctr(CULT_ROOT_FORMAT), text(kElementNames[static_cast<int>(roll.element)]),
            static_cast<unsigned>(roll.purity));
   renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
-  snprintf(line, sizeof(line), tr(STR_CULT_TALENT_FORMAT), text(kTalentNames[roll.talent]));
+  snprintf(line, sizeof(line), ctr(CULT_TALENT_FORMAT), text(kTalentNames[roll.talent]));
   renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 4;
 
@@ -1538,11 +1536,11 @@ void CultivationActivity::renderAwakening(const int x, int y, const int width) {
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing * 2;
 
   const unsigned rerollsLeft = draft_.rerollsAllowed - static_cast<unsigned>(rollCount_ - 1);
-  snprintf(line, sizeof(line), tr(STR_CULT_REROLLS_LEFT_FORMAT), rerollsLeft);
+  snprintf(line, sizeof(line), ctr(CULT_REROLLS_LEFT_FORMAT), rerollsLeft);
   renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
 
-  drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_AWAKENING_HINT), 3);
+  drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_AWAKENING_HINT), 3);
 }
 
 // "Layer 4", "Peak" or "Great Perfection".
@@ -1604,7 +1602,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   char need[24];
   p.qi.format(have, sizeof(have));
   cost.format(need, sizeof(need));
-  snprintf(line, sizeof(line), tr(STR_CULT_QI_FORMAT), have, need);
+  snprintf(line, sizeof(line), ctr(CULT_QI_FORMAT), have, need);
   renderer.drawText(SMALL_FONT_ID, x, y, line);
   char percent[8];
   snprintf(percent, sizeof(percent), "%u%%", static_cast<unsigned>(fill / 10));
@@ -1628,7 +1626,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
 
   int rumorReserve = 6;
   if (rumor_[0] != '\0') {
-    snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
+    snprintf(line, sizeof(line), ctr(CULT_RUMOR_FORMAT), rumor_);
     rumorReserve += static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, line, width, 5).size()) * smallLine +
                     metrics.verticalSpacing * 2;
   }
@@ -1650,28 +1648,28 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   };
   char ageLine[64], daoLine[64], rootLine[96], talentLine[96], rateLine[96], stonesLine[64], staminaLine[64],
       hpLine[64];
-  snprintf(ageLine, sizeof(ageLine), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
+  snprintf(ageLine, sizeof(ageLine), ctr(CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
            static_cast<unsigned>(realm.lifespanYears));
-  snprintf(daoLine, sizeof(daoLine), tr(STR_CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
-  snprintf(rootLine, sizeof(rootLine), tr(STR_CULT_ROOT_FORMAT),
+  snprintf(daoLine, sizeof(daoLine), ctr(CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
+  snprintf(rootLine, sizeof(rootLine), ctr(CULT_ROOT_FORMAT),
            text(kElementNames[static_cast<int>(s.character.rootElement)]),
            static_cast<unsigned>(s.character.rootPurity));
-  snprintf(talentLine, sizeof(talentLine), tr(STR_CULT_TALENT_FORMAT),
+  snprintf(talentLine, sizeof(talentLine), ctr(CULT_TALENT_FORMAT),
            text(kTalentNames[s.character.talent % kTalentCount]));
   const uint32_t rate = qiMultiplierPermille(s);
   if (scrolls::equippedManual(s) >= 0) {
     const uint32_t manual = scrolls::equippedManualPermille(s);
-    snprintf(rateLine, sizeof(rateLine), tr(STR_CULT_QI_RATE_MANUAL_FORMAT), static_cast<unsigned>(rate / 1000),
+    snprintf(rateLine, sizeof(rateLine), ctr(CULT_QI_RATE_MANUAL_FORMAT), static_cast<unsigned>(rate / 1000),
              static_cast<unsigned>((rate % 1000) / 10), static_cast<unsigned>(manual / 1000),
              static_cast<unsigned>((manual % 1000) / 10));
   } else {
     formatRate(rateLine, sizeof(rateLine), rate);
   }
-  snprintf(stonesLine, sizeof(stonesLine), tr(STR_CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
+  snprintf(stonesLine, sizeof(stonesLine), ctr(CULT_STONES_FORMAT), static_cast<unsigned long>(p.stones));
   // HP on the Stamina line (v0.1.9: Tribulations spend it, reading heals it).
-  snprintf(staminaLine, sizeof(staminaLine), tr(STR_CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
+  snprintf(staminaLine, sizeof(staminaLine), ctr(CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
            static_cast<unsigned>(kStaminaCap));
-  snprintf(hpLine, sizeof(hpLine), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+  snprintf(hpLine, sizeof(hpLine), ctr(CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
 
   const bool gp = breakthrough::inGreatPerfection(s);
   // v0.2.1: depth, from the first moment the Peak bar is full (it is kept after a failure too).
@@ -1699,11 +1697,11 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   if (gp || showDepth) {
     char depthLine[48] = {};
     if (showDepth) {
-      snprintf(depthLine, sizeof(depthLine), tr(STR_CULT_DEPTH_FORMAT), static_cast<unsigned>(breakthrough::depth(s)),
+      snprintf(depthLine, sizeof(depthLine), ctr(CULT_DEPTH_FORMAT), static_cast<unsigned>(breakthrough::depth(s)),
                static_cast<unsigned>(breakthrough::kDepthMax));
     }
     if (gp) {
-      snprintf(line, sizeof(line), tr(STR_CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
+      snprintf(line, sizeof(line), ctr(CULT_CONSOLIDATION_FORMAT), static_cast<unsigned>(p.consolidation),
                static_cast<unsigned>(breakthrough::kConsolidationMax));
       if (showDepth) {
         pair(line, depthLine);
@@ -1720,20 +1718,20 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
 
   // What this visit brought.
   if (justCreated_) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_WELCOME), fits(textLine, 3));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_WELCOME), fits(textLine, 3));
   } else if (visitReset_) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_RESET), fits(textLine, 3));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_VISIT_RESET), fits(textLine, 3));
   } else if (visitSeconds_ == 0) {
     const int needed =
-        static_cast<int>(renderer.wrappedText(UI_10_FONT_ID, tr(STR_CULT_VISIT_NONE), width, 3).size()) * textLine;
-    if (y + needed + rumorReserve <= listTop) y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_VISIT_NONE), 3);
+        static_cast<int>(renderer.wrappedText(UI_10_FONT_ID, ctr(CULT_VISIT_NONE), width, 3).size()) * textLine;
+    if (y + needed + rumorReserve <= listTop) y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_VISIT_NONE), 3);
   }  // otherwise the Return summary already showed what this visit brought
   if (originGift_.stones > 0 || originGift_.hp > 0) {
     if (originGift_.hp > 0) {
-      snprintf(line, sizeof(line), tr(STR_CULT_ORIGIN_GIFT_HP_FORMAT), static_cast<unsigned long>(originGift_.stones),
+      snprintf(line, sizeof(line), ctr(CULT_ORIGIN_GIFT_HP_FORMAT), static_cast<unsigned long>(originGift_.stones),
                static_cast<unsigned>(originGift_.hp));
     } else {
-      snprintf(line, sizeof(line), tr(STR_CULT_ORIGIN_GIFT_FORMAT), static_cast<unsigned long>(originGift_.stones));
+      snprintf(line, sizeof(line), ctr(CULT_ORIGIN_GIFT_FORMAT), static_cast<unsigned long>(originGift_.stones));
     }
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   }
@@ -1742,12 +1740,12 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   if (atBottleneck(s)) {
     const breakthrough::Chance c = breakthrough::chanceFor(s);
     if (c.needsKey && !c.hasKey && c.target < kMortalRealmCount) {
-      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_SHORT_FORMAT), text(kRealmNames[c.target]));
+      snprintf(line, sizeof(line), ctr(CULT_BOTTLENECK_KEY_SHORT_FORMAT), text(kRealmNames[c.target]));
       y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, line, fits(smallLine, 1));
     }
   }
   if (rumor_[0] != '\0') {
-    snprintf(line, sizeof(line), tr(STR_CULT_RUMOR_FORMAT), rumor_);
+    snprintf(line, sizeof(line), ctr(CULT_RUMOR_FORMAT), rumor_);
     y += metrics.verticalSpacing * 2;
     // On the busiest screens (Great Perfection, a missing key, two actions)
     // the rumor drops to the small font rather than lose its end.
@@ -1758,10 +1756,9 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
       y = drawWrapped(SMALL_FONT_ID, x, y, width, line, fits(smallLine, 5));
     }
   }
-  if (packs_ && packs_->sdProblems() > 0)
-    y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_PACK_PROBLEMS), 3);
-  if (damagedSave_ && justCreated_) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_DAMAGED), 3);
-  if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y + 4, width, tr(STR_CULT_SAVE_FAILED), 2);
+  if (packs_ && packs_->sdProblems() > 0) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, ctr(CULT_PACK_PROBLEMS), 3);
+  if (damagedSave_ && justCreated_) y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, ctr(CULT_SAVE_DAMAGED), 3);
+  if (saveFailed_) drawWrapped(SMALL_FONT_ID, x, y + 4, width, ctr(CULT_SAVE_FAILED), 2);
 
   if (actionCount_ > 0) {
     // Two columns, reading order; Up/Down walk the cells.
@@ -1775,37 +1772,37 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
       char meridianLabel[40];
       switch (actions_[i]) {
         case Action::Breakthrough:
-          label = tr(STR_CULT_ACTION_BREAKTHROUGH);
+          label = ctr(CULT_ACTION_BREAKTHROUGH);
           break;
         case Action::GreatPerfection:
-          label = tr(STR_CULT_ACTION_GREAT_PERFECTION);
+          label = ctr(CULT_ACTION_GREAT_PERFECTION);
           break;
         case Action::Techniques:
-          label = tr(STR_CULT_ACTION_TECHNIQUES);
+          label = ctr(CULT_ACTION_TECHNIQUES);
           break;
         case Action::Explore:
-          label = tr(STR_CULT_ACTION_EXPLORE);
+          label = ctr(CULT_ACTION_EXPLORE);
           break;
         case Action::Alchemy:
-          label = tr(STR_CULT_ACTION_ALCHEMY);
+          label = ctr(CULT_ACTION_ALCHEMY);
           break;
         case Action::Meridians: {
           const unsigned ready = meridians::ready(*state_);
           if (ready > 0) {
-            snprintf(meridianLabel, sizeof(meridianLabel), tr(STR_CULT_ACTION_MERIDIANS_READY_FORMAT), ready);
+            snprintf(meridianLabel, sizeof(meridianLabel), ctr(CULT_ACTION_MERIDIANS_READY_FORMAT), ready);
             label = meridianLabel;
           } else {
-            label = tr(STR_CULT_ACTION_MERIDIANS);
+            label = ctr(CULT_ACTION_MERIDIANS);
           }
           break;
         }
         case Action::Chronicle:
-          label = tr(STR_CULT_ACTION_CHRONICLE);
+          label = ctr(CULT_ACTION_CHRONICLE);
           break;
         case Action::Trial:
           label = trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon
-                      ? tr(STR_CULT_ACTION_DEMON)
-                      : tr(STR_CULT_ACTION_TRIBULATION);
+                      ? ctr(CULT_ACTION_DEMON)
+                      : ctr(CULT_ACTION_TRIBULATION);
           break;
       }
       const std::string fitted = renderer.truncatedText(UI_10_FONT_ID, label, cellWidth - pad * 2);
@@ -1830,11 +1827,11 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
   char line[224];
   if (c.target >= kMortalRealmCount) return;  // ascension is a later milestone
 
-  snprintf(line, sizeof(line), tr(STR_CULT_INTO_FORMAT), text(kRealmNames[c.target]));
+  snprintf(line, sizeof(line), ctr(CULT_INTO_FORMAT), text(kRealmNames[c.target]));
   renderer.drawText(UI_12_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_12_FONT_ID) + metrics.verticalSpacing;
 
-  snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_FORMAT), static_cast<unsigned>(c.total));
+  snprintf(line, sizeof(line), ctr(CULT_CHANCE_FORMAT), static_cast<unsigned>(c.total));
   renderer.drawText(UI_12_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_12_FONT_ID) + 4;
 
@@ -1842,29 +1839,29 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
     renderer.drawText(UI_10_FONT_ID, x + 16, y, textLine);
     y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
   };
-  snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_BASE_FORMAT), static_cast<unsigned>(c.base));
+  snprintf(line, sizeof(line), ctr(CULT_CHANCE_BASE_FORMAT), static_cast<unsigned>(c.base));
   part(line);
-  snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_DAO_HEART_FORMAT), static_cast<unsigned>(c.daoHeart));
+  snprintf(line, sizeof(line), ctr(CULT_CHANCE_DAO_HEART_FORMAT), static_cast<unsigned>(c.daoHeart));
   part(line);
   if (breakthrough::inGreatPerfection(s) || c.consolidation > 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_CONSOLIDATION_FORMAT), static_cast<unsigned>(c.consolidation));
+    snprintf(line, sizeof(line), ctr(CULT_CHANCE_CONSOLIDATION_FORMAT), static_cast<unsigned>(c.consolidation));
     part(line);
   }
   if (breakthrough::depth(s) > 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_DEPTH_FORMAT), static_cast<unsigned>(c.depth),
+    snprintf(line, sizeof(line), ctr(CULT_CHANCE_DEPTH_FORMAT), static_cast<unsigned>(c.depth),
              static_cast<unsigned>(breakthrough::depth(s)));
     part(line);
   }
   if (c.element > 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_ELEMENT_FORMAT), static_cast<unsigned>(c.element));
+    snprintf(line, sizeof(line), ctr(CULT_CHANCE_ELEMENT_FORMAT), static_cast<unsigned>(c.element));
     part(line);
   }
   if (c.pill > 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_PILL_FORMAT), static_cast<unsigned>(c.pill));
+    snprintf(line, sizeof(line), ctr(CULT_CHANCE_PILL_FORMAT), static_cast<unsigned>(c.pill));
     part(line);
   }
   if (c.pity > 0) {
-    snprintf(line, sizeof(line), tr(STR_CULT_CHANCE_PITY_FORMAT), static_cast<unsigned>(s.progress.failures),
+    snprintf(line, sizeof(line), ctr(CULT_CHANCE_PITY_FORMAT), static_cast<unsigned>(s.progress.failures),
              static_cast<unsigned>(c.pity));
     part(line);
   }
@@ -1877,18 +1874,18 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
     uint32_t total = 0;
     for (uint8_t i = 0; i < strikes; ++i) total += trials::strikePercent(strikes, i);
     const ProgressBlock& p = s.progress;
-    snprintf(line, sizeof(line), tr(STR_CULT_BT_TRIB_FORMAT), static_cast<unsigned>(strikes),
-             static_cast<unsigned>(total), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+    snprintf(line, sizeof(line), ctr(CULT_BT_TRIB_FORMAT), static_cast<unsigned>(strikes), static_cast<unsigned>(total),
+             static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4);
     if (p.hp == 0) {
-      y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_BT_NO_HP), 3);
+      y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_BT_NO_HP), 3);
     } else if (p.hp < p.hpMax) {
-      snprintf(line, sizeof(line), tr(STR_CULT_BT_HEAL_FORMAT), static_cast<unsigned>(p.hpMax - p.hp));
+      snprintf(line, sizeof(line), ctr(CULT_BT_HEAL_FORMAT), static_cast<unsigned>(p.hpMax - p.hp));
       y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
     }
     y += metrics.verticalSpacing;
   } else if (trial == trials::Kind::HeartDemon) {
-    snprintf(line, sizeof(line), tr(STR_CULT_BT_DEMON_FORMAT), static_cast<unsigned>(trials::sceneChance(s)));
+    snprintf(line, sizeof(line), ctr(CULT_BT_DEMON_FORMAT), static_cast<unsigned>(trials::sceneChance(s)));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + metrics.verticalSpacing;
   }
 
@@ -1899,41 +1896,40 @@ void CultivationActivity::renderBreakthrough(const int x, int y, const int width
     const scrolls::Tier need = scrolls::keyTierFor(c.target);
     static const uint8_t kTierHours[] = {0, 3, 8, 15, 25};
     if (need == scrolls::Tier::Mortal) {
-      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_ANY_FORMAT), text(kRealmNames[c.target]));
+      snprintf(line, sizeof(line), ctr(CULT_BOTTLENECK_KEY_ANY_FORMAT), text(kRealmNames[c.target]));
     } else {
-      snprintf(line, sizeof(line), tr(STR_CULT_BOTTLENECK_KEY_TIER_FORMAT), text(kRealmNames[c.target]),
+      snprintf(line, sizeof(line), ctr(CULT_BOTTLENECK_KEY_TIER_FORMAT), text(kRealmNames[c.target]),
                cultivation::ui::tierName(need), static_cast<unsigned>(kTierHours[static_cast<int>(need)]));
     }
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5);
     const alchemy::Pill pill = c.target <= 4   ? alchemy::Pill::BreakthroughCommon
                                : c.target <= 7 ? alchemy::Pill::BreakthroughSpirit
                                                : alchemy::Pill::BreakthroughRare;
-    snprintf(line, sizeof(line), tr(STR_CULT_BT_PILL_HINT_FORMAT), ui::pillName(pill));
+    snprintf(line, sizeof(line), ctr(CULT_BT_PILL_HINT_FORMAT), ui::pillName(pill));
     y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
   } else {
     if (c.needsKey && c.keyIndex >= 0 && nameBuf_[0] != '\0') {
-      snprintf(line, sizeof(line), tr(STR_CULT_KEY_FORMAT), nameBuf_);
+      snprintf(line, sizeof(line), ctr(CULT_KEY_FORMAT), nameBuf_);
       y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + 4;
     }
     if (c.pillItem != inventory::Item::None) {
-      snprintf(line, sizeof(line), c.pillIsKey ? tr(STR_CULT_BT_PILL_KEY_FORMAT) : tr(STR_CULT_BT_PILL_FORMAT),
-               pillName);
+      snprintf(line, sizeof(line), c.pillIsKey ? ctr(CULT_BT_PILL_KEY_FORMAT) : ctr(CULT_BT_PILL_FORMAT), pillName);
       y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + 4;
     } else if (c.target >= 2 && alchemy::chosenPill(s, c.target) == inventory::Item::None &&
                state_->timers[9] == alchemy::kNoPillChoice) {
-      y = drawWrapped(SMALL_FONT_ID, x, y, width, tr(STR_CULT_BT_PILL_NONE), 2) + 4;
+      y = drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_BT_PILL_NONE), 2) + 4;
     }
     y += metrics.verticalSpacing - 4;
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_BREAKTHROUGH_RISK), 4);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_BREAKTHROUGH_RISK), 4);
   }
   if (breakthrough::canEnterGreatPerfection(s)) {
-    drawWrapped(SMALL_FONT_ID, x, y + metrics.verticalSpacing, width, tr(STR_CULT_GP_HINT), 3);
+    drawWrapped(SMALL_FONT_ID, x, y + metrics.verticalSpacing, width, ctr(CULT_GP_HINT), 3);
   }
 }
 
 void CultivationActivity::renderGreatPerfection(const int x, const int y, const int width) {
   char line[400];
-  snprintf(line, sizeof(line), tr(STR_CULT_GP_EXPLAIN_FORMAT),
+  snprintf(line, sizeof(line), ctr(CULT_GP_EXPLAIN_FORMAT),
            text(kRealmNames[state_->progress.realm < kMortalRealmCount ? state_->progress.realm : 0]));
   drawWrapped(UI_10_FONT_ID, x, y, width, line, 12);
 }
@@ -1944,19 +1940,19 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
   char line[224];
   switch (outcomeKind_) {
     case OutcomeKind::BreakthroughSuccess:
-      snprintf(line, sizeof(line), tr(STR_CULT_BREAKTHROUGH_SUCCESS_FORMAT),
+      snprintf(line, sizeof(line), ctr(CULT_BREAKTHROUGH_SUCCESS_FORMAT),
                text(kRealmNames[outcome_.toRealm < kMortalRealmCount ? outcome_.toRealm : 0]));
       break;
     case OutcomeKind::BreakthroughFailure:
-      snprintf(line, sizeof(line), "%s", tr(STR_CULT_BREAKTHROUGH_FAILED));
+      snprintf(line, sizeof(line), "%s", ctr(CULT_BREAKTHROUGH_FAILED));
       break;
     case OutcomeKind::EnteredGreatPerfection:
-      snprintf(line, sizeof(line), "%s", tr(STR_CULT_GP_ENTERED));
+      snprintf(line, sizeof(line), "%s", ctr(CULT_GP_ENTERED));
       break;
     case OutcomeKind::TrialLost:
-      snprintf(line, sizeof(line), "%s",
-               trials::kindFor(outcome_.toRealm) == trials::Kind::HeartDemon ? tr(STR_CULT_DEMON_LOST)
-                                                                             : tr(STR_CULT_TRIB_LOST));
+      snprintf(
+          line, sizeof(line), "%s",
+          trials::kindFor(outcome_.toRealm) == trials::Kind::HeartDemon ? ctr(CULT_DEMON_LOST) : ctr(CULT_TRIB_LOST));
       break;
   }
   const auto header = renderer.wrappedText(UI_12_FONT_ID, line, width, 2, EpdFontFamily::BOLD);
@@ -1968,7 +1964,7 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
 
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess || outcomeKind_ == OutcomeKind::BreakthroughFailure) {
     if (trialSummary_[0] != '\0') y = drawWrapped(UI_10_FONT_ID, x, y, width, trialSummary_, 2) + 4;
-    snprintf(line, sizeof(line), tr(STR_CULT_BT_ROLL_FORMAT), static_cast<unsigned>(outcome_.roll),
+    snprintf(line, sizeof(line), ctr(CULT_BT_ROLL_FORMAT), static_cast<unsigned>(outcome_.roll),
              static_cast<unsigned>(outcome_.chance));
     y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
   }
@@ -1978,8 +1974,8 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
   const char* formed = ui::gradeName(outcome_.gradeKind, outcome_.grade);
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && formed[0] != '\0') {
     snprintf(line, sizeof(line),
-             outcome_.gradeKind == breakthrough::GradeKind::Foundation ? tr(STR_CULT_FOUNDATION_FORMED_FORMAT)
-                                                                       : tr(STR_CULT_GRADE_FORMED_FORMAT),
+             outcome_.gradeKind == breakthrough::GradeKind::Foundation ? ctr(CULT_FOUNDATION_FORMED_FORMAT)
+                                                                       : ctr(CULT_GRADE_FORMED_FORMAT),
              formed, static_cast<unsigned>(outcome_.gradeScore));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   }
@@ -1987,25 +1983,24 @@ void CultivationActivity::renderOutcome(const int x, int y, const int width) {
       outcome_.pillUsed != inventory::Item::None) {
     char pill[64];
     ui::itemName(outcome_.pillUsed, pill, sizeof(pill));
-    snprintf(line, sizeof(line), tr(STR_CULT_PILL_USED_FORMAT), pill);
+    snprintf(line, sizeof(line), ctr(CULT_PILL_USED_FORMAT), pill);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.keyUsed && nameBuf_[0] != '\0') {
-    snprintf(line, sizeof(line), tr(STR_CULT_KEY_USED_FORMAT), nameBuf_);
+    snprintf(line, sizeof(line), ctr(CULT_KEY_USED_FORMAT), nameBuf_);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   }
   // v0.1.10: each realm opens the next region.
   if (outcomeKind_ == OutcomeKind::BreakthroughSuccess && outcome_.toRealm >= 1 &&
       outcome_.toRealm <= explore::kRegionCount) {
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_REGION_OPENED), 3);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_REGION_OPENED), 3);
   }
   if (outcomeKind_ == OutcomeKind::BreakthroughFailure || outcomeKind_ == OutcomeKind::TrialLost) {
-    snprintf(line, sizeof(line), tr(STR_CULT_NEXT_CHANCE_FORMAT),
-             static_cast<unsigned>(breakthrough::chanceFor(s).total));
+    snprintf(line, sizeof(line), ctr(CULT_NEXT_CHANCE_FORMAT), static_cast<unsigned>(breakthrough::chanceFor(s).total));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   }
   if (outcomeKind_ == OutcomeKind::TrialLost && s.progress.hp < s.progress.hpMax) {
-    snprintf(line, sizeof(line), tr(STR_CULT_HP_HEAL_FORMAT), static_cast<unsigned>(s.progress.hp),
+    snprintf(line, sizeof(line), ctr(CULT_HP_HEAL_FORMAT), static_cast<unsigned>(s.progress.hp),
              static_cast<unsigned>(s.progress.hpMax), static_cast<unsigned>(s.progress.hpMax - s.progress.hp));
     drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
   }
@@ -2025,15 +2020,15 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
 
   if (summaryPage_ == 0) {
     if (seasons >= 2) {
-      snprintf(line, sizeof(line), tr(STR_CULT_SEASONS_PASSED_FORMAT), static_cast<unsigned long>(seasons));
+      snprintf(line, sizeof(line), ctr(CULT_SEASONS_PASSED_FORMAT), static_cast<unsigned long>(seasons));
     } else if (seasons == 1) {
-      snprintf(line, sizeof(line), "%s", tr(STR_CULT_SEASON_PASSED));
+      snprintf(line, sizeof(line), "%s", ctr(CULT_SEASON_PASSED));
     } else if (months >= 2) {
-      snprintf(line, sizeof(line), tr(STR_CULT_MONTHS_PASSED_FORMAT), static_cast<unsigned long>(months));
+      snprintf(line, sizeof(line), ctr(CULT_MONTHS_PASSED_FORMAT), static_cast<unsigned long>(months));
     } else if (months == 1) {
-      snprintf(line, sizeof(line), "%s", tr(STR_CULT_MONTH_PASSED));
+      snprintf(line, sizeof(line), "%s", ctr(CULT_MONTH_PASSED));
     } else {
-      snprintf(line, sizeof(line), "%s", tr(STR_CULT_MOMENT_PASSED));
+      snprintf(line, sizeof(line), "%s", ctr(CULT_MOMENT_PASSED));
     }
     const auto header = renderer.wrappedText(UI_12_FONT_ID, line, width, 3, EpdFontFamily::BOLD);
     for (const auto& h : header) {
@@ -2049,7 +2044,7 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
     snprintf(line, sizeof(line), "%s, %s", text(kRealmNames[p.realm < kMortalRealmCount ? p.realm : 0]), stage);
     renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
     const int realmWidth = renderer.getTextWidth(UI_10_FONT_ID, line, EpdFontFamily::BOLD);
-    snprintf(line, sizeof(line), tr(STR_CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
+    snprintf(line, sizeof(line), ctr(CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
              static_cast<unsigned>(realm.lifespanYears));
     const int ageWidth = renderer.getTextWidth(UI_10_FONT_ID, line);
     if (realmWidth + ageWidth + 16 > width) {  // "Qi Condensation, Great Perfection": age on its own line
@@ -2062,7 +2057,7 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
 
     char gained[24];
     visit_.qiGained.format(gained, sizeof(gained));
-    snprintf(line, sizeof(line), tr(STR_CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained,
+    snprintf(line, sizeof(line), ctr(CULT_VISIT_FORMAT), static_cast<unsigned long>(visitSeconds_ / 60), gained,
              static_cast<unsigned long>(visit_.stonesGained));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
 
@@ -2073,23 +2068,23 @@ void CultivationActivity::renderSummary(const int x, int y, const int width, con
       if (lifeLog_->lines[i].kind == lifelog::LineKind::Stage) stageLine = true;
     }
     if (visit_.stagesGained > 0 && !stageLine) {
-      snprintf(line, sizeof(line), tr(STR_CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
+      snprintf(line, sizeof(line), ctr(CULT_STAGES_GAINED_FORMAT), static_cast<unsigned>(visit_.stagesGained));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
     }
     // v0.2.1: depth.
     if (visit_.depthGained > 0) {
-      snprintf(line, sizeof(line), tr(STR_CULT_DEPTH_GAINED_FORMAT), static_cast<unsigned>(visit_.depthGained),
+      snprintf(line, sizeof(line), ctr(CULT_DEPTH_GAINED_FORMAT), static_cast<unsigned>(visit_.depthGained),
                static_cast<unsigned>(breakthrough::depth(s)), static_cast<unsigned>(breakthrough::kDepthMax));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 3);
     }
     // v0.2.0: alchemy news.
     if (visit_.qiPillSeconds > 0) {
-      snprintf(line, sizeof(line), tr(STR_CULT_QI_PILL_SUMMARY_FORMAT),
+      snprintf(line, sizeof(line), ctr(CULT_QI_PILL_SUMMARY_FORMAT),
                static_cast<unsigned>((visit_.qiPillSeconds + 59u) / 60u));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
     }
     if (alchemy::ready(s)) {
-      snprintf(line, sizeof(line), tr(STR_CULT_CAULDRON_READY_SUMMARY_FORMAT),
+      snprintf(line, sizeof(line), ctr(CULT_CAULDRON_READY_SUMMARY_FORMAT),
                ui::pillName(alchemy::recipesOf(s).recipes[alchemy::brewingRecipe(s)].pill));
       y = drawWrapped(UI_10_FONT_ID, x, y + 4, width, line, 2);
     }
@@ -2131,7 +2126,7 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, i
 
   FsFile f;
   if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) {
-    drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
+    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_CHRONICLE_EMPTY), 3);
     return;
   }
   bool drewAny = false;
@@ -2142,7 +2137,7 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, i
   f.close();
   v.next = next;
   v.more = next < v.size;
-  if (!drewAny) drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_CHRONICLE_EMPTY), 3);
+  if (!drewAny) drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_CHRONICLE_EMPTY), 3);
 }
 
 // Lays out (and with `draw`, draws) one page from `start`; returns where the
@@ -2196,9 +2191,9 @@ uint32_t CultivationActivity::chronicleLayout(FsFile& f, const uint32_t size, co
 
 // v0.2.3: the jump menu; Select chooses, Back returns to the page.
 void CultivationActivity::renderChronicleMenu(const int top, const int bottom) {
-  static const StrId kRows[kChronicleMenuRows] = {
-      StrId::STR_CULT_CHRONICLE_NEWEST, StrId::STR_CULT_CHRONICLE_BEGINNING, StrId::STR_CULT_CHRONICLE_YEARS_BACK,
-      StrId::STR_CULT_CHRONICLE_YEARS_FORWARD, StrId::STR_CULT_CHRONICLE_EXPORT};
+  static const GameStr kRows[kChronicleMenuRows] = {
+      GameStr::CULT_CHRONICLE_NEWEST, GameStr::CULT_CHRONICLE_BEGINNING, GameStr::CULT_CHRONICLE_YEARS_BACK,
+      GameStr::CULT_CHRONICLE_YEARS_FORWARD, GameStr::CULT_CHRONICLE_EXPORT};
   const auto& metrics = UITheme::getInstance().getMetrics();
   int height = metrics.listRowHeight * kChronicleMenuRows;
   if (top + height > bottom) height = bottom - top;

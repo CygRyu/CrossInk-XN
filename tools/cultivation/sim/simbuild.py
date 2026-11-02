@@ -146,7 +146,7 @@ def build():
     # (otherwise HomeActivity.o keeps an old CultivationActivity size and the
     # simulator crashes in a way that looks like a game bug).
     game_dir = REPO / "src/activities/cultivation"
-    game_headers = max((h.stat().st_mtime for h in game_dir.glob("*.h")), default=0)
+    game_headers = max((h.stat().st_mtime for h in [*game_dir.glob("*.h"), *game_dir.glob("*.inc")]), default=0)
     # New or removed strings renumber StrId and change its _COUNT.
     strings_header = (I18N / "I18nKeys.h").stat().st_mtime
 

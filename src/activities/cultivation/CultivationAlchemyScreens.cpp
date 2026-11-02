@@ -14,6 +14,7 @@
 #include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
+#include "GameText.h"
 #include "Meridians.h"
 #include "Rng.h"
 #include "components/UITheme.h"
@@ -119,24 +120,24 @@ void CultivationActivity::useBagPill(const inventory::Item item) {
   switch (alchemy::use(*state_, item)) {
     case alchemy::UseError::None:
       if (item == inventory::Item::QiPill) {
-        snprintf(notice_, sizeof(notice_), tr(STR_CULT_TOOK_QI_FORMAT),
+        snprintf(notice_, sizeof(notice_), ctr(CULT_TOOK_QI_FORMAT),
                  static_cast<unsigned>(meridians::pillBonus(*state_, alchemy::kQiPillBonusPermille) / 10u),
                  static_cast<unsigned>((alchemy::qiPillSecondsLeft(*state_) + 59u) / 60u));
       } else {
-        snprintf(notice_, sizeof(notice_), tr(STR_CULT_TOOK_GRADE_FORMAT), name,
+        snprintf(notice_, sizeof(notice_), ctr(CULT_TOOK_GRADE_FORMAT), name,
                  static_cast<unsigned>(alchemy::gradePillPoints(*state_, item)),
                  static_cast<unsigned>(alchemy::gradePillsTaken(*state_)));
       }
       persist();
       break;
     case alchemy::UseError::WrongRealm:
-      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_USE_WRONG_REALM));
+      snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_USE_WRONG_REALM));
       break;
     case alchemy::UseError::Enough:
-      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_USE_ENOUGH));
+      snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_USE_ENOUGH));
       break;
     case alchemy::UseError::QiFull:
-      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_USE_QI_FULL));
+      snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_USE_QI_FULL));
       break;
     default:
       break;
@@ -227,21 +228,21 @@ void CultivationActivity::collectPills() {
     itemLabel(c.item, name, sizeof(name));
     // v0.2.1 (user): taking the pills out is a small event.
     if (c.failed) {
-      snprintf(notice_, sizeof(notice_), tr(STR_CULT_COLLECTED_FAILED_FORMAT), static_cast<unsigned>(c.count));
+      snprintf(notice_, sizeof(notice_), ctr(CULT_COLLECTED_FAILED_FORMAT), static_cast<unsigned>(c.count));
     } else {
-      snprintf(notice_, sizeof(notice_), tr(STR_CULT_COLLECTED_FORMAT), static_cast<unsigned>(c.count), name,
+      snprintf(notice_, sizeof(notice_), ctr(CULT_COLLECTED_FORMAT), static_cast<unsigned>(c.count), name,
                static_cast<unsigned>(c.roll));
-      if (c.improved) appendSentence(notice_, sizeof(notice_), tr(STR_CULT_COLLECTED_IMPROVED));
-      if (c.extra) appendSentence(notice_, sizeof(notice_), tr(STR_CULT_COLLECTED_EXTRA));
+      if (c.improved) appendSentence(notice_, sizeof(notice_), ctr(CULT_COLLECTED_IMPROVED));
+      if (c.extra) appendSentence(notice_, sizeof(notice_), ctr(CULT_COLLECTED_EXTRA));
     }
     char extra[120];
     if (c.added.sold > 0) {
-      snprintf(extra, sizeof(extra), tr(STR_CULT_BAG_FULL_SOLD_FORMAT), static_cast<unsigned>(c.added.sold),
+      snprintf(extra, sizeof(extra), ctr(CULT_BAG_FULL_SOLD_FORMAT), static_cast<unsigned>(c.added.sold),
                static_cast<unsigned long>(c.added.soldStones));
       appendSentence(notice_, sizeof(notice_), extra);
     }
     if (c.added.lost > 0) {
-      snprintf(extra, sizeof(extra), tr(STR_CULT_BAG_FULL_KEPT_FORMAT), static_cast<unsigned>(c.added.lost));
+      snprintf(extra, sizeof(extra), ctr(CULT_BAG_FULL_KEPT_FORMAT), static_cast<unsigned>(c.added.lost));
       appendSentence(notice_, sizeof(notice_), extra);
     }
     v.flavor[0] = '\0';
@@ -269,9 +270,9 @@ void CultivationActivity::brewSelected() {
     RenderLock lock(*this);
     AlchemyView& v = *alchemy_;
     if (alchemy::brewing(*state_)) {
-      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_RECIPE_BUSY));
+      snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_RECIPE_BUSY));
     } else if (!alchemy::brew(*state_, v.recipe, v.batch)) {
-      snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_RECIPE_MISSING));
+      snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_RECIPE_MISSING));
     } else {
       notice_[0] = '\0';  // the cauldron line says what is brewing and for how long
       v.flavor[0] = '\0';
@@ -292,7 +293,7 @@ void CultivationActivity::mixExperiment() {
     const alchemy::Experiment e = alchemy::experiment(*state_, v.chosen, v.chosenCount);
     if (!e.valid) {
       snprintf(notice_, sizeof(notice_), "%s",
-               alchemy::brewing(*state_) ? tr(STR_CULT_RECIPE_BUSY) : tr(STR_CULT_RECIPE_MISSING));
+               alchemy::brewing(*state_) ? ctr(CULT_RECIPE_BUSY) : ctr(CULT_RECIPE_MISSING));
       requestUpdate();
       return;
     }
@@ -303,14 +304,14 @@ void CultivationActivity::mixExperiment() {
       const alchemy::Recipe r = alchemy::recipesOf(*state_).recipes[e.recipe];
       pill = pillLabel(r.pill);
       snprintf(notice_, sizeof(notice_),
-               e.learned ? tr(STR_CULT_EXPERIMENT_LEARNED_FORMAT) : tr(STR_CULT_EXPERIMENT_KNOWN_FORMAT), pill,
+               e.learned ? ctr(CULT_EXPERIMENT_LEARNED_FORMAT) : ctr(CULT_EXPERIMENT_KNOWN_FORMAT), pill,
                static_cast<unsigned>(r.brewMinutes));
       list = "alchemy.learned";
       if (e.learned) alchemyChronicle("alchemy.line.learned", static_cast<uint8_t>(e.recipe));
     } else if (e.noneUnknown) {
-      snprintf(notice_, sizeof(notice_), tr(STR_CULT_EXPERIMENT_MISS_NONE_FORMAT), static_cast<unsigned>(e.parts));
+      snprintf(notice_, sizeof(notice_), ctr(CULT_EXPERIMENT_MISS_NONE_FORMAT), static_cast<unsigned>(e.parts));
     } else {
-      snprintf(notice_, sizeof(notice_), tr(STR_CULT_EXPERIMENT_MISS_FORMAT), static_cast<unsigned>(e.matches),
+      snprintf(notice_, sizeof(notice_), ctr(CULT_EXPERIMENT_MISS_FORMAT), static_cast<unsigned>(e.matches),
                static_cast<unsigned>(e.parts));
     }
     if (grammar_) {
@@ -378,7 +379,7 @@ bool CultivationActivity::handleAlchemy(const bool back, const bool confirm, con
         case MenuRow::Experiment: {
           RenderLock lock(*this);
           if (alchemy::brewing(*state_)) {
-            snprintf(notice_, sizeof(notice_), "%s", tr(STR_CULT_RECIPE_BUSY));
+            snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_RECIPE_BUSY));
           } else {
             notice_[0] = '\0';
             v.flavor[0] = '\0';
@@ -510,17 +511,17 @@ void CultivationActivity::alchemyLabels(const char*& confirmLabel, const char*& 
       if (v.recipeCount == 0) confirmLabel = "";
       break;
     case Screen::RecipeDetail:
-      confirmLabel = alchemy::canBrew(*state_, v.recipe) ? tr(STR_CULT_BREW) : "";
+      confirmLabel = alchemy::canBrew(*state_, v.recipe) ? ctr(CULT_BREW) : "";
       upLabel = downLabel = "";
       if (alchemy::maxBatch(*state_, v.recipe) > 1) {
-        upLabel = tr(STR_CULT_FEWER);
-        downLabel = tr(STR_CULT_MORE);
+        upLabel = ctr(CULT_FEWER);
+        downLabel = ctr(CULT_MORE);
       }
       return;
     case Screen::Experiment: {
       const int head = experimentHeadRows(v.chosenCount);
       if (selected_ >= head) {
-        confirmLabel = v.chosenCount < alchemy::kMaxParts ? tr(STR_CULT_ADD) : "";
+        confirmLabel = v.chosenCount < alchemy::kMaxParts ? ctr(CULT_ADD) : "";
       }
       break;
     }
@@ -540,13 +541,13 @@ void CultivationActivity::renderAlchemy(const int x, int y, const int width, con
   char line[224];
   const int recipe = alchemy::brewingRecipe(s);
   if (recipe < 0) {
-    snprintf(line, sizeof(line), "%s", tr(STR_CULT_CAULDRON_EMPTY));
+    snprintf(line, sizeof(line), "%s", ctr(CULT_CAULDRON_EMPTY));
   } else {
     const char* pill = pillLabel(alchemy::recipesOf(s).recipes[recipe].pill);
     if (alchemy::ready(s)) {
-      snprintf(line, sizeof(line), tr(STR_CULT_CAULDRON_READY_FORMAT), pill);
+      snprintf(line, sizeof(line), ctr(CULT_CAULDRON_READY_FORMAT), pill);
     } else {
-      snprintf(line, sizeof(line), tr(STR_CULT_CAULDRON_BREWING_FORMAT), pill,
+      snprintf(line, sizeof(line), ctr(CULT_CAULDRON_BREWING_FORMAT), pill,
                static_cast<unsigned>(alchemy::brewMinutesLeft(s)));
     }
   }
@@ -568,13 +569,13 @@ void CultivationActivity::renderAlchemy(const int x, int y, const int width, con
         menuRows(*state_, r);
         switch (r[i]) {
           case MenuRow::Collect:
-            return tr(STR_CULT_ALCHEMY_COLLECT);
+            return ctr(CULT_ALCHEMY_COLLECT);
           case MenuRow::Recipes:
-            return tr(STR_CULT_ALCHEMY_RECIPES);
+            return ctr(CULT_ALCHEMY_RECIPES);
           case MenuRow::Experiment:
-            return tr(STR_CULT_ALCHEMY_EXPERIMENT);
+            return ctr(CULT_ALCHEMY_EXPERIMENT);
           case MenuRow::Bag:
-            return tr(STR_CULT_BAG);
+            return ctr(CULT_BAG);
         }
         return {};
       },
@@ -584,15 +585,15 @@ void CultivationActivity::renderAlchemy(const int x, int y, const int width, con
         char sub[160];
         switch (r[i]) {
           case MenuRow::Collect:
-            return tr(STR_CULT_ALCHEMY_COLLECT_SUB);
+            return ctr(CULT_ALCHEMY_COLLECT_SUB);
           case MenuRow::Recipes:
-            snprintf(sub, sizeof(sub), tr(STR_CULT_ALCHEMY_RECIPES_SUB_FORMAT),
+            snprintf(sub, sizeof(sub), ctr(CULT_ALCHEMY_RECIPES_SUB_FORMAT),
                      static_cast<unsigned>(alchemy::knownCount(*state_)));
             return sub;
           case MenuRow::Experiment:
-            return alchemy::brewing(*state_) ? tr(STR_CULT_ALCHEMY_BUSY_SUB) : tr(STR_CULT_ALCHEMY_EXPERIMENT_SUB);
+            return alchemy::brewing(*state_) ? ctr(CULT_ALCHEMY_BUSY_SUB) : ctr(CULT_ALCHEMY_EXPERIMENT_SUB);
           case MenuRow::Bag:
-            snprintf(sub, sizeof(sub), tr(STR_CULT_BAG_SUB_FORMAT), static_cast<unsigned long>(state_->progress.stones),
+            snprintf(sub, sizeof(sub), ctr(CULT_BAG_SUB_FORMAT), static_cast<unsigned long>(state_->progress.stones),
                      static_cast<unsigned>(inventory::kinds(*state_)));
             return sub;
         }
@@ -605,7 +606,7 @@ void CultivationActivity::renderRecipes(const int x, int y, const int width, con
   if (!alchemy_) return;
   const AlchemyView& v = *alchemy_;
   if (v.recipeCount == 0) {
-    drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_RECIPES_NONE), 8);
+    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_RECIPES_NONE), 8);
     return;
   }
   const int rowHeight = metrics.listWithSubtitleRowHeight;
@@ -623,7 +624,7 @@ void CultivationActivity::renderRecipes(const int x, int y, const int width, con
       [this](const int i) -> std::string {
         const alchemy::Recipe r = alchemy::recipesOf(*state_).recipes[alchemy_->recipes[i]];
         char sub[96];
-        snprintf(sub, sizeof(sub), tr(STR_CULT_RECIPE_SUB_FORMAT), static_cast<unsigned>(r.brewMinutes),
+        snprintf(sub, sizeof(sub), ctr(CULT_RECIPE_SUB_FORMAT), static_cast<unsigned>(r.brewMinutes),
                  static_cast<unsigned>(alchemy::batchesHeld(*state_, r)));
         return sub;
       });
@@ -642,31 +643,31 @@ void CultivationActivity::renderRecipeDetail(const int x, int y, const int width
   ui::itemDescription(made, desc, sizeof(desc));
   snprintf(name, sizeof(name), "%s", pillLabel(r.pill));
   capitalise(name);
-  snprintf(line, sizeof(line), tr(STR_CULT_RECIPE_MAKES_FORMAT), name);
+  snprintf(line, sizeof(line), ctr(CULT_RECIPE_MAKES_FORMAT), name);
   renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
   if (desc[0] != '\0') y = drawWrapped(SMALL_FONT_ID, x, y, width, desc, 2);
   y += metrics.verticalSpacing;
 
-  renderer.drawText(UI_10_FONT_ID, x, y, tr(STR_CULT_RECIPE_PARTS), true, EpdFontFamily::BOLD);
+  renderer.drawText(UI_10_FONT_ID, x, y, ctr(CULT_RECIPE_PARTS), true, EpdFontFamily::BOLD);
   y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
   for (uint8_t p = 0; p < r.parts;) {  // parts are sorted: repeats are next to each other
     uint8_t same = 1;
     while (p + same < r.parts && r.part[p + same] == r.part[p]) ++same;
-    snprintf(line, sizeof(line), tr(STR_CULT_RECIPE_PART_FORMAT), static_cast<unsigned>(same),
+    snprintf(line, sizeof(line), ctr(CULT_RECIPE_PART_FORMAT), static_cast<unsigned>(same),
              itemLabel(r.part[p], name, sizeof(name)), static_cast<unsigned>(inventory::count(*state_, r.part[p])));
     renderer.drawText(UI_10_FONT_ID, x + 16, y, line);
     y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
     p = static_cast<uint8_t>(p + same);
   }
   y += metrics.verticalSpacing;
-  snprintf(line, sizeof(line), tr(STR_CULT_RECIPE_TIME_FORMAT), static_cast<unsigned>(r.brewMinutes),
+  snprintf(line, sizeof(line), ctr(CULT_RECIPE_TIME_FORMAT), static_cast<unsigned>(r.brewMinutes),
            static_cast<unsigned>(alchemy::qualityBonus(*state_, r)));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 4) + metrics.verticalSpacing;
   // v0.2.1: the batch (Up/Down when the bag holds parts for more than one).
   if (alchemy::maxBatch(*state_, v.recipe) > 1) {
     const uint8_t batch = v.batch <= alchemy::maxBatch(*state_, v.recipe) ? v.batch : 1;
-    snprintf(line, sizeof(line), tr(STR_CULT_BATCH_FORMAT), static_cast<unsigned>(batch),
+    snprintf(line, sizeof(line), ctr(CULT_BATCH_FORMAT), static_cast<unsigned>(batch),
              static_cast<unsigned>(alchemy::batchMinutes(r, batch)));
     renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
     y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
@@ -674,9 +675,9 @@ void CultivationActivity::renderRecipeDetail(const int x, int y, const int width
   if (notice_[0] != '\0') {
     drawWrapped(UI_10_FONT_ID, x, y, width, notice_, 3);
   } else if (alchemy::brewing(*state_)) {
-    drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_RECIPE_BUSY), 2);
+    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_RECIPE_BUSY), 2);
   } else if (alchemy::batchesHeld(*state_, r) == 0) {
-    drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_RECIPE_MISSING), 2);
+    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_RECIPE_MISSING), 2);
   }
   (void)bottom;
 }
@@ -687,7 +688,7 @@ void CultivationActivity::renderExperiment(const int x, int y, const int width, 
   const AlchemyView& v = *alchemy_;
   char line[224];
   if (v.chosenCount == 0) {
-    snprintf(line, sizeof(line), "%s", tr(STR_CULT_EXPERIMENT_NOTHING));
+    snprintf(line, sizeof(line), "%s", ctr(CULT_EXPERIMENT_NOTHING));
   } else {
     char parts[200] = {};
     char name[64];
@@ -696,12 +697,12 @@ void CultivationActivity::renderExperiment(const int x, int y, const int width, 
       snprintf(parts + used, sizeof(parts) - used, "%s%s", i > 0 ? " + " : "",
                itemLabel(v.chosen[i], name, sizeof(name)));
     }
-    snprintf(line, sizeof(line), tr(STR_CULT_EXPERIMENT_CHOSEN_FORMAT), parts);
+    snprintf(line, sizeof(line), ctr(CULT_EXPERIMENT_CHOSEN_FORMAT), parts);
   }
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   if (notice_[0] != '\0') y = drawWrapped(SMALL_FONT_ID, x, y, width, notice_, 2) + 4;
   if (v.ingredientCount == 0 && v.chosenCount == 0) {
-    drawWrapped(UI_10_FONT_ID, x, y, width, tr(STR_CULT_EXPERIMENT_NONE), 4);
+    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_EXPERIMENT_NONE), 4);
     return;
   }
   const int rows = alchemyRows();
@@ -714,7 +715,7 @@ void CultivationActivity::renderExperiment(const int x, int y, const int width, 
         const AlchemyView& av = *alchemy_;
         const int head = experimentHeadRows(av.chosenCount);
         if (i < head) {
-          return av.chosenCount >= 2 && i == 0 ? tr(STR_CULT_EXPERIMENT_MIX) : tr(STR_CULT_EXPERIMENT_CLEAR);
+          return av.chosenCount >= 2 && i == 0 ? ctr(CULT_EXPERIMENT_MIX) : ctr(CULT_EXPERIMENT_CLEAR);
         }
         char name[64];
         return itemLabel(av.ingredients[i - head], name, sizeof(name));
@@ -722,7 +723,7 @@ void CultivationActivity::renderExperiment(const int x, int y, const int width, 
       [this](const int i) -> std::string {
         const AlchemyView& av = *alchemy_;
         const int head = experimentHeadRows(av.chosenCount);
-        if (i < head) return av.chosenCount >= 2 && i == 0 ? tr(STR_CULT_EXPERIMENT_MIX_SUB) : std::string();
+        if (i < head) return av.chosenCount >= 2 && i == 0 ? ctr(CULT_EXPERIMENT_MIX_SUB) : std::string();
         const inventory::Item item = av.ingredients[i - head];
         uint8_t inCauldron = 0;
         for (uint8_t k = 0; k < av.chosenCount; ++k)
@@ -731,7 +732,7 @@ void CultivationActivity::renderExperiment(const int x, int y, const int width, 
         ui::itemDescription(item, desc, sizeof(desc));
         char sub[160];
         const unsigned held = static_cast<unsigned>(inventory::count(*state_, item) - inCauldron);
-        snprintf(sub, sizeof(sub), tr(STR_CULT_BAG_HELD_FORMAT), held, desc);
+        snprintf(sub, sizeof(sub), ctr(CULT_BAG_HELD_FORMAT), held, desc);
         return sub;
       });
 }

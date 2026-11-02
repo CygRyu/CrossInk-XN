@@ -14,6 +14,7 @@
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "ExploreText.h"
+#include "GameText.h"
 #include "Meridians.h"
 #include "Rng.h"
 #include "Simulation.h"
@@ -35,15 +36,15 @@ constexpr uint32_t kKindMeridianChronicle = 120;  // contentSeed kind (105-119 s
 const char* elementWord(const Element e) {
   switch (e) {
     case Element::Wood:
-      return tr(STR_CULT_ELEMENT_WOOD);
+      return ctr(CULT_ELEMENT_WOOD);
     case Element::Fire:
-      return tr(STR_CULT_ELEMENT_FIRE);
+      return ctr(CULT_ELEMENT_FIRE);
     case Element::Earth:
-      return tr(STR_CULT_ELEMENT_EARTH);
+      return ctr(CULT_ELEMENT_EARTH);
     case Element::Metal:
-      return tr(STR_CULT_ELEMENT_METAL);
+      return ctr(CULT_ELEMENT_METAL);
     case Element::Water:
-      return tr(STR_CULT_ELEMENT_WATER);
+      return ctr(CULT_ELEMENT_WATER);
     default:
       return "";
   }
@@ -85,7 +86,7 @@ bool CultivationActivity::handleMeridians(const bool back, const bool confirm, c
       persist();
       char rate[16];
       ui::formatPermille(rate, sizeof(rate), qiMultiplierPermille(*state_));
-      snprintf(notice_, sizeof(notice_), tr(STR_CULT_MERIDIAN_OPENED_FORMAT), meridians::pointName(point), rate);
+      snprintf(notice_, sizeof(notice_), ctr(CULT_MERIDIAN_OPENED_FORMAT), meridians::pointName(point), rate);
       LOG_INF("CULT", "Meridian opened: point %u, %u of %u", static_cast<unsigned>(point),
               static_cast<unsigned>(meridians::openCount(*state_)),
               static_cast<unsigned>(meridians::allowance(*state_)));
@@ -121,7 +122,7 @@ void CultivationActivity::renderMeridians(const int x, int y, const int width, c
 
   char rate[16];
   ui::formatPermille(rate, sizeof(rate), meridians::qiPermille(s));
-  snprintf(line, sizeof(line), tr(STR_CULT_MERIDIANS_HEADER_FORMAT), static_cast<unsigned>(meridians::openCount(s)),
+  snprintf(line, sizeof(line), ctr(CULT_MERIDIANS_HEADER_FORMAT), static_cast<unsigned>(meridians::openCount(s)),
            static_cast<unsigned>(meridians::allowance(s)), rate);
   y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
 
@@ -162,36 +163,36 @@ void CultivationActivity::renderMeridians(const int x, int y, const int width, c
     return;
   }
   if (point >= meridians::kPoints) {
-    drawWrapped(UI_10_FONT_ID, x, dy, width, tr(STR_CULT_MERIDIAN_FULL), 2);
+    drawWrapped(UI_10_FONT_ID, x, dy, width, ctr(CULT_MERIDIAN_FULL), 2);
     return;
   }
-  snprintf(line, sizeof(line), tr(STR_CULT_MERIDIAN_POINT_FORMAT), meridians::pointName(point),
+  snprintf(line, sizeof(line), ctr(CULT_MERIDIAN_POINT_FORMAT), meridians::pointName(point),
            meridians::pointPlace(point));
   dy = drawWrapped(UI_10_FONT_ID, x, dy, width, line, 2);
   const char* effect = meridians::channelEffect(c);
   if (effect != nullptr) {
-    snprintf(line, sizeof(line), tr(STR_CULT_MERIDIAN_GIVES_FORMAT), effect);
+    snprintf(line, sizeof(line), ctr(CULT_MERIDIAN_GIVES_FORMAT), effect);
     dy = drawWrapped(UI_10_FONT_ID, x, dy, width, line, 2);
   } else {
-    dy = drawWrapped(UI_10_FONT_ID, x, dy, width, tr(STR_CULT_MERIDIAN_GIVES_QI), 2);
+    dy = drawWrapped(UI_10_FONT_ID, x, dy, width, ctr(CULT_MERIDIAN_GIVES_QI), 2);
   }
   switch (meridians::check(s, point)) {
     case meridians::Check::Locked:
-      snprintf(line, sizeof(line), tr(STR_CULT_MERIDIAN_LOCKED_FORMAT),
+      snprintf(line, sizeof(line), ctr(CULT_MERIDIAN_LOCKED_FORMAT),
                meridians::pointName(meridians::prerequisite(point)));
       break;
     case meridians::Check::NoAllowance:
-      snprintf(line, sizeof(line), "%s", tr(STR_CULT_MERIDIAN_NO_ALLOWANCE));
+      snprintf(line, sizeof(line), "%s", ctr(CULT_MERIDIAN_NO_ALLOWANCE));
       break;
     default: {
       char cost[24];
       char have[24];
       meridians::costOfNext(s).format(cost, sizeof(cost));
       s.progress.qi.format(have, sizeof(have));
-      snprintf(line, sizeof(line), tr(STR_CULT_MERIDIAN_COST_FORMAT), cost, have);
+      snprintf(line, sizeof(line), ctr(CULT_MERIDIAN_COST_FORMAT), cost, have);
       if (meridians::check(s, point) == meridians::Check::NotEnoughQi) {
         const size_t used = strlen(line);
-        snprintf(line + used, sizeof(line) - used, " %s", tr(STR_CULT_MERIDIAN_NO_QI));
+        snprintf(line + used, sizeof(line) - used, " %s", ctr(CULT_MERIDIAN_NO_QI));
       }
       break;
     }

@@ -14,6 +14,7 @@
 #include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
+#include "GameText.h"
 #include "GameValues.h"
 #include "Inventory.h"
 #include "Rng.h"
@@ -204,10 +205,10 @@ void CultivationActivity::answerTrial() {
       // Between strikes: the strike waits; nothing else changes.
       const inventory::Item tonic = inventory::tonicFor(*state_, strike_.base);
       const uint16_t healed = inventory::useTonic(*state_, tonic);
-      snprintf(trialLast_, sizeof(trialLast_), tr(STR_CULT_DRANK_FORMAT),
-               tonic == inventory::Item::TonicFull      ? tr(STR_CULT_ITEM_TONIC_FULL)
-               : tonic == inventory::Item::TonicGreater ? tr(STR_CULT_ITEM_TONIC_GREATER)
-                                                        : tr(STR_CULT_ITEM_TONIC_MINOR),
+      snprintf(trialLast_, sizeof(trialLast_), ctr(CULT_DRANK_FORMAT),
+               tonic == inventory::Item::TonicFull      ? ctr(CULT_ITEM_TONIC_FULL)
+               : tonic == inventory::Item::TonicGreater ? ctr(CULT_ITEM_TONIC_GREATER)
+                                                        : ctr(CULT_ITEM_TONIC_MINOR),
                static_cast<unsigned>(healed));
       persist();
       prepareTrialStep();
@@ -220,11 +221,11 @@ void CultivationActivity::answerTrial() {
       progress = r.progress;
       if (r.didBurn) {
         appendScrollLine("trib.burn", r.burned);
-        snprintf(trialLast_, sizeof(trialLast_), tr(STR_CULT_TRIB_BURNED_FORMAT), trialNames_[selected_]);
+        snprintf(trialLast_, sizeof(trialLast_), ctr(CULT_TRIB_BURNED_FORMAT), trialNames_[selected_]);
       } else if (r.shielded) {
-        snprintf(trialLast_, sizeof(trialLast_), "%s", tr(STR_CULT_TRIB_SHIELDED));
+        snprintf(trialLast_, sizeof(trialLast_), "%s", ctr(CULT_TRIB_SHIELDED));
       } else {
-        snprintf(trialLast_, sizeof(trialLast_), tr(STR_CULT_TRIB_TOOK_FORMAT), static_cast<unsigned>(r.damage));
+        snprintf(trialLast_, sizeof(trialLast_), ctr(CULT_TRIB_TOOK_FORMAT), static_cast<unsigned>(r.damage));
       }
       LOG_INF("CULT", "Strike answered: %u damage, HP %u", static_cast<unsigned>(r.damage),
               static_cast<unsigned>(state_->progress.hp));
@@ -236,14 +237,14 @@ void CultivationActivity::answerTrial() {
       progress = r.progress;
       if (r.didBurn) {
         appendScrollLine("trib.burn", r.burned);
-        snprintf(trialLast_, sizeof(trialLast_), tr(STR_CULT_DEMON_BURNED_FORMAT), trialNames_[selected_]);
+        snprintf(trialLast_, sizeof(trialLast_), ctr(CULT_DEMON_BURNED_FORMAT), trialNames_[selected_]);
       } else if (r.incense) {
         snprintf(trialLast_, sizeof(trialLast_),
-                 r.passed ? tr(STR_CULT_DEMON_INCENSE_PASSED_FORMAT) : tr(STR_CULT_DEMON_INCENSE_FAILED_FORMAT),
+                 r.passed ? ctr(CULT_DEMON_INCENSE_PASSED_FORMAT) : ctr(CULT_DEMON_INCENSE_FAILED_FORMAT),
                  static_cast<unsigned>(r.roll), static_cast<unsigned>(r.chance));
       } else {
         snprintf(trialLast_, sizeof(trialLast_),
-                 r.passed ? tr(STR_CULT_DEMON_PASSED_FORMAT) : tr(STR_CULT_DEMON_FAILED_FORMAT),
+                 r.passed ? ctr(CULT_DEMON_PASSED_FORMAT) : ctr(CULT_DEMON_FAILED_FORMAT),
                  static_cast<unsigned>(r.roll), static_cast<unsigned>(r.chance));
       }
     }
@@ -253,10 +254,10 @@ void CultivationActivity::answerTrial() {
       const bool tribulation = trials::kindFor(target) == trials::Kind::Tribulation;
       recordOutcome(tribulation ? "trib.survive" : "demon.pass", trialSeed(*state_, kKindTrialChronicle, 1));
       if (tribulation) {
-        snprintf(trialSummary_, sizeof(trialSummary_), tr(STR_CULT_TRIB_SURVIVED_FORMAT),
+        snprintf(trialSummary_, sizeof(trialSummary_), ctr(CULT_TRIB_SURVIVED_FORMAT),
                  static_cast<unsigned>(state_->progress.hp), static_cast<unsigned>(state_->progress.hpMax));
       } else {
-        snprintf(trialSummary_, sizeof(trialSummary_), "%s", tr(STR_CULT_DEMON_SURVIVED));
+        snprintf(trialSummary_, sizeof(trialSummary_), "%s", ctr(CULT_DEMON_SURVIVED));
       }
       won = true;
     } else {
@@ -299,10 +300,10 @@ void CultivationActivity::renderTrial(const int x, int y, const int width, const
   char line[224];
 
   if (tribulation) {
-    snprintf(line, sizeof(line), tr(STR_CULT_TRIB_STRIKE_FORMAT), static_cast<unsigned>(strike_.index + 1),
+    snprintf(line, sizeof(line), ctr(CULT_TRIB_STRIKE_FORMAT), static_cast<unsigned>(strike_.index + 1),
              static_cast<unsigned>(strike_.count));
   } else {
-    snprintf(line, sizeof(line), tr(STR_CULT_DEMON_SCENE_FORMAT), static_cast<unsigned>(trials::step(s) + 1),
+    snprintf(line, sizeof(line), ctr(CULT_DEMON_SCENE_FORMAT), static_cast<unsigned>(trials::step(s) + 1),
              static_cast<unsigned>(trials::kHeartDemonScenes));
   }
   renderer.drawText(UI_12_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
@@ -313,7 +314,7 @@ void CultivationActivity::renderTrial(const int x, int y, const int width, const
 
   if (tribulation) {
     // HP and the bolt to come.
-    snprintf(line, sizeof(line), tr(STR_CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+    snprintf(line, sizeof(line), ctr(CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
     renderer.drawText(UI_10_FONT_ID, x, y, line);
     y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
     const int barHeight = metrics.progressBarHeight;
@@ -321,14 +322,14 @@ void CultivationActivity::renderTrial(const int x, int y, const int width, const
     const int fill = p.hpMax > 0 ? static_cast<int>(static_cast<int64_t>(width - 4) * p.hp / p.hpMax) : 0;
     if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
     y += barHeight + metrics.verticalSpacing;
-    snprintf(line, sizeof(line), tr(STR_CULT_TRIB_BOLT_FORMAT), static_cast<unsigned>(strike_.base),
+    snprintf(line, sizeof(line), ctr(CULT_TRIB_BOLT_FORMAT), static_cast<unsigned>(strike_.base),
              static_cast<unsigned>(strike_.percent));
     renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
   } else {
-    snprintf(line, sizeof(line), tr(STR_CULT_DEMON_TALLY_FORMAT), static_cast<unsigned>(trials::scenesWon(s)),
+    snprintf(line, sizeof(line), ctr(CULT_DEMON_TALLY_FORMAT), static_cast<unsigned>(trials::scenesWon(s)),
              static_cast<unsigned>(trials::scenesLost(s)));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
-    drawWrapped(SMALL_FONT_ID, x, y + 2, width, tr(STR_CULT_DEMON_RULE), 2);
+    drawWrapped(SMALL_FONT_ID, x, y + 2, width, ctr(CULT_DEMON_RULE), 2);
   }
 
   // The answers at the bottom.
@@ -345,30 +346,30 @@ std::string CultivationActivity::trialRowTitle(const int row) const {
     case TrialRow::Answer:
       switch (strike_.options[row].answer) {
         case trials::Answer::Endure:
-          return tr(STR_CULT_TRIB_ENDURE);
+          return ctr(CULT_TRIB_ENDURE);
         case trials::Answer::Turn:
-          return tr(STR_CULT_TRIB_TURN);
+          return ctr(CULT_TRIB_TURN);
         case trials::Answer::Burn:
-          return tr(STR_CULT_TRIB_BURN);
+          return ctr(CULT_TRIB_BURN);
         case trials::Answer::Shield:
-          return tr(STR_CULT_TRIB_SHIELD);
+          return ctr(CULT_TRIB_SHIELD);
       }
       return {};
     case TrialRow::Tonic: {
       char title[96];
       const inventory::Item tonic = inventory::tonicFor(*state_, strike_.base);
-      snprintf(title, sizeof(title), tr(STR_CULT_TONIC_ROW_FORMAT),
-               tonic == inventory::Item::TonicFull      ? tr(STR_CULT_ITEM_TONIC_FULL)
-               : tonic == inventory::Item::TonicGreater ? tr(STR_CULT_ITEM_TONIC_GREATER)
-                                                        : tr(STR_CULT_ITEM_TONIC_MINOR));
+      snprintf(title, sizeof(title), ctr(CULT_TONIC_ROW_FORMAT),
+               tonic == inventory::Item::TonicFull      ? ctr(CULT_ITEM_TONIC_FULL)
+               : tonic == inventory::Item::TonicGreater ? ctr(CULT_ITEM_TONIC_GREATER)
+                                                        : ctr(CULT_ITEM_TONIC_MINOR));
       return title;
     }
     case TrialRow::Face:
-      return tr(STR_CULT_DEMON_FACE);
+      return ctr(CULT_DEMON_FACE);
     case TrialRow::Incense:
-      return tr(STR_CULT_DEMON_INCENSE);
+      return ctr(CULT_DEMON_INCENSE);
     case TrialRow::BurnMind:
-      return tr(STR_CULT_DEMON_BURN);
+      return ctr(CULT_DEMON_BURN);
   }
   return {};
 }
@@ -381,17 +382,16 @@ std::string CultivationActivity::trialRowSubtitle(const int row) const {
       const auto& o = strike_.options[row];
       switch (o.answer) {
         case trials::Answer::Endure:
-          snprintf(sub, sizeof(sub), tr(STR_CULT_TRIB_ENDURE_SUB_FORMAT), static_cast<unsigned>(o.damage));
+          snprintf(sub, sizeof(sub), ctr(CULT_TRIB_ENDURE_SUB_FORMAT), static_cast<unsigned>(o.damage));
           break;
         case trials::Answer::Turn:
-          snprintf(sub, sizeof(sub), tr(STR_CULT_TRIB_TURN_SUB_FORMAT), static_cast<unsigned>(o.damage),
-                   trialNames_[row]);
+          snprintf(sub, sizeof(sub), ctr(CULT_TRIB_TURN_SUB_FORMAT), static_cast<unsigned>(o.damage), trialNames_[row]);
           break;
         case trials::Answer::Burn:
-          snprintf(sub, sizeof(sub), tr(STR_CULT_TRIB_BURN_SUB_FORMAT), trialNames_[row]);
+          snprintf(sub, sizeof(sub), ctr(CULT_TRIB_BURN_SUB_FORMAT), trialNames_[row]);
           break;
         case trials::Answer::Shield:
-          snprintf(sub, sizeof(sub), tr(STR_CULT_TRIB_SHIELD_SUB_FORMAT),
+          snprintf(sub, sizeof(sub), ctr(CULT_TRIB_SHIELD_SUB_FORMAT),
                    static_cast<unsigned>(inventory::count(*state_, inventory::Item::ThunderTalisman)));
           break;
       }
@@ -399,24 +399,22 @@ std::string CultivationActivity::trialRowSubtitle(const int row) const {
     }
     case TrialRow::Tonic: {
       const inventory::Item tonic = inventory::tonicFor(*state_, strike_.base);
-      snprintf(sub, sizeof(sub), tr(STR_CULT_TONIC_SUB_FORMAT),
+      snprintf(sub, sizeof(sub), ctr(CULT_TONIC_SUB_FORMAT),
                static_cast<unsigned>(inventory::healAmount(*state_, tonic)),
                static_cast<unsigned>(inventory::count(*state_, tonic)));
       break;
     }
     case TrialRow::Face:
-      snprintf(sub, sizeof(sub), tr(STR_CULT_DEMON_FACE_SUB_FORMAT),
-               static_cast<unsigned>(trials::sceneChance(*state_)));
+      snprintf(sub, sizeof(sub), ctr(CULT_DEMON_FACE_SUB_FORMAT), static_cast<unsigned>(trials::sceneChance(*state_)));
       break;
     case TrialRow::Incense: {
       const uint32_t chance = trials::sceneChance(*state_) + inventory::kIncenseBonus;
-      snprintf(sub, sizeof(sub), tr(STR_CULT_DEMON_INCENSE_SUB_FORMAT),
-               static_cast<unsigned>(chance > 99 ? 99 : chance),
+      snprintf(sub, sizeof(sub), ctr(CULT_DEMON_INCENSE_SUB_FORMAT), static_cast<unsigned>(chance > 99 ? 99 : chance),
                static_cast<unsigned>(inventory::count(*state_, inventory::Item::CalmIncense)));
       break;
     }
     case TrialRow::BurnMind:
-      snprintf(sub, sizeof(sub), tr(STR_CULT_DEMON_BURN_SUB_FORMAT), trialNames_[row]);
+      snprintf(sub, sizeof(sub), ctr(CULT_DEMON_BURN_SUB_FORMAT), trialNames_[row]);
       break;
   }
   return sub;
