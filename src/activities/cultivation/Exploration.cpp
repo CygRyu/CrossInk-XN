@@ -4,6 +4,7 @@
 
 #include "Alchemy.h"
 #include "Exploration.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "Scrolls.h"
 #include "Simulation.h"
@@ -307,8 +308,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
   const bool half = trivialYield(s, region);
   ProgressBlock& p = s.progress;
   switch (t) {
-    case Tile::Herb:
-      give(s, r.reward, inventory::herbFor(region), static_cast<uint16_t>(halve(rng.range(1, 3), half)));
+    case Tile::Herb:  // v0.2.4: Liver points add one herb each
+      give(s, r.reward, inventory::herbFor(region),
+           static_cast<uint16_t>(halve(rng.range(1, 3), half) + meridians::extraHerbs(s)));
       r.outcome = TileOutcome::Gathered;
       markUsed(s, region, tile);
       startRegrow(s, region);
@@ -331,7 +333,7 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
         }
         r.outcome = TileOutcome::RuinWon;
       } else {
-        const uint32_t loss = ceilPercent(p.hpMax, 10);
+        const uint32_t loss = ceilPercent(meridians::damageHpBase(s), 10);
         r.hpLost = static_cast<uint16_t>(loss < p.hp ? loss : p.hp);
         p.hp = static_cast<uint16_t>(p.hp - r.hpLost);
         r.outcome = TileOutcome::RuinTrapped;
@@ -555,7 +557,8 @@ uint32_t regrowMinutesLeft(const GameState& s, const uint8_t region) {
   const uint16_t stamp = get16(regionBytes(s, region) + 13);
   if (stamp == 0) return 0;
   const uint32_t since = unitsSince(s, stamp);
-  return since >= kRegrowUnits ? 0 : (kRegrowUnits - since) * 10u;
+  const uint32_t units = meridians::regrowUnits(s, kRegrowUnits);  // v0.2.4: Triple Burner
+  return since >= units ? 0 : (units - since) * 10u;
 }
 
 uint32_t upheavalMinutesLeft(const GameState& s, const uint8_t region) {
@@ -595,8 +598,8 @@ int playerLevel(const GameState& s, const bool techniquesDouble) {
   } else if (p.foundationGrade == 4) {
     level += 2;  // Perfect Foundation
   }
-  if (p.coreGrade >= 7) level += 2;  // 3rd-grade Golden Core or better
-  return level;
+  if (p.coreGrade >= 7) level += 2;              // 3rd-grade Golden Core or better
+  return level + meridians::fightLevelBonus(s);  // v0.2.4: Large Intestine
 }
 
 Danger dangerFor(const int d) {
@@ -729,13 +732,17 @@ Fight pendingFight(const GameState& s, const Layout& l) {
   f.danger = dangerFor(d);
   f.chance = winChance(d);
   f.canSlip = f.enemy != Enemy::Spirit;
-  f.slipChance = !f.canSlip ? 0 : hasMovement(s) ? 100 : 50;
+  f.slipChance = !f.canSlip       ? 0
+                 : hasMovement(s) ? 100
+                                  : static_cast<uint8_t>(50u + meridians::slipBonus(s));  // Gallbladder
   if (f.enemy == Enemy::Bandit && kind != FightKind::Guardian) {
     f.payCost = (kind == FightKind::Lair ? 30u : 15u) * (f.region + 1u);
   }
   f.canIncense = f.enemy == Enemy::Spirit && inventory::count(s, inventory::Item::CalmIncense) > 0;
-  const uint32_t raw = ceilPercent(s.progress.hpMax, lossPercent(f.danger));
-  f.damage = static_cast<uint16_t>(ceilPercent(raw, 100u - bodyCut(s)));
+  // v0.2.4: reckoned without Lung's HP, then cut by Bladder points.
+  const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(f.danger));
+  f.damage =
+      static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), meridians::fightDamagePermille(s)));
   f.slipDamage = static_cast<uint16_t>((f.damage + 1u) / 2u);
   return f;
 }
@@ -1005,15 +1012,17 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   m.levelsAdded = static_cast<uint8_t>(kMeetLevelStep * (m.meets < 2 ? m.meets : 2));
   // Their level follows yours (techniques left out), so a meeting is always about as hard as the road.
   const int with = playerLevel(s, true);
-  const int plain = 2 * playerLevel(s, false) - with;
+  // Large Intestine points are yours alone: left out of what their level follows.
+  const int plain = 2 * playerLevel(s, false) - with - meridians::fightLevelBonus(s);
   m.level = plain + offset + m.levelsAdded;
   if (m.level < 1) m.level = 1;
   const int d = with - m.level;  // a cultivator: your Sword and Palm/Fist count double
   m.danger = dangerFor(d);
   m.chance = winChance(d);
   m.dares = d <= 3;  // Dangerous or worse: weaker ones do not challenge you
-  const uint32_t raw = ceilPercent(s.progress.hpMax, lossPercent(m.danger));
-  m.damage = static_cast<uint16_t>(ceilPercent(raw, 100u - bodyCut(s)));
+  const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(m.danger));
+  m.damage =
+      static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), meridians::fightDamagePermille(s)));
 
   Rng o(mix32(m.nameSeed, 0x4F464652u + m.meets));
   switch (m.temperament) {
@@ -1168,6 +1177,21 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
 // treasure at the list price (greedy: +30%). Someone who traded with you
 // before takes 10% off.
 namespace {
+// Before v0.2.4's Pericardium discount.
+uint16_t listPrice(const GameState& s, const inventory::Item item) {
+  if (item == inventory::Item::RecipeSlip) {
+    const int r = alchemy::slipRecipe(s);
+    return r < 0 ? 0 : alchemy::slipPrice(alchemy::recipesOf(s), static_cast<uint8_t>(r));
+  }
+  return inventory::price(item);
+}
+
+uint16_t buyPrice(const GameState& s, const uint16_t price) {
+  if (price == 0) return 0;
+  const uint32_t p = (static_cast<uint32_t>(price) * meridians::buyPermille(s) + 500u) / 1000u;
+  return static_cast<uint16_t>(p == 0 ? 1u : p);
+}
+
 Stock traderStock(const GameState& s, const Layout& l, const uint8_t region) {
   Stock st;
   const Meeting m = pendingMeeting(s, l);
@@ -1181,26 +1205,26 @@ Stock traderStock(const GameState& s, const Layout& l, const uint8_t region) {
   const uint16_t base = inventory::price(ingredient);
   StockLine line;
   line.item = ingredient;
-  line.price = percentOf(percentOf(base, greedy ? 200u : 150u), discount);
+  line.price = buyPrice(s, percentOf(percentOf(base, greedy ? 200u : 150u), discount));
   const uint8_t bought = static_cast<uint8_t>(s.exploration[6] >> kMeetBoughtShift);
   line.left = bought < kTraderIngredientMax ? static_cast<uint8_t>(kTraderIngredientMax - bought) : 0;
   line.soldOut = line.left == 0;
   st.lines[st.count++] = line;
   const bool slip = alchemy::slipRecipe(s) >= 0;
   if (slip) {
-    const uint16_t price = stockPrice(s, inventory::Item::RecipeSlip);
+    const uint16_t price = listPrice(s, inventory::Item::RecipeSlip);
     StockLine sl;
     sl.item = inventory::Item::RecipeSlip;
     sl.limited = true;
     sl.soldOut = (s.exploration[6] & kMeetFlagSlip) != 0;
-    sl.price = percentOf(percentOf(price, greedy ? 130u : 100u), discount);
+    sl.price = buyPrice(s, percentOf(percentOf(price, greedy ? 130u : 100u), discount));
     st.lines[st.count++] = sl;
   }
   StockLine tl;
   tl.item = rng.below(2) == 0 ? inventory::Item::ThunderTalisman : inventory::Item::CalmIncense;
   tl.limited = true;
   tl.soldOut = (s.exploration[6] & kMeetFlagTreasure) != 0;
-  tl.price = percentOf(percentOf(inventory::price(tl.item), greedy ? 130u : 100u), discount);
+  tl.price = buyPrice(s, percentOf(percentOf(inventory::price(tl.item), greedy ? 130u : 100u), discount));
   st.lines[st.count++] = tl;
   return st;
 }
@@ -1252,7 +1276,7 @@ uint16_t tick(GameState& s) {
   for (uint8_t region = 0; region < kRegionCount; ++region) {
     uint8_t* b = regionBytes(s, region);
     const uint16_t regrow = get16(b + 13);
-    if (regrow != 0 && unitsSince(s, regrow) >= kRegrowUnits) {
+    if (regrow != 0 && unitsSince(s, regrow) >= meridians::regrowUnits(s, kRegrowUnits)) {
       const Layout l = layoutOf(s, region);
       for (uint8_t t = 0; t < kTiles; ++t) {
         if (regrows(l.tiles[t])) clearBit(b + 5, t);
@@ -1318,13 +1342,7 @@ Stock stockFor(const GameState& s, const Layout& l, const uint8_t region, const 
   return st;
 }
 
-uint16_t stockPrice(const GameState& s, const inventory::Item item) {
-  if (item == inventory::Item::RecipeSlip) {
-    const int r = alchemy::slipRecipe(s);
-    return r < 0 ? 0 : alchemy::slipPrice(alchemy::recipesOf(s), static_cast<uint8_t>(r));
-  }
-  return inventory::price(item);
-}
+uint16_t stockPrice(const GameState& s, const inventory::Item item) { return buyPrice(s, listPrice(s, item)); }
 
 uint8_t prizePercent(const Danger danger) {
   switch (danger) {
@@ -1340,7 +1358,7 @@ uint8_t prizePercent(const Danger danger) {
 }
 
 uint16_t affordable(const GameState& s, const inventory::Item item, const uint16_t unitPrice) {
-  const uint16_t price = unitPrice != 0 ? unitPrice : inventory::price(item);
+  const uint16_t price = unitPrice != 0 ? unitPrice : stockPrice(s, item);
   if (price == 0 || !inventory::isIngredient(item)) return 0;
   const uint32_t byStones = s.progress.stones / price;
   const uint16_t room = inventory::room(s, item);

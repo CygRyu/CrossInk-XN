@@ -22,6 +22,7 @@
 #include "CultivatorSleepScreen.h"
 #include "GameValues.h"
 #include "MappedInputManager.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "StatsBridge.h"
 #include "StatsSource.h"
@@ -694,6 +695,10 @@ void CultivationActivity::refreshActions() {
     actions_[actionCount_++] = Action::Techniques;
     actions_[actionCount_++] = Action::Explore;  // v0.1.10; says when the first region opens
     actions_[actionCount_++] = Action::Alchemy;  // v0.2.0
+    // v0.2.4: from Qi Condensation (the first realm that allows a point).
+    if (meridians::allowance(*state_) > 0 || meridians::openCount(*state_) > 0) {
+      actions_[actionCount_++] = Action::Meridians;
+    }
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
   if (selected_ >= actionCount_) selected_ = 0;
@@ -718,6 +723,9 @@ void CultivationActivity::runAction() {
       return;
     case Action::Alchemy:
       openAlchemy();
+      return;
+    case Action::Meridians:
+      openMeridians();
       return;
     case Action::GreatPerfection:
       screen_ = Screen::GreatPerfection;
@@ -860,8 +868,9 @@ void CultivationActivity::loop() {
   if (back) mappedInput.suppressNextBackRelease();
   if (confirm) mappedInput.suppressNextConfirmRelease();
 
-  if (handleExplore(back, confirm, up, down)) return;  // exploration screens (CultivationExploreScreens.cpp)
-  if (handleAlchemy(back, confirm, up, down)) return;  // alchemy screens (CultivationAlchemyScreens.cpp)
+  if (handleExplore(back, confirm, up, down)) return;    // exploration screens (CultivationExploreScreens.cpp)
+  if (handleAlchemy(back, confirm, up, down)) return;    // alchemy screens (CultivationAlchemyScreens.cpp)
+  if (handleMeridians(back, confirm, up, down)) return;  // v0.2.4 (CultivationMeridianScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -1238,6 +1247,7 @@ void CultivationActivity::render(RenderLock&&) {
   }
   if (screen_ == Screen::Alchemy || screen_ == Screen::Recipes) title = tr(STR_CULT_ALCHEMY_TITLE);
   if (screen_ == Screen::Experiment) title = tr(STR_CULT_ALCHEMY_EXPERIMENT);
+  if (screen_ == Screen::Meridians) title = tr(STR_CULT_ACTION_MERIDIANS);
   char recipeTitle[64];
   if (screen_ == Screen::RecipeDetail && alchemy_) {
     snprintf(recipeTitle, sizeof(recipeTitle), "%s",
@@ -1419,6 +1429,10 @@ void CultivationActivity::render(RenderLock&&) {
     case Screen::Alchemy:
       renderAlchemy(x, top, width, bottom);
       alchemyLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Meridians:
+      renderMeridians(x, top, width, bottom);
+      confirmLabel = tr(STR_CULT_OPEN);
       break;
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
@@ -1758,6 +1772,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
       const int cx = (i % 2) * cellWidth;
       const int cy = listTop + (i / 2) * cellHeight;
       const char* label = "";
+      char meridianLabel[40];
       switch (actions_[i]) {
         case Action::Breakthrough:
           label = tr(STR_CULT_ACTION_BREAKTHROUGH);
@@ -1774,6 +1789,16 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
         case Action::Alchemy:
           label = tr(STR_CULT_ACTION_ALCHEMY);
           break;
+        case Action::Meridians: {
+          const unsigned ready = meridians::ready(*state_);
+          if (ready > 0) {
+            snprintf(meridianLabel, sizeof(meridianLabel), tr(STR_CULT_ACTION_MERIDIANS_READY_FORMAT), ready);
+            label = meridianLabel;
+          } else {
+            label = tr(STR_CULT_ACTION_MERIDIANS);
+          }
+          break;
+        }
         case Action::Chronicle:
           label = tr(STR_CULT_ACTION_CHRONICLE);
           break;

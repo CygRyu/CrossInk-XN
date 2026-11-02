@@ -52,6 +52,9 @@ bool historyFlavor(const GameState& state, const char* listKey, uint32_t seed, c
 // Alchemy's lines ({$pill.name} set): for the screen, and for the Chronicle.
 bool alchemyFlavor(const GameState& state, const char* listKey, uint32_t seed, const char* pillName, Grammar& grammar,
                    char* out, size_t len);
+// v0.2.4: a meridian point opened (list meridian.line; {$point.name}, {$point.place}).
+bool meridianLine(lifelog::Line& line, const GameState& state, uint32_t seed, const char* point, const char* place,
+                  Grammar& grammar);
 bool alchemyLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed, const char* pillName,
                  Grammar& grammar);
 

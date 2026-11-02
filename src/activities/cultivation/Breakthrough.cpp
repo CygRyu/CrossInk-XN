@@ -4,6 +4,7 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "Simulation.h"
 
@@ -51,7 +52,7 @@ Chance chanceFor(const GameState& state) {
   c.pillItem = alchemy::pillInUse(state);
   if (c.pillItem == inventory::Item::None) c.pillItem = alchemy::chosenPill(state, c.target);
   if (!alchemy::pillFits(c.pillItem, c.target)) c.pillItem = inventory::Item::None;
-  c.pill = alchemy::breakthroughBonus(c.pillItem);
+  c.pill = meridians::pillBonus(state, alchemy::breakthroughBonus(c.pillItem));  // v0.2.4: Stomach
   uint32_t total = c.base + c.daoHeart + c.consolidation + c.depth + c.element + c.pill;
   if (total > kChanceCap) total = kChanceCap;
   // balance_sim.py: pity raises the chance by 15 per failure, but never past 90.

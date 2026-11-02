@@ -87,12 +87,22 @@ class CultivationActivity final : public Activity {
     Recipes,        // the recipes known
     RecipeDetail,   // one recipe: its parts, what it makes, the brew time; Confirm brews
     Experiment,     // pick 2-3 ingredients and mix them
+    Meridians,      // v0.2.4 (CultivationMeridianScreens.cpp): one row per channel, Select opens its next point
     Error
   };
   // What the Cultivator screen's list offers right now.
   // v0.2.0: shown as a two-column grid (user's choice), one press from everything.
-  enum class Action : uint8_t { Breakthrough, GreatPerfection, Techniques, Explore, Alchemy, Chronicle, Trial };
-  static constexpr uint8_t kMaxActions = 7;
+  enum class Action : uint8_t {
+    Breakthrough,
+    GreatPerfection,
+    Techniques,
+    Explore,
+    Alchemy,
+    Meridians,  // v0.2.4, from Qi Condensation
+    Chronicle,
+    Trial
+  };
+  static constexpr uint8_t kMaxActions = 8;
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -202,6 +212,13 @@ class CultivationActivity final : public Activity {
   uint8_t fightRowList(FightRow* out) const;
 
   // Alchemy (CultivationAlchemyScreens.cpp, v0.2.0)
+  // Meridians (v0.2.4, CultivationMeridianScreens.cpp)
+  void openMeridians();
+  void closeMeridians();
+  bool handleMeridians(bool back, bool confirm, bool up, bool down);  // true on the Meridians screen
+  void renderMeridians(int x, int y, int width, int bottom);
+  void meridianChronicle(uint8_t point);
+  int meridianReturn_ = 0;  // the Cultivator's selection while the screen borrows selected_
   void openAlchemy();
   void closeAlchemy();
   bool handleAlchemy(bool back, bool confirm, bool up, bool down);  // true when the screen is an alchemy one

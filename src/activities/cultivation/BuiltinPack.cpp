@@ -1322,6 +1322,20 @@ After many spoiled batches you got the {$pill.name} right, and sewed the recipe 
 [alchemy.line.slip]
 You came by a recipe slip for the {$pill.name}, stained with lamp oil, and copied it out before it fell apart.
 
+# Meridians (v0.2.4): a point opened. {$point.name} ("Sea of Qi") and
+# {$point.place} ("two fingers below the navel") are set only here.
+[meridian.line]
+You opened the {$point.name} point, {$point.place}, and sat through the night without your legs going numb.
+You spent three nights pressing Qi at the {$point.name} point, {$point.place}, until it gave way like a blocked drain.
+You opened the {$point.name} point, {$point.place}, and coughed up a mouthful of black phlegm the next morning.
+An old bonesetter in {place.town} charged you two silver to find the {$point.name} point, {$point.place}. You opened it yourself that night.
+You opened the {$point.name} point, {$point.place}, and could not sleep for a week for the heat in it.
+After a month of failed tries you opened the {$point.name} point, {$point.place}, and your breath stayed even on the hill road.
+You opened the {$point.name} point, {$point.place}, and the ache you had carried since your last fight went away.
+You burned a stick of incense for each day it took to open the {$point.name} point, {$point.place}. It took nine.
+You opened the {$point.name} point, {$point.place}, and broke a rice bowl in your hand at supper without meaning to.
+You opened the {$point.name} point, {$point.place}, sweating through two shirts in one night.
+
 # Each region's own herb and ore (alchemy, v0.2.0): one of each per region,
 # picked by the world seed. No article; shown as "+2 bitter reed-root".
 [ingredient.herb]

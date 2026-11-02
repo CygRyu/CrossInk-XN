@@ -3,6 +3,7 @@
 #if CROSSINK_CULTIVATION
 
 #include "Alchemy.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "Simulation.h"
 
@@ -309,7 +310,7 @@ Experiment experiment(GameState& s, const Item* in, const uint8_t count) {
 uint8_t qualityBonus(const GameState& s, const Recipe& r) {
   uint8_t bonus = r.grade == Grade::Rare ? 20 : r.grade == Grade::Spirit ? 10 : 0;
   if (isHerbalist(s)) bonus = static_cast<uint8_t>(bonus + kHerbalistBonus);
-  return bonus;
+  return static_cast<uint8_t>(bonus + meridians::brewQualityBonus(s));  // v0.2.4: Spleen
 }
 
 Collected collect(GameState& s) {
@@ -442,6 +443,10 @@ uint8_t gradePillPoints(const Item item) {
   return inventory::isGradePill(item) ? kGradePillPoints[static_cast<int>(inventory::pillQuality(item))] : 0;
 }
 
+uint8_t gradePillPoints(const GameState& s, const Item item) {
+  return static_cast<uint8_t>(meridians::pillBonus(s, gradePillPoints(item)));  // v0.2.4: Stomach
+}
+
 uint8_t gradePillsTaken(const GameState& s) { return s.flagsAndCodex[2]; }
 uint8_t gradePillScore(const GameState& s) { return s.flagsAndCodex[3] < 20 ? s.flagsAndCodex[3] : 20; }
 
@@ -471,7 +476,7 @@ UseError use(GameState& s, const Item item) {
   inventory::remove(s, item);
   if (inventory::isGradePill(item)) {
     s.flagsAndCodex[2] = static_cast<uint8_t>(s.flagsAndCodex[2] + 1);
-    s.flagsAndCodex[3] = static_cast<uint8_t>(s.flagsAndCodex[3] + gradePillPoints(item));
+    s.flagsAndCodex[3] = static_cast<uint8_t>(s.flagsAndCodex[3] + gradePillPoints(s, item));
   } else {
     set32(s.timers.data() + 10, qiPillSecondsLeft(s) + kQiPillSeconds);
   }

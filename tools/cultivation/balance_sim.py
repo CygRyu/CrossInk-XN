@@ -110,7 +110,7 @@ TUNING = {
     # opened at entry to each realm (realm 0..9) and the Qi bonus per point.
     "meridian_points_per_realm": [0, 3, 3, 3, 4, 4, 5, 4, 5, 5],  # 36 acupoints (DOC count),
     "meridian_qi_per_point": 0.10,
-    "meridian_cost_frac": 0.02,         # each point costs 2% of that realm's Q_r
+    "meridian_cost_frac": 0.05,         # each point costs 5% of the Q_r of the realm that allows it (v0.2.4, user; the DOC said 2%)
     "consolidation_per_hour": 2.0,      # Great Perfection: points per reading hour
     # v0.2.0 alchemy, as built: two grade pills of medium quality (+8 each) before the Foundation and
     # Core grades; one breakthrough pill per attempt, of the best grade the open regions allow, medium

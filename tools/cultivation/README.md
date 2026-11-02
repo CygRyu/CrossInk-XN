@@ -33,7 +33,7 @@ Python 3.9+, standard library only. Output is deterministic for a given `--seed`
 | Per-realm hours chart (did not survive export) | 4.5, 10.5, 30, 52, 75, 90, 105, 120, 135, 150 h. These meet every checkpoint in the text: 772 h total, age 31 / 113, 5–10 months per major realm |
 | Talent tiers between ×0.6 and ×1.5 | Choked ×0.6 (35%), Dull ×0.8 (30%), Ordinary ×1.0 (20%), Keen ×1.2 (11%), Heaven-Blessed ×1.5 (4%) |
 | Size of the manual, purity and study bonuses | manual ×1.15 / 1.30 / 1.50 / 1.75 / 2.00 by tier; purity ×0.85–1.15; study up to +10% |
-| **What makes M grow by 1.6× per realm** | Meridians: 36 acupoints at +10% Qi rate each, opened 0,3,3,3,4,4,5,4,5,5 per realm, each costing 2% of that realm's Qi |
+| **What makes M grow by 1.6× per realm** | Meridians: 36 acupoints at +10% Qi rate each, opened 0,3,3,3,4,4,5,4,5,5 per realm, each costing 2% of that realm's Qi (5% since v0.2.4, the user's choice) |
 | Consolidation speed in Great Perfection | 2 points per reading hour (20 h to reach 40) |
 | Dao Heart scale | 0–100, full after 15 reading hours (decision 2B) |
 | Dao of the Myriad Paths unlock (doc: 10,000 pages) | 150 reading hours (decision 5B): about 10,000 pages at a typical 1.1 pages per minute |

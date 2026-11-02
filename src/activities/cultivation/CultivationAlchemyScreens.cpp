@@ -14,6 +14,7 @@
 #include "Chronicle.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -119,10 +120,11 @@ void CultivationActivity::useBagPill(const inventory::Item item) {
     case alchemy::UseError::None:
       if (item == inventory::Item::QiPill) {
         snprintf(notice_, sizeof(notice_), tr(STR_CULT_TOOK_QI_FORMAT),
+                 static_cast<unsigned>(meridians::pillBonus(*state_, alchemy::kQiPillBonusPermille) / 10u),
                  static_cast<unsigned>((alchemy::qiPillSecondsLeft(*state_) + 59u) / 60u));
       } else {
         snprintf(notice_, sizeof(notice_), tr(STR_CULT_TOOK_GRADE_FORMAT), name,
-                 static_cast<unsigned>(alchemy::gradePillPoints(item)),
+                 static_cast<unsigned>(alchemy::gradePillPoints(*state_, item)),
                  static_cast<unsigned>(alchemy::gradePillsTaken(*state_)));
       }
       persist();

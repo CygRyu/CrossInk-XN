@@ -184,8 +184,9 @@ UseError canUse(const GameState& state, Item item);
 UseError use(GameState& state, Item item);
 uint8_t gradePillScore(const GameState& state);  // 0-20, added to the next grade score
 uint8_t gradePillsTaken(const GameState& state);
-void resetGradePills(GameState& state);  // after the grade is set
-uint8_t gradePillPoints(Item item);      // +6 / +8 / +10
+void resetGradePills(GameState& state);                      // after the grade is set
+uint8_t gradePillPoints(Item item);                          // +6 / +8 / +10
+uint8_t gradePillPoints(const GameState& state, Item item);  // v0.2.4: with Stomach points
 uint32_t qiPillSecondsLeft(const GameState& state);
 // Absorb: of `seconds` read, how many were boosted (and spends them).
 uint32_t spendQiPill(GameState& state, uint32_t seconds);

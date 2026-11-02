@@ -26,6 +26,8 @@ struct Names {
   const char* pill = nullptr;
   const char* scroll = nullptr;  // v0.2.1: Heart Demon scenes
   const char* ago = nullptr;     // v0.2.2: "two years ago"
+  const char* point = nullptr;   // v0.2.4: a meridian point and where it is
+  const char* place = nullptr;
 };
 
 bool lookupNames(const void* user, const char* key, const size_t len, char* out, const size_t outLen) {
@@ -44,6 +46,14 @@ bool lookupNames(const void* user, const char* key, const size_t len, char* out,
   }
   if (len == 8 && memcmp(key, "meet.ago", 8) == 0 && n->ago != nullptr) {
     snprintf(out, outLen, "%s", n->ago);
+    return true;
+  }
+  if (len == 10 && memcmp(key, "point.name", 10) == 0 && n->point != nullptr) {
+    snprintf(out, outLen, "%s", n->point);
+    return true;
+  }
+  if (len == 11 && memcmp(key, "point.place", 11) == 0 && n->place != nullptr) {
+    snprintf(out, outLen, "%s", n->place);
     return true;
   }
   if (len == 9 && memcmp(key, "pill.name", 9) == 0 && n->pill != nullptr) {
@@ -169,6 +179,17 @@ bool alchemyLine(lifelog::Line& line, const GameState& s, const char* listKey, c
   extra.lookup = lookupNames;
   extra.user = &names;
   return lifelog::eventLine(line, lifelog::LineKind::Event, listKey, seed, s, grammar, &extra);
+}
+
+bool meridianLine(lifelog::Line& line, const GameState& s, const uint32_t seed, const char* point, const char* place,
+                  Grammar& grammar) {
+  Names names{nullptr, nullptr};
+  names.point = point;
+  names.place = place;
+  GrammarValues extra;
+  extra.lookup = lookupNames;
+  extra.user = &names;
+  return lifelog::eventLine(line, lifelog::LineKind::Event, "meridian.line", seed, s, grammar, &extra);
 }
 
 bool chronicleLine(lifelog::Line& line, const GameState& s, const char* listKey, const uint32_t seed,

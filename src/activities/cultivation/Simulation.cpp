@@ -7,6 +7,7 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "Scrolls.h"
 #include "Simulation.h"
@@ -178,7 +179,9 @@ uint32_t qiMultiplierPermille(const GameState& state) {
   const uint32_t talent = talentInfo(state.character.talent).qiPermille;
   const uint32_t root = talent * purityPermille(state.character.rootPurity) / 1000u;
   const uint32_t graded = root * breakthrough::gradeQiPermille(state) / 1000u;  // Foundation and Golden Core grades
-  return static_cast<uint32_t>(static_cast<uint64_t>(graded) * scrolls::equippedManualPermille(state) / 1000u);
+  const uint32_t manual =
+      static_cast<uint32_t>(static_cast<uint64_t>(graded) * scrolls::equippedManualPermille(state) / 1000u);
+  return static_cast<uint32_t>(static_cast<uint64_t>(manual) * meridians::qiPermille(state) / 1000u);  // v0.2.4
 }
 
 void createCharacter(GameState& state, const CharacterDraft& draft, const StatsSample& now) {
@@ -260,7 +263,7 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   if (boosted > 0 && gains.seconds > 0) {
     r.qiPillSeconds = boosted;
     numerator += qualifying * boosted / gains.seconds * kQiPerMinute * qiMultiplierPermille(state) *
-                 alchemy::kQiPillBonusPermille / 1000u;
+                 meridians::pillBonus(state, alchemy::kQiPillBonusPermille) / 1000u;  // v0.2.4: Stomach
   }
   constexpr uint64_t kPerQi = 60ull * 1000ull;
   r.qiGained = QiNumber::fromU64(numerator / kPerQi);
@@ -291,7 +294,10 @@ AbsorbResult absorb(GameState& state, const VisitGains& gains) {
   p.stamina = static_cast<uint8_t>(p.stamina + r.staminaGained);
 
   // v0.1.9 (user): HP heals 1 per minute of reading, never past max HP.
-  const uint32_t hpSteps = after / 60u - before / 60u;
+  // v0.2.4: Kidney points add half an HP a minute each (counted in half-HP steps).
+  const uint32_t halves = meridians::healHalvesPerMinute(state);
+  const uint32_t hpSteps = static_cast<uint32_t>(static_cast<uint64_t>(after) * halves / 120u -
+                                                 static_cast<uint64_t>(before) * halves / 120u);
   const uint32_t hpRoom = p.hp < p.hpMax ? static_cast<uint32_t>(p.hpMax - p.hp) : 0u;
   r.hpGained = static_cast<uint16_t>(hpSteps < hpRoom ? hpSteps : hpRoom);
   p.hp = static_cast<uint16_t>(p.hp + r.hpGained);

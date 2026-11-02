@@ -5,6 +5,7 @@
 #include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Inventory.h"
+#include "Meridians.h"
 #include "Rng.h"
 #include "Simulation.h"
 #include "Trials.h"
@@ -127,7 +128,9 @@ Strike currentStrike(const GameState& s) {
   if (st.count == 0) return st;
   st.index = step(s) < st.count ? step(s) : static_cast<uint8_t>(st.count - 1);
   st.percent = strikePercent(st.count, st.index);
-  st.base = ceilPercent(s.progress.hpMax, st.percent);
+  // v0.2.4: reckoned without Lung's HP; Small Intestine points soften it.
+  st.base = static_cast<uint16_t>(
+      meridians::scaleUp(ceilPercent(meridians::damageHpBase(s), st.percent), meridians::lightningPermille(s)));
 
   // Endure, cut by the best equipped Body technique.
   const uint8_t cut = bodyCutPercent(s);
@@ -207,6 +210,7 @@ uint8_t sceneChance(const GameState& s) {
       break;
     }
   }
+  chance += meridians::heartDemonBonus(s);  // v0.2.4: Heart
   return static_cast<uint8_t>(chance > 95 ? 95 : chance);
 }
 
