@@ -456,6 +456,7 @@ void CultivationActivity::startVisit() {
   const uint32_t lastVisitDay = state_->snapshot.lastVisitDay;  // v0.2.6: the daily systems need it
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
   originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
+  setUpSeenFlags();                         // v0.2.7: saved with the visit
   // v0.2.0: a v0.1.10 bag moves to the new one; an older Herbalist learns the Qi Gathering recipe.
   if (inventory::migrateLegacyBag(*state_)) LOG_INF("CULT", "Moved the v0.1.10 bag to the v0.2.0 one");
   alchemy::grantStartingRecipe(*state_);
@@ -697,22 +698,82 @@ void CultivationActivity::refreshActions() {
     // Shown even when a key is missing: the Breakthrough screen says which.
     if (atBottleneck(*state_)) actions_[actionCount_++] = Action::Breakthrough;
     if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
-    actions_[actionCount_++] = Action::Techniques;
-    actions_[actionCount_++] = Action::Explore;  // v0.1.10; says when the first region opens
-    actions_[actionCount_++] = Action::Alchemy;  // v0.2.0
-    // v0.2.4: from Qi Condensation (the first realm that allows a point).
-    if (meridians::allowance(*state_) > 0 || meridians::openCount(*state_) > 0) {
-      actions_[actionCount_++] = Action::Meridians;
+    // v0.2.7: each only once it has something to show (actionShown).
+    for (const Action a :
+         {Action::Techniques, Action::Explore, Action::Alchemy, Action::Meridians, Action::Daily, Action::Daos}) {
+      if (actionShown(a)) actions_[actionCount_++] = a;
     }
-    actions_[actionCount_++] = Action::Daily;  // v0.2.6
-    if (state_->progress.realm >= 1 || daos::foundCount(*state_) > 0) actions_[actionCount_++] = Action::Daos;
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
   if (selected_ >= actionCount_) selected_ = 0;
 }
 
+bool CultivationActivity::actionShown(const Action action) const {
+  const GameState& s = *state_;
+  switch (action) {
+    case Action::Techniques:  // the first scroll comes from the first finished book
+      return scrolls::count(s) > 0;
+    case Action::Explore:  // the first region opens with Qi Condensation
+      return explore::unlockedCount(s) > 0;
+    case Action::Alchemy:  // a recipe known (the Herbalist's apprentice), a brew, or regions to gather in
+      return alchemy::knownCount(s) > 0 || alchemy::brewing(s) || alchemy::ready(s) || explore::unlockedCount(s) > 0;
+    case Action::Meridians:  // v0.2.4: from Qi Condensation (the first realm that allows a point)
+      return meridians::allowance(s) > 0 || meridians::openCount(s) > 0;
+    case Action::Daily:  // v0.2.6: reading tasks from the first day
+      return true;
+    case Action::Daos:  // v0.2.6: slots open with Qi Condensation
+      return s.progress.realm >= 1 || daos::foundCount(s) > 0;
+    default:
+      return true;
+  }
+}
+
+uint8_t CultivationActivity::seenBit(const Action action) {
+  switch (action) {
+    case Action::Techniques:
+      return 0x01;
+    case Action::Explore:
+      return 0x02;
+    case Action::Alchemy:
+      return 0x04;
+    case Action::Meridians:
+      return 0x08;
+    case Action::Daily:
+      return 0x10;
+    case Action::Daos:
+      return 0x20;
+    default:
+      return 0;
+  }
+}
+
+bool CultivationActivity::isNew(const Action action) const {
+  const uint8_t bit = seenBit(action);
+  return bit != 0 && (state_->flagsAndCodex[6] & bit) == 0;
+}
+
+void CultivationActivity::markSeen(const Action action) {
+  if (!isNew(action)) return;
+  state_->flagsAndCodex[6] = static_cast<uint8_t>(state_->flagsAndCodex[6] | seenBit(action));
+  persist();  // so "(New!)" does not come back if nothing else is saved before leaving
+}
+
+// A save from before v0.2.7: what is already shown counts as seen, so an old
+// character does not see "(New!)" on everything. New characters start with
+// only bit 7 set (createCharacter), so everything is new to them.
+void CultivationActivity::setUpSeenFlags() {
+  uint8_t& flags = state_->flagsAndCodex[6];
+  if ((flags & kSeenFlagsSetUp) != 0) return;
+  for (const Action a :
+       {Action::Techniques, Action::Explore, Action::Alchemy, Action::Meridians, Action::Daily, Action::Daos}) {
+    if (actionShown(a)) flags = static_cast<uint8_t>(flags | seenBit(a));
+  }
+  flags = static_cast<uint8_t>(flags | kSeenFlagsSetUp);
+}
+
 void CultivationActivity::runAction() {
   if (selected_ < 0 || selected_ >= actionCount_) return;
+  markSeen(actions_[selected_]);  // v0.2.7
   switch (actions_[selected_]) {
     case Action::Breakthrough: {
       RenderLock lock(*this);
@@ -1846,6 +1907,15 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
                       ? ctr(CULT_ACTION_DEMON)
                       : ctr(CULT_ACTION_TRIBULATION);
           break;
+      }
+      // v0.2.7: a cell not opened yet reads "Explore (New!)" instead of its counts.
+      char newLabel[48];
+      if (isNew(actions_[i])) {
+        const char* base = actions_[i] == Action::Meridians ? ctr(CULT_ACTION_MERIDIANS)
+                           : actions_[i] == Action::Daily   ? ctr(CULT_ACTION_DAILY)
+                                                            : label;
+        snprintf(newLabel, sizeof(newLabel), ctr(CULT_ACTION_NEW_FORMAT), base);
+        label = newLabel;
       }
       const std::string fitted = renderer.truncatedText(UI_10_FONT_ID, label, cellWidth - pad * 2);
       const int ty = cy + (cellHeight - textLine) / 2;

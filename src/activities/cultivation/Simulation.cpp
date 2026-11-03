@@ -204,6 +204,7 @@ void createCharacter(GameState& state, const CharacterDraft& draft, const StatsS
   c.rerollsUsed = draft.rerollsUsed;
   c.creationDay = now.today;
   c.flags = CharacterBlock::kCharacterCreated;
+  state.flagsAndCodex[6] = kSeenFlagsSetUp;  // v0.2.7: every feature cell is new to a new character
   grantOriginGifts(state);
   alchemy::grantStartingRecipe(state);  // v0.2.0: the Herbalist's apprentice knows the Qi Gathering pill
 

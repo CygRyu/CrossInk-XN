@@ -143,16 +143,16 @@ TEST(Simulation, StoneMinutesCarryAcrossShortVisits) {
   EXPECT_EQ(absorb(s, g).stonesGained, 1u);  // the second half-minute completes one
 }
 
-TEST(Simulation, StaminaIsOnePerFifteenMinutesCappedAtTheBank) {
+TEST(Simulation, StaminaIsOnePerSixMinutesCappedAtTheBank) {  // v0.2.7 (user; was 15 minutes)
   GameState a = newCharacter();
   GameState b = newCharacter();
   for (int i = 0; i < 3; ++i) absorb(a, minutes(10));  // three short sessions
   absorb(b, minutes(30));                              // one long one
-  EXPECT_EQ(a.progress.stamina, 2);
-  EXPECT_EQ(b.progress.stamina, 2);
+  EXPECT_EQ(a.progress.stamina, 5);
+  EXPECT_EQ(b.progress.stamina, 5);
   const AbsorbResult r = absorb(b, minutes(600));
   EXPECT_EQ(b.progress.stamina, kStaminaCap);
-  EXPECT_EQ(r.staminaGained, kStaminaCap - 2);
+  EXPECT_EQ(r.staminaGained, kStaminaCap - 5);
 }
 
 TEST(Simulation, DaoHeartGrowsWithHoursAndNeverDecays) {

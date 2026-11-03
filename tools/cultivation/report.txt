@@ -108,11 +108,11 @@ Fairness checks (DOC fairness rules, with decisions 1A 2B 4A 5B 6A):
     90 min/day                                860 h  (+0.7% vs evening)
     Weekends only, 210 min Sat+Sun            876 h  (+2.5% vs evening)
   Dao Heart at the end (0-100, full after 15 h read): daily 100, weekends-only 100
-  Stamina per week (+1 per 15 min read, nothing per session, bank cap 20):
-    30 min/day                              14.0/week earned
-    3 x 10 min/day                          14.0/week earned
-    Weekends only, 105 min Sat+Sun          14.0/week earned
-    Weekends only, 210 min Sat+Sun          28.0/week earned
+  Stamina per week (+1 per 6 min read, nothing per session, bank cap 20):
+    30 min/day                              35.0/week earned
+    3 x 10 min/day                          35.0/week earned
+    Weekends only, 105 min Sat+Sun          35.0/week earned
+    Weekends only, 210 min Sat+Sun          70.0/week earned
   Trials (cautious model: endure, burn a spare scroll only to survive), 30 min/day, over the Mortal Plane (mean):
     without merchant items (v0.1.9): 0.51 trials lost, 11.1 scrolls burned, 865 h
     with merchant items (v0.1.10):   0.18 trials lost, 3.0 scrolls burned, 854 h; 10.2 items used, 1,273 of 78,923 stones spent

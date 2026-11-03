@@ -62,7 +62,7 @@ class FormulaTests(unittest.TestCase):
         short = b.Character(b.random.Random(0), "modeled", b.Profile("3x10", b.daily(30, pieces=3))).run(max_days=14)
         long = b.Character(b.random.Random(0), "modeled", b.Profile("1x30", b.daily(30))).run(max_days=14)
         self.assertEqual(short.stamina_earned, long.stamina_earned)
-        self.assertEqual(long.stamina_earned, 14 * 30 // 15)
+        self.assertEqual(long.stamina_earned, 14 * 30 // b.TUNING["stamina_minutes"])
 
     def test_night_reading_gives_no_extra_qi(self):
         night = b.Character(b.random.Random(0), "modeled", b.PROFILES["night30"])

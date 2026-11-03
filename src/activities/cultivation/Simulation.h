@@ -22,8 +22,12 @@ constexpr uint8_t kNameMaxChars = 20;
 constexpr uint8_t kHiddenTraitCount = 8;
 
 // Fairness decisions (session 1, see tools/cultivation/README.md):
-constexpr uint32_t kSecondsPerStamina = 15 * 60;      // 4A: +1 stamina per 15 min read, nothing per session
-constexpr uint8_t kStaminaCap = 20;                   // DOC: bank cap (12 until v0.2.3)
+// v0.2.7: flagsAndCodex[6] holds which Cultivator cells were opened at least
+// once (the activity's "(New!)" tags); this bit says the byte is set up.
+constexpr uint8_t kSeenFlagsSetUp = 0x80;
+constexpr uint32_t kSecondsPerStamina =
+    6 * 60;                          // 4A: per minutes read, nothing per session; 1 per 6 min (v0.2.7, user; was 15)
+constexpr uint8_t kStaminaCap = 20;  // DOC: bank cap (12 until v0.2.3)
 constexpr uint32_t kSecondsPerStone = 60;             // 5B: 1 stone per minute read ...
 constexpr uint32_t kPagesPerStone = 2;                // ... + 1 per 2 pages, at most half the minutes of the visit
 constexpr uint32_t kDaoHeartFullSeconds = 15 * 3600;  // 2B: Dao Heart 100 after 15 h read, never decays

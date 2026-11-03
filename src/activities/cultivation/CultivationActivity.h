@@ -133,6 +133,15 @@ class CultivationActivity final : public Activity {
   void renderChronicleMenu(int top, int bottom);
   void refreshActions();
   void runAction();
+  // v0.2.7 (user): a feature's cell is hidden until it has something to show,
+  // then reads "Explore (New!)" until it is first opened. One bit per feature in
+  // flagsAndCodex[6] (bit 7: the bits were set up; older saves mark what is
+  // already shown as seen on their first visit).
+  bool actionShown(Action action) const;
+  static uint8_t seenBit(Action action);  // 0 for actions that are never "new"
+  bool isNew(Action action) const;
+  void markSeen(Action action);
+  void setUpSeenFlags();
   void attemptBreakthrough();
 
   // Tribulations and Heart Demons (CultivationTrialScreens.cpp)

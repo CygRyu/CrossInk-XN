@@ -11,6 +11,8 @@
 #include <cstring>
 #include <string>
 
+#include "CultivationBootScreen.h"
+#include "CultivationLogo.h"
 #include "CultivationUi.h"
 #include "CultivatorSleepScreen.h"
 #include "GameState.h"
@@ -76,11 +78,10 @@ bool render(GfxRenderer& renderer, const bool invert) {
 
   renderer.clearScreen();
 
-  // The figure and the character, a little above the middle.
-  const int taijiRadius = 34;
-  int y = height * 3 / 10;
-  drawTaiji(renderer, width / 2, y, taijiRadius);
-  y += taijiRadius + 36;
+  // The logo (v0.2.7, the user's artwork) and the character, a little above the middle.
+  int y = height * 3 / 20;
+  boot::drawLogo(renderer, (width - logo::kWidth) / 2, y);
+  y += logo::kHeight + 40;
 
   char name[kNameMaxBytes + 1];
   memcpy(name, s.character.name.data(), kNameMaxBytes);

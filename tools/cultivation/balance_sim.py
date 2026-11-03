@@ -83,7 +83,7 @@ TUNING = {
     "start_age": 16,
     "rerolls": 3,
     "stamina_cap": 20,              # v0.2.3 (user, session 9); was 12
-    "stamina_minutes": 15,             # decision 4A: +1 stamina per 15 min read, nothing per session
+    "stamina_minutes": 6,              # decision 4A: per minutes read, nothing per session; 6 since v0.2.7 (user; was 15)
     "stones_per_minute": 1,            # decision 5B: 1 stone per minute read ...
     "pages_per_stone": 2,              # ... + 1 per 2 pages, page part <= half the minutes of the visit
     "consolidation_max": 40,
@@ -651,7 +651,7 @@ class Character:
         self.read_today = True
         self.day_minutes += minutes
         self.stamina_sessions += 1
-        # Stamina (decision 4A): +1 per 15 min read, accumulated across sessions; nothing per session. Cap 12.
+        # Stamina (decision 4A): +1 per stamina_minutes read, accumulated across sessions; nothing per session.
         step_min = t["stamina_minutes"]
         before = int(self.stamina_minutes // step_min)
         self.stamina_minutes += minutes

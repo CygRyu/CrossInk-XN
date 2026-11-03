@@ -253,8 +253,8 @@ TEST(ChronicleViewer, EmptyAndHeadingLessFilesAreSafe) {
   }
 }
 
-// Stamina bank: 20 (user, session 9); still +1 per 15 minutes.
-TEST(StaminaBank, HoldsTwentyAndStillFillsAtFourAnHour) {
+// Stamina bank: 20 (user, session 9); +1 per 6 minutes since v0.2.7 (was 15).
+TEST(StaminaBank, HoldsTwentyAndFillsAtTenAnHour) {
   EXPECT_EQ(kStaminaCap, 20);
   CharacterDraft d;
   snprintf(d.name, sizeof(d.name), "Lin Yue");
@@ -267,9 +267,9 @@ TEST(StaminaBank, HoldsTwentyAndStillFillsAtFourAnHour) {
   VisitGains hour;
   hour.seconds = 60 * 60;
   hour.tiers.fullSeconds = 60 * 60;
-  EXPECT_EQ(absorb(s, hour).staminaGained, 4);  // 1 per 15 minutes
-  EXPECT_EQ(s.progress.stamina, 4);
-  for (int i = 0; i < 9; ++i) absorb(s, hour);  // ten hours in all: 40 earned, banked 20, not 12
+  EXPECT_EQ(absorb(s, hour).staminaGained, 10);  // 1 per 6 minutes
+  EXPECT_EQ(s.progress.stamina, 10);
+  absorb(s, hour);  // two hours in all: 20 earned, banked 20, not 12
   EXPECT_EQ(s.progress.stamina, 20);
   // An old save at the old cap simply has room for 8 more.
   s.progress.stamina = 12;
