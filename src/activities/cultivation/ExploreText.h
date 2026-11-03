@@ -58,5 +58,19 @@ bool meridianLine(lifelog::Line& line, const GameState& state, uint32_t seed, co
 bool alchemyLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed, const char* pillName,
                  Grammar& grammar);
 
+// v0.2.8: people the game remembers (Rivals.h). {$beast.name} is the person,
+// {$what} one more value (a realm, a rank, a trait), {$region.name} may be null.
+bool personFlavor(const GameState& state, const char* listKey, uint32_t seed, const char* regionName, const char* name,
+                  const char* what, Grammar& grammar, char* out, size_t len);
+bool personLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed, const char* regionName,
+                const char* name, const char* what, Grammar& grammar);
+// The rival: "Lan Xue" and "the Azure Cloud Sect".
+bool rivalName(const GameState& state, Grammar& grammar, char* name, size_t nameLen, char* sect, size_t sectLen);
+// A ladder seat (seed: rivals::seatSeed), "Old Bai of the Jade Lotus Sect".
+bool seatName(const GameState& state, uint32_t seed, Grammar& grammar, char* out, size_t len);
+// A nemesis: "Greymaw the Twice-Burned", and what it is ("a marsh crocodile").
+bool nemesisName(const GameState& state, uint8_t index, Grammar& grammar, char* out, size_t len);
+bool nemesisKind(const GameState& state, uint8_t index, Grammar& grammar, char* out, size_t len);
+
 }  // namespace exploretext
 }  // namespace cultivation

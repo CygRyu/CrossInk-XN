@@ -17,7 +17,9 @@
 #include "CultivatorSleepScreen.h"
 #include "GameText.h"
 #include "GameValues.h"
+#include "Rivals.h"
 #include "Rng.h"
+#include "StatsSource.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
 
@@ -384,6 +386,7 @@ void CultivationActivity::mapConfirm() {
     requestUpdate();  // the info lines say why (no stamina, no HP)
     return;
   }
+  rivals::setClockHour(currentLocalHour());  // v0.2.8: a nemesis that fears the dawn
   bool fight = false;
   bool meeting = false;
   {
@@ -448,6 +451,17 @@ void CultivationActivity::showStep(const explore::StepResult& r) {
     if (packs_) packs_->closeFile();
   }
   formatReward(r.reward, r.hpLost, r.hpHealed, v.numbers, sizeof(v.numbers));
+  if (r.nemesisFled >= 0 && grammar_) {  // v0.2.8: a Coward nemesis ran before the fight
+    char name[exploretext::kNameSize];
+    if (exploretext::nemesisName(*state_, static_cast<uint8_t>(r.nemesisFled), *grammar_, name, sizeof(name))) {
+      capitalized(name, v.text, sizeof(v.text));
+      char tmp[200];
+      snprintf(tmp, sizeof(tmp), ctr(CULT_NEMESIS_FLED_FORMAT), v.text);
+      snprintf(v.text, sizeof(v.text), "%s", tmp);
+      rivalChronicle("nemesis.line.fled", v.regionNames[v.region], name, nullptr, 10);
+    }
+    if (packs_) packs_->closeFile();
+  }
   if (r.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(r.reward.recipe));
   if (r.clearedNow) {
     char reward[120] = {};
@@ -566,7 +580,10 @@ void CultivationActivity::openFight() {
       // v0.2.0: the enemy's kind picks its name list and its opening line.
       static const char* const kKindLines[static_cast<int>(explore::Enemy::Count)] = {
           "explore.fight.beast", "explore.fight.bandit", "explore.fight.cultivator", "explore.fight.spirit"};
-      if (f.kind == explore::FightKind::Beast) {
+      if (f.nemesis >= 0) {  // v0.2.8
+        list = f.enemy == explore::Enemy::Beast ? "explore.fight.nemesis" : "explore.fight.nemesis.person";
+        named = exploretext::nemesisName(*state_, static_cast<uint8_t>(f.nemesis), *grammar_, v.beast, sizeof(v.beast));
+      } else if (f.kind == explore::FightKind::Beast) {
         list = f.returns > 0 ? "explore.fight.return" : kKindLines[static_cast<int>(f.enemy)];
         named = exploretext::enemyName(*state_, v.region, f.enemy, explore::beastSeed(*state_), *grammar_, v.beast,
                                        sizeof(v.beast));
@@ -691,9 +708,34 @@ void CultivationActivity::answerFight() {
       const size_t used = strlen(v.numbers);
       if (used + 1 < sizeof(v.numbers)) snprintf(v.numbers + used, sizeof(v.numbers) - used, ".");
     }
+    // v0.2.8: nemeses. The Chronicle line names it as it was in the fight.
+    if (res.nemesis >= 0) {
+      if (res.won) {
+        appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_SCARRED));
+        rivalChronicle("nemesis.line.lost", v.regionNames[v.region], v.beast, nullptr, 11);
+      } else if (res.slipped || res.paid) {
+        rivalChronicle("nemesis.line.escaped", v.regionNames[v.region], v.beast, nullptr, 12);
+      } else {
+        appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_GREW));
+        rivalChronicle("nemesis.line.won", v.regionNames[v.region], v.beast, nullptr, 13);
+      }
+      if (res.nemesisRevealedTrait != 0) {
+        snprintf(line, sizeof(line), ctr(CULT_NEMESIS_NOTICED_FORMAT),
+                 ui::traitName(static_cast<rivals::Trait>(res.nemesisRevealedTrait)));
+        appendSentence(v.numbers, sizeof(v.numbers), line);
+      }
+    }
+    if (res.nemesisBorn >= 0) {
+      appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_BORN));
+      char name[exploretext::kNameSize];
+      if (grammar_ &&
+          exploretext::nemesisName(*state_, static_cast<uint8_t>(res.nemesisBorn), *grammar_, name, sizeof(name))) {
+        rivalChronicle("nemesis.line.born", v.regionNames[v.region], name, nullptr, 14);
+      }
+    }
     // v0.2.1: enemies that come back.
     if (res.remembered) appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_FOE_REMEMBERED));
-    if (res.foeBeaten) {
+    if (res.foeBeaten && res.nemesisBorn < 0) {
       appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_FOE_GONE));
       exploreChronicle("explore.line.return.won", v.region, v.beast, 5);
     } else if (res.returning && (res.slipped || res.paid)) {
@@ -736,7 +778,18 @@ void CultivationActivity::openMeeting() {
     v.beast[0] = '\0';
     v.fightText[0] = '\0';
     v.fightResult[0] = '\0';
-    if (grammar_) {
+    if (grammar_ && m.rival) {  // v0.2.8: your rival
+      char sect[64];
+      if (exploretext::rivalName(*state_, *grammar_, v.beast, sizeof(v.beast), sect, sizeof(sect))) {
+        const char* list = m.offer == explore::Offer::Trade ? "rival.meet.trade"
+                           : m.firstRival                   ? "rival.meet.first"
+                                                            : "rival.meet.again";
+        const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 2u);
+        exploretext::personFlavor(*state_, list, seed, v.regionNames[v.region], v.beast, sect, *grammar_, v.fightText,
+                                  sizeof(v.fightText));
+      }
+      if (packs_) packs_->closeFile();
+    } else if (grammar_) {
       if (exploretext::cultivatorName(*state_, m.region, m.nameSeed, *grammar_, v.beast, sizeof(v.beast))) {
         const char* list = m.ring >= 0                        ? "explore.meet.return"
                            : m.offer == explore::Offer::Spar  ? "explore.meet.spar"
@@ -833,16 +886,32 @@ void CultivationActivity::answerMeeting() {
       v.fightResult[0] = '\0';
       if (grammar_) {
         const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 3u);
-        exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.fightText,
-                            sizeof(v.fightText));
+        if (m.rival) {  // v0.2.8: your rival talks about the road, and about themself
+          char name[64];
+          char sect[64];
+          exploretext::rivalName(*state_, *grammar_, name, sizeof(name), sect, sizeof(sect));
+          exploretext::personFlavor(*state_, "rival.talk", seed, v.regionNames[v.region], v.beast, sect, *grammar_,
+                                    v.fightText, sizeof(v.fightText));
+        } else {
+          exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.fightText,
+                              sizeof(v.fightText));
+        }
         if (packs_) packs_->closeFile();
+      }
+      if (m.rival) {
+        const rivals::Rival rv = rivals::rival(*state_);
+        char stage[32];
+        ui::stageNameOf(rv.realm, rv.stage, stage, sizeof(stage));
+        snprintf(v.fightResult, sizeof(v.fightResult), ctr(CULT_RIVAL_NEWS_FORMAT), ui::realmName(rv.realm), stage);
       }
       if (r.talk == explore::TalkResult::Hint) {
         static const GameStr kEnemyNames[static_cast<int>(explore::Enemy::Count)] = {
             GameStr::CULT_ENEMY_BEAST, GameStr::CULT_ENEMY_BANDIT, GameStr::CULT_ENEMY_CULTIVATOR,
             GameStr::CULT_ENEMY_SPIRIT};
-        snprintf(v.fightResult, sizeof(v.fightResult), ctr(CULT_MEET_HINT_FORMAT),
-                 text(kEnemyNames[static_cast<int>(r.hintEnemy)]), dangerName(r.hintDanger));
+        char hint[160];
+        snprintf(hint, sizeof(hint), ctr(CULT_MEET_HINT_FORMAT), text(kEnemyNames[static_cast<int>(r.hintEnemy)]),
+                 dangerName(r.hintDanger));
+        appendSentence(v.fightResult, sizeof(v.fightResult), hint);
         if (r.talkPaid > 0) {
           char paid[80];
           snprintf(paid, sizeof(paid), ctr(CULT_MEET_PAID_FORMAT), static_cast<unsigned long>(r.talkPaid));
@@ -853,6 +922,18 @@ void CultivationActivity::answerMeeting() {
         snprintf(v.fightResult, sizeof(v.fightResult), ctr(CULT_MEET_POOR_FORMAT),
                  static_cast<unsigned long>(r.talkCost));
       } else {
+        persist();
+      }
+      // v0.2.8: what they have heard of a nemesis (the trait is known from now on).
+      if (r.nemesisRevealed >= 0 && grammar_) {
+        char name[exploretext::kNameSize];
+        if (exploretext::nemesisName(*state_, static_cast<uint8_t>(r.nemesisRevealed), *grammar_, name, sizeof(name))) {
+          char heard[200];
+          snprintf(heard, sizeof(heard), ctr(CULT_TALK_NEMESIS_FORMAT), name,
+                   ui::traitRumor(static_cast<rivals::Trait>(r.revealedTrait)));
+          appendSentence(v.fightResult, sizeof(v.fightResult), heard);
+        }
+        if (packs_) packs_->closeFile();
         persist();
       }
       selected_ = 0;
@@ -886,6 +967,7 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
   if (r.fought && grammar_) {
     const char* list = spar ? (r.won ? "explore.meet.sparwon" : "explore.meet.sparlost")
                             : (r.won ? "explore.won.cultivator" : "explore.lost");
+    if (m.rival) list = r.won ? "rival.sparwon" : "rival.sparlost";  // v0.2.8
     const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 5u);
     exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.text, sizeof(v.text));
     if (packs_) packs_->closeFile();
@@ -921,8 +1003,30 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
     exploreChronicle("explore.line.clear", v.region, nullptr, 1);
   }
 
-  // The Chronicle: who they were to you before, then what happened now.
-  if (m.ring >= 0) {
+  // v0.2.8: your rival has lines of their own, and reacts to a defeat by temperament.
+  if (m.rival) {
+    char name[64];
+    char sect[64];
+    if (grammar_ && exploretext::rivalName(*state_, *grammar_, name, sizeof(name), sect, sizeof(sect))) {
+      if (m.firstRival) rivalChronicle("rival.line.first", v.regionNames[v.region], name, sect, 20);
+      const char* result = r.outcome == explore::MeetOutcome::Won      ? "rival.line.sparwon"
+                           : r.outcome == explore::MeetOutcome::Lost   ? "rival.line.sparlost"
+                           : r.outcome == explore::MeetOutcome::Traded ? "rival.line.trade"
+                           : r.outcome == explore::MeetOutcome::Talked ? "rival.line.talk"
+                                                                       : nullptr;
+      if (result != nullptr) rivalChronicle(result, v.regionNames[v.region], name, sect, 21);
+      if (r.won) {  // what the defeat does to them, on the map and in the Chronicle
+        static const char* const kReact[static_cast<int>(rivals::Temper::Count)] = {
+            "rival.react.idle", "rival.react.steady", "rival.react.driven", "rival.react.erratic", "rival.react.late"};
+        const char* react = kReact[static_cast<int>(rivals::rival(*state_).temper)];
+        const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 6u);
+        exploretext::personFlavor(*state_, react, seed, v.regionNames[v.region], name, sect, *grammar_, v.text,
+                                  sizeof(v.text));
+        rivalChronicle(react, v.regionNames[v.region], name, sect, 22);
+      }
+    }
+    if (packs_) packs_->closeFile();
+  } else if (m.ring >= 0) {
     static const char* const kAgain[] = {nullptr,
                                          "explore.line.meet.again.won",
                                          "explore.line.meet.again.lost",
@@ -951,7 +1055,16 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
     default:
       break;
   }
-  if (result != nullptr) exploreChronicle(result, v.region, v.beast, 21);
+  if (result != nullptr && !m.rival) exploreChronicle(result, v.region, v.beast, 21);
+  if (r.nemesisBorn >= 0) {  // v0.2.8: the one who beat you will be back
+    appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_BORN));
+    char name[exploretext::kNameSize];
+    if (grammar_ &&
+        exploretext::nemesisName(*state_, static_cast<uint8_t>(r.nemesisBorn), *grammar_, name, sizeof(name))) {
+      rivalChronicle("nemesis.line.born", v.regionNames[v.region], name, nullptr, 23);
+    }
+    if (packs_) packs_->closeFile();
+  }
 
   persist();
   refreshCursor();
@@ -1643,8 +1756,18 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
   const int fill = p.hpMax > 0 ? static_cast<int>(static_cast<int64_t>(width - 4) * p.hp / p.hpMax) : 0;
   if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
   y += barHeight + metrics.verticalSpacing;
+  rivals::Nemesis nm;
   if (v.fightResult[0] != '\0') {
     y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 2);
+  } else if (f.nemesis >= 0 && rivals::nemesis(s, static_cast<uint8_t>(f.nemesis), nm)) {  // v0.2.8
+    char known[120];
+    ui::knownTraits(nm, known, sizeof(known));
+    if (known[0] != '\0') {
+      snprintf(line, sizeof(line), ctr(CULT_NEMESIS_FIGHT_KNOWN_FORMAT), known);
+    } else {
+      snprintf(line, sizeof(line), "%s", ctr(CULT_NEMESIS_FIGHT_UNKNOWN));
+    }
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 3);
   } else if (f.returns > 0) {  // v0.2.1
     snprintf(line, sizeof(line), ctr(CULT_FOE_BACK_FORMAT), static_cast<unsigned>(explore::kFoeLevelStep * f.returns));
     y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
@@ -1745,7 +1868,8 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
     y += 4;
   }
   if (m.offer != explore::Offer::Trade) {  // how you would rate them, as in a fight
-    snprintf(line, sizeof(line), ctr(CULT_FIGHT_KIND_FORMAT), dangerName(m.danger), ctr(CULT_ENEMY_CULTIVATOR));
+    snprintf(line, sizeof(line), ctr(CULT_FIGHT_KIND_FORMAT), dangerName(m.danger),
+             m.rival ? ctr(CULT_RIVAL_KIND) : ctr(CULT_ENEMY_CULTIVATOR));
     renderer.drawText(UI_10_FONT_ID, x, y, line, true, EpdFontFamily::BOLD);
     y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
   }
@@ -1761,8 +1885,8 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
     if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
     y += barHeight + metrics.verticalSpacing;
   }
-  if (v.fightResult[0] != '\0') {
-    y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 3);
+  if (v.fightResult[0] != '\0') {  // v0.2.8: room for a rival's news and a nemesis heard of
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 5);
   } else if (m.levelsAdded > 0) {
     snprintf(line, sizeof(line), ctr(CULT_FOE_BACK_FORMAT), static_cast<unsigned>(m.levelsAdded));
     y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
@@ -1804,7 +1928,9 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
         char sub[160];
         switch (list[i]) {
           case MeetRow::Offer:
-            if (mm.offer == explore::Offer::Spar) {
+            if (mm.rival && mm.offer == explore::Offer::Spar) {  // v0.2.8
+              snprintf(sub, sizeof(sub), ctr(CULT_RIVAL_SPAR_SUB_FORMAT), static_cast<unsigned>(mm.chance));
+            } else if (mm.offer == explore::Offer::Spar) {
               snprintf(sub, sizeof(sub), ctr(CULT_SPAR_SUB_FORMAT), static_cast<unsigned>(mm.chance));
             } else if (mm.offer == explore::Offer::Trade) {
               snprintf(sub, sizeof(sub), "%s", ctr(CULT_TRADE_SUB));

@@ -52,6 +52,7 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/Meridians.cpp
   ${CULTIVATION_SRC}/Daily.cpp
   ${CULTIVATION_SRC}/Daos.cpp
+  ${CULTIVATION_SRC}/Rivals.cpp
 )
 
 add_executable(CultivationCoreTest
@@ -72,6 +73,7 @@ add_executable(CultivationCoreTest
   V023Test.cpp
   V024Test.cpp
   V026Test.cpp
+  V028Test.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp

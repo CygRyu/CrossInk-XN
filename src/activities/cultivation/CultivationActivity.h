@@ -22,6 +22,7 @@
 #include "Inventory.h"
 #include "LifeLog.h"
 #include "PackStore.h"
+#include "Rivals.h"
 #include "ScrollNames.h"
 #include "ScrollStore.h"
 #include "Scrolls.h"
@@ -92,6 +93,10 @@ class CultivationActivity final : public Activity {
     Meridians,      // v0.2.4 (CultivationMeridianScreens.cpp): one row per channel, Select opens its next point
     Daily,          // v0.2.6 (CultivationDailyScreens.cpp): the omen, three tasks, the streak
     Daos,           // v0.2.6: the five slots and the found Daos
+    Rivals,         // v0.2.8 (CultivationRivalScreens.cpp): the rival, the ranking, the nemeses
+    RivalCard,      // the rival: who, how far, what people say
+    Ladder,         // the realm's ranking: challenges, then the 20 rows
+    Nemeses,        // up to three, with what is known of each
     Error
   };
   // What the Cultivator screen's list offers right now.
@@ -105,10 +110,11 @@ class CultivationActivity final : public Activity {
     Meridians,  // v0.2.4, from Qi Condensation
     Daily,      // v0.2.6
     Daos,       // v0.2.6, from Qi Condensation
+    Rivals,     // v0.2.8, from Qi Condensation
     Chronicle,
     Trial
   };
-  static constexpr uint8_t kMaxActions = 10;
+  static constexpr uint8_t kMaxActions = 11;
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -252,6 +258,37 @@ class CultivationActivity final : public Activity {
   int drawDaoNews(int x, int y, int width) const;
   cultivation::daos::News daoNews_;
   int dailyReturn_ = 0;
+  // Rivals (v0.2.8, CultivationRivalScreens.cpp)
+  void openRivals();
+  void closeRivals();
+  bool handleRivals(bool back, bool confirm, bool up, bool down);  // true on a Rivals screen
+  void renderRivals(int x, int y, int width, int bottom);
+  void renderRivalCard(int x, int y, int width, int bottom);
+  void renderLadder(int x, int y, int width, int bottom);
+  void renderNemeses(int x, int y, int width, int bottom);
+  void rivalLabels(const char*& confirmLabel) const;
+  void loadRivalNames();
+  enum class LadderRow : uint8_t { Challenge, Accept, Decline, Rank };
+  uint8_t ladderActions(LadderRow* out) const;  // the action rows above the 20 ranks
+  void ladderChoose();
+  // The visit's news of the rival (life log or Chronicle) and the nemesis rumor.
+  void appendRivalLines(const cultivation::rivals::News& news);
+  bool nemesisRumor(uint32_t day);
+  void rivalChronicle(const char* listKey, const char* region, const char* name, const char* what, uint32_t extra);
+  cultivation::rivals::News rivalNews_;
+  int rivalsReturn_ = 0;
+  struct RivalsView {
+    static constexpr size_t kNameSize = 64;
+    char rival[kNameSize] = {};
+    char sect[kNameSize] = {};
+    char say[200] = {};
+    char seats[cultivation::rivals::kLadderSize][kNameSize] = {};
+    char nemeses[cultivation::rivals::kNemesisMax][cultivation::exploretext::kNameSize] = {};
+    char kinds[cultivation::rivals::kNemesisMax][cultivation::exploretext::kNameSize] = {};
+    char regions[cultivation::explore::kRegionCount][48] = {};
+    int menuSelected = 0;
+  };
+  std::unique_ptr<RivalsView> rivals_;
   void openAlchemy();
   void closeAlchemy();
   bool handleAlchemy(bool back, bool confirm, bool up, bool down);  // true when the screen is an alchemy one
@@ -432,9 +469,9 @@ class CultivationActivity final : public Activity {
     uint8_t cursor = 0;
     char beast[cultivation::exploretext::kNameSize] = {};
     char fightText[280] = {};
-    char fightResult[200] = {};
-    char text[200] = {};     // the last thing that happened on the map
-    char numbers[200] = {};  // what it gave or cost
+    char fightResult[280] = {};  // v0.2.8: a rival's news, a hint and a nemesis heard of
+    char text[200] = {};         // the last thing that happened on the map
+    char numbers[200] = {};      // what it gave or cost
     cultivation::explore::Stock stock;
     uint8_t merchantTile = 0;
     uint8_t qtyLine = 0;  // v0.2.1: the stock line being bought in bulk

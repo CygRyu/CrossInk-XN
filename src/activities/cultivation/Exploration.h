@@ -42,6 +42,8 @@
 //         (all about the waiting meeting)
 //   7     v0.2.1: the waiting random fight is returning foe N - 1 (0 = a new one)
 //         v0.2.2: the waiting meeting is cultivator N - 1 of the ring in memory[32-47]
+//         v0.2.8: 0x11-0x13 the waiting random fight is nemesis N - 0x11 (Rivals.h);
+//         0x20 the waiting meeting is your rival
 //   8 + 19 x region:
 //     0-4   charted tiles (36 bits)     5-9   used-up tiles (36 bits)
 //     10    reshape counter             11    flags (cleared, guardian beaten)
@@ -152,6 +154,12 @@ int returningFoe(const GameState& state);
 
 enum class Danger : uint8_t { Trivial = 0, Weak, Dangerous, Hazardous, Extreme, Impossible, Count };
 
+// v0.2.8: exploration[7] values for a nemesis fight and a meeting with the rival.
+constexpr uint8_t kNemesisSlot = 0x10;  // | (nemesis index + 1)
+constexpr uint8_t kRivalSlot = 0x20;
+// The nemesis of the waiting fight, or -1.
+int pendingNemesis(const GameState& state);
+
 // 10 x realm + stage (0-9) + equipped Sword / Palm-Fist techniques (1-5 by
 // tier each; twice that against a cultivator) + Foundation Perfect 2 /
 // Heavenly 3 + Golden Core 3rd grade or better 2.
@@ -181,6 +189,7 @@ struct Fight {
   uint32_t payCost = 0;     // bandits (not a guardian): stones to be let go; 0 = cannot pay
   bool canIncense = false;  // a spirit, and a Calm-Heart Incense is held
   uint8_t returns = 0;      // v0.2.1: a returning foe, back for the Nth time (0 = new)
+  int8_t nemesis = -1;      // v0.2.8: a nemesis (Rivals.h), its index
 };
 
 // The fight waiting on the map (after a step), if any.
@@ -239,6 +248,7 @@ struct StepResult {
   uint16_t hpHealed = 0;
   bool clearedNow = false;  // the region was just cleared: clearReward holds its reward
   Reward clearReward;
+  int8_t nemesisFled = -1;  // v0.2.8: a Coward nemesis found you and ran (no fight)
 };
 
 enum class StepError : uint8_t { None, NotAdjacent, Blocked, NoStamina, NoHp, FightWaiting };
@@ -265,6 +275,11 @@ struct FightResult {
   bool returning = false;   // v0.2.1: it was a returning foe
   bool remembered = false;  // v0.2.1: it got away and will come back (or will come back stronger)
   bool foeBeaten = false;   // v0.2.1: a returning foe was beaten and is gone
+  // v0.2.8: a nemesis (Rivals.h): which one, what it gained or showed, or one just born.
+  int8_t nemesis = -1;
+  uint8_t nemesisNewTrait = 0;       // rivals::Trait gained escaping beaten
+  uint8_t nemesisRevealedTrait = 0;  // rivals::Trait you noticed
+  int8_t nemesisBorn = -1;
   uint8_t roll = 0;
   uint16_t hpLost = 0;
   uint8_t thrownTo = kNoTile;  // after a loss or slipping away from a lair or guardian
@@ -325,6 +340,8 @@ struct Meeting {
   bool talked = false;
   bool traded = false;      // bought something
   uint8_t levelsAdded = 0;  // 3 x earlier meetings (at most 6)
+  bool rival = false;       // v0.2.8: your rival (Rivals.h): a spar never costs HP
+  bool firstRival = false;  // ... met on the road for the first time
 };
 
 int meetingRegion(const GameState& state);  // the region whose map holds the waiting meeting, or -1
@@ -350,6 +367,11 @@ struct MeetResult {
   Danger hintDanger = Danger::Dangerous;
   uint32_t talkPaid = 0;
   uint32_t talkCost = 0;  // what a greedy one asked when you were short
+  // v0.2.8
+  int8_t nemesisRevealed = -1;  // the talk named a nemesis's trait
+  uint8_t revealedTrait = 0;    // rivals::Trait
+  int8_t nemesisBorn = -1;      // a lost challenge made the cultivator your nemesis
+  bool rival = false;
 };
 
 // Offer: play the spar or the challenge (a trade is the shop: stockFor / buy

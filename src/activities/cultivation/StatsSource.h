@@ -9,5 +9,7 @@ namespace cultivation {
 // other devices are never counted) and never saves any CrossInk stats file.
 // Device-only; host tests build StatsSample by hand instead.
 StatsSample readLocalStats();
+// v0.2.8: the local hour (0-23), or -1 when the clock is not set (a nemesis that fears the dawn).
+int currentLocalHour();
 
 }  // namespace cultivation

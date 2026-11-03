@@ -8,6 +8,7 @@
 #include "Daos.h"
 #include "GameState.h"
 #include "Inventory.h"
+#include "Rivals.h"
 #include "Scrolls.h"
 
 // Small text helpers shared by the game's screen files (all names via tr()).
@@ -23,7 +24,8 @@ void formatPermille(char* buf, size_t len, uint32_t permille);       // "x1.30"
 const char* gradeName(breakthrough::GradeKind kind, uint8_t grade);  // "" for none
 // "Flawed Foundation, 9th-Grade Golden Core, Half-step Nascent Soul" ("" if none).
 void formatTitles(const GameState& s, char* out, size_t len);
-void stageName(const GameState& s, char* out, size_t len);  // "Layer 4", "Peak", "Great Perfection"
+void stageName(const GameState& s, char* out, size_t len);              // "Layer 4", "Peak", "Great Perfection"
+void stageNameOf(uint8_t realm, uint8_t stage, char* out, size_t len);  // v0.2.8: "Layer 4", "Peak"
 // "Path of Immortal Reading v0.1.9"
 void versionLine(char* out, size_t len);
 
@@ -37,6 +39,15 @@ void itemDescription(inventory::Item item, char* out, size_t len);
 
 // v0.2.6: "Dao of Flowing Water" (CultivationDailyScreens.cpp).
 const char* daoName(daos::Dao dao);
+
+// v0.2.8 (CultivationRivalScreens.cpp): a nemesis trait's name, what it does,
+// and how a rumor tells it; "iron hide, slow" for the known ones ("" if none).
+const char* traitName(rivals::Trait t);
+const char* traitEffect(rivals::Trait t);
+const char* traitRumor(rivals::Trait t);
+void knownTraits(const rivals::Nemesis& n, char* out, size_t len);
+// "First of the Qi Condensation Ranking" while in the top three ("" otherwise).
+void ladderTitle(const GameState& s, char* out, size_t len);
 
 }  // namespace ui
 }  // namespace cultivation

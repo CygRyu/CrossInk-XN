@@ -140,12 +140,12 @@ bool CultivationActivity::historyScene(const uint8_t index) {
   const GameState& s = *state_;
   Rng rng(trialSeed(s, kKindTrialText, 0x40u | index));
   if (rng.below(2) != 0) return false;
-  enum class Kind : uint8_t { Guardian, Uncleared, Foe, Burned };
+  enum class Kind : uint8_t { Guardian, Uncleared, Foe, Burned, Rival, Nemesis };
   struct Option {
     Kind kind;
     uint8_t index;
   };
-  Option options[explore::kRegionCount * 2 + explore::kFoeRing + 1];
+  Option options[explore::kRegionCount * 2 + explore::kFoeRing + 2 + rivals::kNemesisMax];
   uint8_t n = 0;
   const uint8_t open = explore::unlockedCount(s);
   for (uint8_t r = 0; r < open; ++r) {
@@ -158,6 +158,12 @@ bool CultivationActivity::historyScene(const uint8_t index) {
   }
   scrolls::Scroll burned;
   if (scrolls::lastBurned(s, burned)) options[n++] = {Kind::Burned, 0};
+  // v0.2.8: the rival as a mocking voice, and the nemeses.
+  if (rivals::rival(s).known) options[n++] = {Kind::Rival, 0};
+  for (uint8_t i = 0; i < rivals::kNemesisMax; ++i) {
+    rivals::Nemesis nm;
+    if (rivals::nemesis(s, i, nm)) options[n++] = {Kind::Nemesis, i};
+  }
   if (n == 0) return false;
   const Option pick = options[rng.below(n)];
 
@@ -187,6 +193,20 @@ bool CultivationActivity::historyScene(const uint8_t index) {
     case Kind::Burned:
       scrollName(burned, scroll, sizeof(scroll));
       break;
+    case Kind::Rival: {
+      list = "demon.history.rival";
+      char sect[64];
+      exploretext::rivalName(s, *grammar_, beast, sizeof(beast), sect, sizeof(sect));
+      break;
+    }
+    case Kind::Nemesis: {
+      list = "demon.history.nemesis";
+      rivals::Nemesis nm;
+      rivals::nemesis(s, pick.index, nm);
+      exploretext::regionName(s, nm.region, *grammar_, region, sizeof(region));
+      exploretext::nemesisName(s, pick.index, *grammar_, beast, sizeof(beast));
+      break;
+    }
   }
   return exploretext::historyFlavor(s, list, trialSeed(s, kKindTrialText, index), region, beast, scroll, *grammar_,
                                     trialText_, sizeof(trialText_)) &&

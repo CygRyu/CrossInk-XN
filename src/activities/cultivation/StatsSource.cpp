@@ -33,6 +33,11 @@ StatsSample readLocalStats() {
   return s;
 }
 
+int currentLocalHour() {
+  ReadingStatsDateTime now;
+  return getCurrentLocalReadingStatsDateTime(now) ? now.hour : -1;
+}
+
 }  // namespace cultivation
 
 #endif  // CROSSINK_CULTIVATION

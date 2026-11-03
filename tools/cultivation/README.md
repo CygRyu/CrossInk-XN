@@ -163,3 +163,7 @@ The daily omen no longer gives Qi (`omen_bucket_bonus` 0.0): the agreed omen nev
 Dao sets found (300 of 300 each): evening, night or morning daily readers Time + their time of day + Fate; rotating readers Time + Myriad Paths + Fate; weekend readers Stillness + Fire + Fate (binge: + Tide). Most characters find 3-4 of the 5; the empty slots wait for a habit. With the steps first proposed (7 / 4 / 2 / 5 h / 8 h / 1) every Dao reached level 9 by Core Formation and was the key of every breakthrough after it; the user chose the slower steps. Side effect: the "scrolls only, short books" case no longer stalls (300 of 300 finish), since Daos become keys late in the game.
 
 `test_balance_sim.py`: the Mortal Plane bound is now 20% of 772 h and the per-realm bound 30% (were 10% and 25%): without the phantom omen the real pace is 11-15% over the doc's 772 h and Foundation about 26% over its 30 h. Not re-tuned; the user decides.
+
+### v0.2.8: the rival, the ranking and nemeses
+
+Nothing here changes Qi, stamina, keys or the breakthrough chance, so the pacing above is unchanged and the simulator is not. The rival's virtual pace uses this report's median hours per realm at 30 min/day (4.0, 12.2, 37.4, 51.8, 79.3, 100.3, 116.0, 135.7, 154.9, 163.3; `kRealmDeciHours` in `Rivals.h`); re-copy them if the pacing is ever re-tuned. Ranking bouts and nemesis fights pay Spirit Stones and prizes like the fights already modelled as left out.

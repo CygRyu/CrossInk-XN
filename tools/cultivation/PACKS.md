@@ -144,6 +144,17 @@ Region slots have a theme each, in order: `marsh`, `wastes`, `forest`, `gorge`, 
 | `explore.line.meet.again.won`, `.lost`, `.traded`, `.talked`, `.passed` | v0.2.2: Chronicle line when you meet someone again, by how you last parted; `{$meet.ago}` ("a year ago", "7 years ago") is set only here |
 | `demon.history.guardian`, `demon.history.uncleared`, `demon.history.ran`, `demon.history.paid`, `demon.history.burned` | v0.2.1: Heart Demon scenes from the player's history; `{$region.name}`, `{$beast.name}` (the guardian or the foe) and `{$scroll.name}` (the last scroll burned) are set where they apply. Write them so they fit one enemy or a group |
 | `explore.line.guardian`, `explore.line.clear`, `explore.line.upheaval`, `explore.line.talisman` | Chronicle lines (the upheaval line also shows in the Return summary) |
+| `rival.name.male`, `rival.name.female` | v0.2.8: the rival's given name (the sect comes from `sect.name`) |
+| `rival.meet.first`, `rival.meet.again`, `rival.meet.trade`, `rival.talk`, `rival.sparwon`, `rival.sparlost` | v0.2.8: meeting the rival on the road and how a bout ended; `{$beast.name}` is the rival, `{$what}` their sect ("the Azure Cloud Sect") |
+| `rival.say.idle`, `.steady`, `.driven`, `.erratic`, `.late` | v0.2.8: what people say of the rival, one list per (hidden) temperament: show it, never name it. On the Rivals screen and now and then in the Return summary |
+| `rival.react.idle`, `.steady`, `.driven`, `.erratic`, `.late` | v0.2.8: how the rival takes a defeat, by temperament (map and Chronicle) |
+| `rival.line.first`, `.sparwon`, `.sparlost`, `.trade`, `.talk`, `.realm`, `.seclusion`, `.back`, `.overtook`, `.overtaken` | v0.2.8: Chronicle and summary lines; in `.realm` `{$what}` is the realm reached ("Foundation Establishment") |
+| `nemesis.name.beast`, `nemesis.name.bandit`, `nemesis.epithet`, `nemesis.epithet.scar`, `nemesis.epithet.victor` | v0.2.8: a nemesis's name and epithet, joined as "Greymaw the Twice-Burned"; write epithets without "the" |
+| `explore.fight.nemesis`, `explore.fight.nemesis.person` | v0.2.8: a nemesis finds you (a beast; a bandit or cultivator) |
+| `nemesis.line.born`, `.won`, `.lost`, `.escaped`, `.fled` | v0.2.8: Chronicle lines: it beat you and became your nemesis, beat you again, was beaten and got away, you got away, it ran |
+| `rumor.nemesis` | v0.2.8: the rumor of the day about a nemesis, lower case, no full stop (the game adds them); `{$what}` is how the rumor tells a trait ("will not fight in the morning") |
+| `ladder.line.won`, `.lost`, `.defended`, `.fell` | v0.2.8: ranking bouts; `{$beast.name}` the opponent, `{$what}` the rank ("rank 14") |
+| `demon.history.rival`, `demon.history.nemesis` | v0.2.8: Heart Demon scenes with the rival (a mocking voice) or a nemesis (`{$region.name}` set) |
 | `meridian.line` | v0.2.4: Chronicle line when a meridian point is opened; `{$point.name}` ("Sea of Qi") and `{$point.place}` ("two fingers below the navel", read after a comma) are set only here. Write "the {$point.name} point" |
 
 `{$region.name}` and `{$beast.name}` (the beast or guardian) are set in these lists only. Write beasts and guardians with their article and in lower case unless they are a name ("a white bear", "the Snow Bear of Frozen Bell"); use `{$beast.name.cap}` at the start of a sentence. Since v0.2.0 each enemy kind has its own lines; write bandit and cultivator lines so they fit one person or a group ("they"), and keep `explore.lost` and `explore.slip` neutral, since they follow every kind.

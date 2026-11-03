@@ -170,6 +170,9 @@ void formatTitles(const GameState& s, char* out, const size_t len) {
     snprintf(halfStep, sizeof(halfStep), ctr(CULT_HALF_STEP_FORMAT), text(kRealmNames[p.realm + 1]));
     add(halfStep);
   }
+  char ladder[64];  // v0.2.8: the top three of the realm's ranking, until the next realm
+  ladderTitle(s, ladder, sizeof(ladder));
+  add(ladder);
 }
 void stageName(const GameState& s, char* out, const size_t len) {
   const ProgressBlock& p = s.progress;
@@ -179,6 +182,13 @@ void stageName(const GameState& s, char* out, const size_t len) {
     snprintf(out, len, ctr(CULT_LAYER_FORMAT), static_cast<unsigned>(p.stage + 1));
   } else {
     snprintf(out, len, "%s", text(kStageNames[p.stage < 4 ? p.stage : 3]));
+  }
+}
+void stageNameOf(const uint8_t realm, const uint8_t stage, char* out, const size_t len) {
+  if (realmInfo(realm).layered) {
+    snprintf(out, len, ctr(CULT_LAYER_FORMAT), static_cast<unsigned>(stage + 1));
+  } else {
+    snprintf(out, len, "%s", text(kStageNames[stage < 4 ? stage : 3]));
   }
 }
 void versionLine(char* out, const size_t len) {
@@ -392,6 +402,7 @@ void CultivationActivity::onEnter() {
 
 void CultivationActivity::onExit() {
   explore_.reset();
+  rivals_.reset();
   alchemy_.reset();
   ingredients_.reset();
   library_.reset();
@@ -434,6 +445,8 @@ void CultivationActivity::updateRumor() {
   const char* text = grammar_->expand("{rumor}", contentSeed(worldSeedOf(*state_), kKindRumor, when), ctx);
   snprintf(rumor_, sizeof(rumor_), "%s", text);
   packs_->closeFile();
+  // v0.2.8: one day in four the rumor is about a nemesis (and tells you one of its ways).
+  if (day != StatsSnapshot::kNoDay) nemesisRumor(day);
   if (grammar_->missing() > 0) {
     LOG_ERR("CULT", "Rumor had %u missing key(s)", grammar_->missing());
   }
@@ -473,6 +486,10 @@ void CultivationActivity::startVisit() {
   daily::update(*state_, gains, now, lastVisitDay);
   daos::addReading(*state_, gains, state_->snapshot);
   daoNews_ = daos::settle(*state_);
+  // v0.2.8: the rival's days since the last visit, the ranking's realm, nemeses roaming on reading time.
+  rivals::setClockHour(currentLocalHour());
+  rivalNews_ = rivals::update(*state_, now);
+  rivals::roam(*state_);
   // v0.1.10: herbs regrow and cleared regions reshape on reading time.
   upheavals_ = explore::tick(*state_);
   updateRumor();
@@ -490,6 +507,7 @@ void CultivationActivity::startVisit() {
     writeLifeLog(change);
   } else {
     appendUpheavalLines(upheavals_);  // straight into the Chronicle
+    appendRivalLines(rivalNews_);
   }
   // Books finished since the last visit become scrolls (Chronicle lines first,
   // like the life log). minted.bin and the pending list are only updated
@@ -521,6 +539,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   }
   lifelog::build(*lifeLog_, change, visit_.monthsPassed, *state_, grammar_.get());
   appendUpheavalLines(upheavals_);  // Spatial Upheaval: after the visit's own lines
+  appendRivalLines(rivalNews_);     // v0.2.8: then the rival's news
   if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
   chronicle::appendVisit(*lifeLog_);
   if (packs_) packs_->closeFile();
@@ -699,8 +718,8 @@ void CultivationActivity::refreshActions() {
     if (atBottleneck(*state_)) actions_[actionCount_++] = Action::Breakthrough;
     if (breakthrough::canEnterGreatPerfection(*state_)) actions_[actionCount_++] = Action::GreatPerfection;
     // v0.2.7: each only once it has something to show (actionShown).
-    for (const Action a :
-         {Action::Techniques, Action::Explore, Action::Alchemy, Action::Meridians, Action::Daily, Action::Daos}) {
+    for (const Action a : {Action::Techniques, Action::Explore, Action::Alchemy, Action::Meridians, Action::Daily,
+                           Action::Daos, Action::Rivals}) {
       if (actionShown(a)) actions_[actionCount_++] = a;
     }
   }
@@ -723,6 +742,8 @@ bool CultivationActivity::actionShown(const Action action) const {
       return true;
     case Action::Daos:  // v0.2.6: slots open with Qi Condensation
       return s.progress.realm >= 1 || daos::foundCount(s) > 0;
+    case Action::Rivals:  // v0.2.8: the ranking opens with Qi Condensation
+      return s.progress.realm >= 1 || rivals::nemesisCount(s) > 0;
     default:
       return true;
   }
@@ -742,6 +763,8 @@ uint8_t CultivationActivity::seenBit(const Action action) {
       return 0x10;
     case Action::Daos:
       return 0x20;
+    case Action::Rivals:  // v0.2.8
+      return 0x40;
     default:
       return 0;
   }
@@ -764,8 +787,8 @@ void CultivationActivity::markSeen(const Action action) {
 void CultivationActivity::setUpSeenFlags() {
   uint8_t& flags = state_->flagsAndCodex[6];
   if ((flags & kSeenFlagsSetUp) != 0) return;
-  for (const Action a :
-       {Action::Techniques, Action::Explore, Action::Alchemy, Action::Meridians, Action::Daily, Action::Daos}) {
+  for (const Action a : {Action::Techniques, Action::Explore, Action::Alchemy, Action::Meridians, Action::Daily,
+                         Action::Daos, Action::Rivals}) {
     if (actionShown(a)) flags = static_cast<uint8_t>(flags | seenBit(a));
   }
   flags = static_cast<uint8_t>(flags | kSeenFlagsSetUp);
@@ -800,6 +823,9 @@ void CultivationActivity::runAction() {
       return;
     case Action::Daos:
       openDaos();
+      return;
+    case Action::Rivals:
+      openRivals();
       return;
     case Action::GreatPerfection:
       screen_ = Screen::GreatPerfection;
@@ -949,6 +975,7 @@ void CultivationActivity::loop() {
   if (handleAlchemy(back, confirm, up, down)) return;    // alchemy screens (CultivationAlchemyScreens.cpp)
   if (handleMeridians(back, confirm, up, down)) return;  // v0.2.4 (CultivationMeridianScreens.cpp)
   if (handleDaily(back, confirm, up, down)) return;      // v0.2.6 (CultivationDailyScreens.cpp)
+  if (handleRivals(back, confirm, up, down)) return;     // v0.2.8 (CultivationRivalScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -1327,6 +1354,16 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::Meridians) title = ctr(CULT_ACTION_MERIDIANS);
   if (screen_ == Screen::Daily) title = ctr(CULT_ACTION_DAILY);
   if (screen_ == Screen::Daos) title = ctr(CULT_ACTION_DAOS);
+  char ladderTitle[64];
+  if (screen_ == Screen::Rivals || screen_ == Screen::Nemeses) {
+    title = screen_ == Screen::Rivals ? ctr(CULT_RIVALS_TITLE) : ctr(CULT_RIVALS_ROW_NEMESES);
+  }
+  if (screen_ == Screen::RivalCard) title = ctr(CULT_RIVALS_ROW_RIVAL);
+  if (screen_ == Screen::Ladder) {
+    snprintf(ladderTitle, sizeof(ladderTitle), ctr(CULT_RIVALS_ROW_LADDER_FORMAT),
+             ui::realmName(state_->progress.realm));
+    title = ladderTitle;
+  }
   char recipeTitle[64];
   if (screen_ == Screen::RecipeDetail && alchemy_) {
     snprintf(recipeTitle, sizeof(recipeTitle), "%s",
@@ -1520,6 +1557,22 @@ void CultivationActivity::render(RenderLock&&) {
     case Screen::Daos:
       renderDaos(x, top, width, bottom);
       confirmLabel = "";
+      break;
+    case Screen::Rivals:
+      renderRivals(x, top, width, bottom);
+      rivalLabels(confirmLabel);
+      break;
+    case Screen::RivalCard:
+      renderRivalCard(x, top, width, bottom);
+      rivalLabels(confirmLabel);
+      break;
+    case Screen::Ladder:
+      renderLadder(x, top, width, bottom);
+      rivalLabels(confirmLabel);
+      break;
+    case Screen::Nemeses:
+      renderNemeses(x, top, width, bottom);
+      rivalLabels(confirmLabel);
       break;
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
@@ -1899,6 +1952,10 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
         case Action::Daos:
           label = ctr(CULT_ACTION_DAOS);
           break;
+        case Action::Rivals:  // v0.2.8: someone below challenges you today
+          label = rivals::defenceBout(*state_).block == rivals::Block::None ? ctr(CULT_ACTION_RIVALS_CHALLENGED)
+                                                                            : ctr(CULT_ACTION_RIVALS);
+          break;
         case Action::Chronicle:
           label = ctr(CULT_ACTION_CHRONICLE);
           break;
@@ -1913,6 +1970,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
       if (isNew(actions_[i])) {
         const char* base = actions_[i] == Action::Meridians ? ctr(CULT_ACTION_MERIDIANS)
                            : actions_[i] == Action::Daily   ? ctr(CULT_ACTION_DAILY)
+                           : actions_[i] == Action::Rivals  ? ctr(CULT_ACTION_RIVALS)
                                                             : label;
         snprintf(newLabel, sizeof(newLabel), ctr(CULT_ACTION_NEW_FORMAT), base);
         label = newLabel;

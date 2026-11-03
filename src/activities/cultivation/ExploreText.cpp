@@ -8,6 +8,7 @@
 #include "Exploration.h"
 #include "ExploreText.h"
 #include "GameValues.h"
+#include "Rivals.h"
 #include "Rng.h"
 #include "Simulation.h"
 
@@ -28,6 +29,7 @@ struct Names {
   const char* ago = nullptr;     // v0.2.2: "two years ago"
   const char* point = nullptr;   // v0.2.4: a meridian point and where it is
   const char* place = nullptr;
+  const char* what = nullptr;  // v0.2.8: a realm, a rank, a trait
 };
 
 bool lookupNames(const void* user, const char* key, const size_t len, char* out, const size_t outLen) {
@@ -54,6 +56,10 @@ bool lookupNames(const void* user, const char* key, const size_t len, char* out,
   }
   if (len == 11 && memcmp(key, "point.place", 11) == 0 && n->place != nullptr) {
     snprintf(out, outLen, "%s", n->place);
+    return true;
+  }
+  if (len == 4 && memcmp(key, "what", 4) == 0 && n->what != nullptr) {
+    snprintf(out, outLen, "%s", n->what);
     return true;
   }
   if (len == 9 && memcmp(key, "pill.name", 9) == 0 && n->pill != nullptr) {
@@ -200,6 +206,81 @@ bool chronicleLine(lifelog::Line& line, const GameState& s, const char* listKey,
   extra.lookup = lookupNames;
   extra.user = &names;
   return lifelog::eventLine(line, lifelog::LineKind::Event, listKey, seed, s, grammar, &extra);
+}
+
+bool personFlavor(const GameState& s, const char* listKey, const uint32_t seed, const char* region, const char* name,
+                  const char* what, Grammar& grammar, char* out, const size_t len) {
+  Names names{region, name};
+  names.what = what;
+  return flavorWith(s, listKey, seed, names, grammar, out, len);
+}
+
+bool personLine(lifelog::Line& line, const GameState& s, const char* listKey, const uint32_t seed, const char* region,
+                const char* name, const char* what, Grammar& grammar) {
+  Names names{region, name};
+  names.what = what;
+  GrammarValues extra;
+  extra.lookup = lookupNames;
+  extra.user = &names;
+  return lifelog::eventLine(line, lifelog::LineKind::Event, listKey, seed, s, grammar, &extra);
+}
+
+bool rivalName(const GameState& s, Grammar& grammar, char* name, const size_t nameLen, char* sect,
+               const size_t sectLen) {
+  const rivals::Rival r = rivals::rival(s);
+  const uint32_t seed = r.seed != 0 ? r.seed : rivals::rivalSeed(s);
+  const bool a = expandName(s, r.gender == Gender::Female ? "{rival.name.female}" : "{rival.name.male}", 0, seed,
+                            grammar, name, nameLen);
+  const bool b = expandName(s, "the {sect.name}", 0, mix32(seed, 0x53454354u), grammar, sect, sectLen);
+  return a && b;
+}
+
+bool seatName(const GameState& s, const uint32_t seed, Grammar& grammar, char* out, const size_t len) {
+  const uint8_t region = s.progress.realm >= 1 ? static_cast<uint8_t>(s.progress.realm - 1) : 0;
+  return expandName(s, "{meet.who}", region, seed, grammar, out, len);
+}
+
+namespace {
+bool nemesisBase(const GameState& s, const rivals::Nemesis& n, Grammar& grammar, char* out, const size_t len) {
+  switch (n.kind) {
+    case explore::Enemy::Cultivator: {
+      // The name a meeting gave them (the part before "of the ..."), so a road cultivator keeps theirs.
+      if (!expandName(s, "{meet.who}", n.birthRegion, n.seed, grammar, out, len)) return false;
+      char* cut = strstr(out, " of the ");
+      if (cut != nullptr) *cut = '\0';
+      return true;
+    }
+    case explore::Enemy::Bandit:
+      return expandName(s, "{nemesis.name.bandit}", n.birthRegion, n.seed, grammar, out, len);
+    default:
+      return expandName(s, "{nemesis.name.beast}", n.birthRegion, n.seed, grammar, out, len);
+  }
+}
+}  // namespace
+
+bool nemesisName(const GameState& s, const uint8_t index, Grammar& grammar, char* out, const size_t len) {
+  out[0] = '\0';
+  rivals::Nemesis n;
+  if (!rivals::nemesis(s, index, n)) return false;
+  char base[64];
+  char epithet[48];
+  if (!nemesisBase(s, n, grammar, base, sizeof(base))) return false;
+  static const char* const kLists[3] = {"{nemesis.epithet}", "{nemesis.epithet.scar}", "{nemesis.epithet.victor}"};
+  const int k = static_cast<int>(n.epithet) < 3 ? static_cast<int>(n.epithet) : 0;
+  if (!expandName(s, kLists[k], n.birthRegion, mix32(n.seed, 0x45504900u + n.epithetCount), grammar, epithet,
+                  sizeof(epithet))) {
+    snprintf(out, len, "%s", base);
+    return true;
+  }
+  snprintf(out, len, "%s the %s", base, epithet);
+  return true;
+}
+
+bool nemesisKind(const GameState& s, const uint8_t index, Grammar& grammar, char* out, const size_t len) {
+  out[0] = '\0';
+  rivals::Nemesis n;
+  if (!rivals::nemesis(s, index, n)) return false;
+  return enemyName(s, n.birthRegion, n.kind, n.seed, grammar, out, len);
 }
 
 }  // namespace exploretext

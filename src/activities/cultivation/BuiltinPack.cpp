@@ -1292,6 +1292,251 @@ In {$region.name} you met {$beast.name}, with whom you shared the road {$meet.ag
 {$beast.name.cap}, whom you passed {$meet.ago}, was on the road in {$region.name} again.
 In {$region.name} you met {$beast.name}, to whom you nodded {$meet.ago} without a word.
 
+# v0.2.8: the rival. {$beast.name} is the rival's name; {$what} their sect
+# (meetings), a realm (news) or nothing. Lines say "your rival" or the name,
+# never a pronoun, since the rival's gender is theirs to keep.
+[rival.name.male]
+Han Ce
+Qiu Mingyuan
+Zhao Lin
+Xue Kun
+Pei Shou
+Guo Heng
+Lin Tao
+Song Jie
+Yan Bo
+Du Chengfeng
+
+[rival.name.female]
+Tang Rou
+Hua Lian
+Jiang Mei
+Wen Shu
+Bai Ning
+Qin Yao
+Lu Zhen
+He Yun
+Kong Xia
+Mo Qingling
+
+[rival.meet.first]
+A cultivator of {$what} blocks the road and looks you over. "So you are the one the elders keep comparing me to. I am {$beast.name}."
+{$beast.name.cap} of {$what} has been waiting at the bridge. The two of you were born in the same year, and the elders never let either of you forget it.
+On the road stands {$beast.name}, whose name your teachers used whenever they thought you were slacking. Now you have a face for it.
+
+[rival.meet.again]
+{$beast.name.cap} is sitting on a milestone by the road, eating a steamed bun, and does not get up.
+You hear {$beast.name} before you see your rival: someone is arguing with a ferryman about the fare.
+{$beast.name.cap} falls into step beside you as if the two of you had arranged it.
+Your rival {$beast.name} is washing a sword in the stream and nods at you without much warmth.
+
+[rival.meet.trade]
+{$beast.name.cap} has a pack full of things picked up on the road and would rather sell them to you than carry them.
+"I have no time for a bout today," says {$beast.name}, "but I have herbs, if you have stones."
+
+[rival.talk]
+{$beast.name.cap} talks freely, mostly about {$beast.name} and the masters at {$what}, but some of it is useful.
+Over a pot of cold tea {$beast.name} tells you what the road ahead is like, and asks pointed questions about your own progress.
+{$beast.name.cap} has heard things in the inns and passes them on, if only to show how much there is to hear.
+
+[rival.sparwon]
+You put {$beast.name} on the ground twice. Your rival gets up, slaps the dust off and says nothing at all.
+The bout ends with your palm an inch from {$beast.name}'s throat. Your rival bows, stiffly.
+{$beast.name.cap} fights well and loses anyway, and you can see the loss being written down somewhere behind those eyes.
+
+[rival.sparlost]
+{$beast.name.cap} sweeps your legs and stands over you. "Again in a year," says your rival, and walks on.
+You lose, and {$beast.name} tells you exactly why, which is worse.
+{$beast.name.cap} beats you without hurrying and helps you up without being asked.
+
+[rival.line.first]
+In {$region.name} you met your rival {$beast.name} of {$what} on the road for the first time.
+On the road in {$region.name} you finally met {$beast.name} of {$what}, the rival your teachers always held up to you.
+
+[rival.line.sparwon]
+In {$region.name} you sparred with your rival {$beast.name}, and won.
+You beat your rival {$beast.name} in a bout on the road in {$region.name}.
+
+[rival.line.sparlost]
+In {$region.name} your rival {$beast.name} beat you in a bout and walked on without looking back.
+You lost a bout to your rival {$beast.name} on the road in {$region.name}.
+
+[rival.line.trade]
+You bought from your rival {$beast.name} on the road in {$region.name}, at no friendly price.
+
+[rival.line.talk]
+You shared a pot of tea with your rival {$beast.name} in {$region.name}, and learned more than you gave away.
+
+[rival.line.realm]
+Word comes that your rival {$beast.name} has reached {$what}.
+A traveller mentions that {$beast.name} has broken through to {$what}. The whole sect is talking about it.
+Your rival {$beast.name} has reached {$what}, and the news reaches you before the week is out.
+
+[rival.line.seclusion]
+Your rival {$beast.name} has gone into seclusion; nobody has seen your rival on the roads for days.
+The gatekeeper says {$beast.name} has shut the door and left word not to be disturbed.
+
+[rival.line.back]
+Your rival {$beast.name} has come out of seclusion and is back on the roads.
+
+[rival.line.overtook]
+You have passed your rival {$beast.name}. The news will reach {$what} before long.
+For the first time in years the elders mention your name before {$beast.name}'s.
+
+[rival.line.overtaken]
+Your rival {$beast.name} has pulled ahead of you again.
+Word comes that {$beast.name} is ahead of you now, and is not shy about saying so.
+
+[rival.say.idle]
+{$beast.name.cap} was seen dozing through the morning bell again, and the elders have stopped shouting about it.
+They say {$beast.name} has a gift and no wish to use it; most days your rival is found fishing below the waterfall.
+The kitchen staff say {$beast.name} turns up for every meal and half of the lessons.
+
+[rival.say.steady]
+{$beast.name.cap} trains every morning at the same hour, rain or shine; the gatekeeper sets the water boiling by it.
+They say {$beast.name} has never missed a lesson and never shone at one either.
+{$beast.name.cap} does the same forms every day, they say, and gets a little better at them every month.
+
+[rival.say.driven]
+{$beast.name.cap} trains in the rain while the others sleep, and the training dummies have to be replaced every season.
+They say {$beast.name} asked the elders for harder work and got it, and then asked again.
+The other disciples avoid sparring with {$beast.name}; your rival does not know when to stop.
+
+[rival.say.erratic]
+{$beast.name.cap} vanished for a month, they say, then broke two stages in a week and vanished again.
+Nobody can say what {$beast.name} does with the days; some weeks your rival is nowhere, then suddenly everywhere.
+They say {$beast.name} trains in fits, three days without sleep and then nothing until the next new moon.
+
+[rival.say.late]
+They say {$beast.name} was slow as a child and has been getting faster every year since.
+The elders who once gave up on {$beast.name} are taking a second look; the gap is closing.
+{$beast.name.cap} started late, they say, and has been catching up ever since without a word to anyone.
+
+[rival.react.idle]
+Stung by the defeat, {$beast.name} has taken to sleeping in late even more; the elders have given up.
+{$beast.name.cap} shrugs off the defeat and goes fishing for two weeks.
+
+[rival.react.steady]
+{$beast.name.cap} bows, notes the defeat and goes back to the same morning routine as before.
+{$beast.name.cap} takes the loss without a word and is at the training ground at the usual hour next day.
+
+[rival.react.driven]
+Stung by the defeat, your rival {$beast.name} has not left the training ground in days.
+{$beast.name.cap} asks the elders for a harder regime the same evening. The disciples are already complaining about the noise.
+
+[rival.react.erratic]
+{$beast.name.cap} says nothing about the defeat and is gone before morning. Someone saw your rival heading for the mountains.
+After the loss {$beast.name} disappears into seclusion without telling anyone; something is bound to come of it.
+
+[rival.react.late]
+{$beast.name.cap} takes the loss calmly. "Next year," your rival says, "it will go the other way."
+{$beast.name.cap} writes down every move of the bout in a notebook and walks off reading it.
+
+# v0.2.8: nemeses. {$beast.name} is the nemesis's name with its epithet
+# ("Greymaw the Twice-Burned"), {$region.name} where it happens.
+[nemesis.name.beast]
+Greymaw
+Old Splitear
+Three-Toes
+Blackback
+Notch-Tail
+Mudjaw
+Long Tooth
+Old Grey Belly
+
+[nemesis.name.bandit]
+Pockmarked Liu
+Big Dog Zhao
+Lame Sun
+Copper-Coin He
+Knife-Hand Wu
+Second Uncle Ma
+Six-Fingers Tan
+
+[nemesis.epithet]
+Patient
+Hungry
+Unwashed
+Long-Armed
+Smiling
+Tireless
+
+[nemesis.epithet.scar]
+Twice-Burned
+Scarred
+One-Eyed
+Limping
+Split-Lipped
+Crooked-Nose
+
+[nemesis.epithet.victor]
+Victor
+Unbowed
+Grinning
+Bone-Taker
+
+[explore.fight.nemesis]
+{$beast.name.cap} has been following your trail through {$region.name}, and has caught up.
+You smell {$beast.name} before you see the shape in the reeds. It was waiting downwind, as the last time.
+{$beast.name.cap} steps out onto the path ahead of you in {$region.name} and does not hurry.
+
+[explore.fight.nemesis.person]
+{$beast.name.cap} has been asking after you in every inn in {$region.name}, and has found you.
+{$beast.name.cap} is sitting on a stone in the middle of the path in {$region.name}, waiting, and stands up when you come.
+The herb pickers of {$region.name} warned you that {$beast.name} was on your trail. They were right.
+
+[nemesis.line.born]
+In {$region.name}, {$beast.name} beat you and went off knowing your face. That will not be the last of it.
+{$beast.name.cap} left you in the mud in {$region.name}. The herb pickers say the victor went off well pleased.
+After the fight in {$region.name}, {$beast.name} did not finish you, and you understood that you were meant to remember.
+
+[nemesis.line.won]
+{$beast.name.cap} found you again in {$region.name} and had the better of you. The tea-houses will hear of it.
+In {$region.name}, {$beast.name} beat you again and left a mark on the tree where it happened.
+{$beast.name.cap} beat you in {$region.name}, then waited at a distance until you got up, to make sure you knew who had done it.
+
+[nemesis.line.lost]
+You beat {$beast.name} in {$region.name}, but your enemy got away with a fresh scar and never took their eyes off you.
+In {$region.name} you drove off {$beast.name}, who will be back and will have learned something.
+{$beast.name.cap} broke off the fight in {$region.name} bleeding, and limped away into the brush.
+
+[nemesis.line.escaped]
+In {$region.name} you got away from {$beast.name}, for now.
+{$beast.name.cap} let you go in {$region.name}. You did not like being watched all the way to the bend in the road.
+
+[nemesis.line.fled]
+{$beast.name.cap} saw you coming in {$region.name} and was gone before you could close the distance.
+In {$region.name}, {$beast.name} took one look at you and ran.
+
+[rumor.nemesis]
+in the tea-house at {place.town} they say {$beast.name} {$what}
+a herb picker swears that {$beast.name} {$what}
+the ferryman says {$beast.name} {$what}, and he has the scars to prove he was there
+
+# v0.2.8: the ranking. {$beast.name} the opponent, {$what} the rank ("rank 14").
+[ladder.line.won]
+Before the ranking board you beat {$beast.name} and took {$what}.
+You challenged {$beast.name} for {$what} and won it.
+
+[ladder.line.lost]
+You challenged {$beast.name} for {$what} and lost.
+{$beast.name.cap} kept {$what} against your challenge, and you went home with bruises.
+
+[ladder.line.defended]
+{$beast.name.cap} challenged you for your place, and you kept {$what}.
+
+[ladder.line.fell]
+{$beast.name.cap} challenged you for your place and took it; you are at {$what} now.
+
+[demon.history.rival]
+Your rival {$beast.name} sits across from you and lists every time you fell behind, in order, without notes.
+{$beast.name.cap} laughs at you from the far end of the hall, and every elder there laughs along.
+"Still here?" says {$beast.name}. "I passed this place years ago."
+
+[demon.history.nemesis]
+{$beast.name.cap} circles you in {$region.name}, as always, and this time is in no hurry at all.
+You are back in {$region.name}, and {$beast.name} is standing over you, as on the day you first lost.
+
 [alchemy.failed]
 The cauldron cracks along an old seam and the batch turns to black slag. You scrape it out to sell.
 Halfway through, the fire runs too hot. What is left at the bottom is dross, good for nothing but the scrap dealer.

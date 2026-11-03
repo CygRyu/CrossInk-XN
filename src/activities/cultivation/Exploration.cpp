@@ -7,6 +7,7 @@
 #include "Daos.h"
 #include "Exploration.h"
 #include "Meridians.h"
+#include "Rivals.h"
 #include "Rng.h"
 #include "Scrolls.h"
 #include "Simulation.h"
@@ -24,10 +25,11 @@ constexpr uint32_t kKindEncounter = 84;
 constexpr uint32_t kKindBeastLevel = 85;
 constexpr uint32_t kKindFightRoll = 86;
 constexpr uint32_t kKindClearReward = 87;
-constexpr uint32_t kKindEnemy = 88;      // v0.2.0: lair and guardian kinds
-constexpr uint32_t kKindMeetRoll = 94;   // v0.2.2: does a cultivator walk the road
-constexpr uint32_t kKindMeetWho = 95;    // ... who: name, temperament, level (and the id of a new one)
-constexpr uint32_t kKindMeetStock = 96;  // ... what a traveller sells
+constexpr uint32_t kKindEnemy = 88;         // v0.2.0: lair and guardian kinds
+constexpr uint32_t kKindMeetRoll = 94;      // v0.2.2: does a cultivator walk the road
+constexpr uint32_t kKindMeetWho = 95;       // ... who: name, temperament, level (and the id of a new one)
+constexpr uint32_t kKindMeetStock = 96;     // ... what a traveller sells
+constexpr uint32_t kKindNemesisFind = 126;  // v0.2.8: a nemesis finds you (Rivals.cpp has 122-127)
 
 constexpr size_t kHeaderBytes = 8;
 constexpr size_t kRegionBytes = 19;
@@ -575,6 +577,7 @@ uint32_t upheavalMinutesLeft(const GameState& s, const uint8_t region) {
 }
 
 uint8_t enter(GameState& s, const Layout& l, const uint8_t region) {
+  rivals::setPlayerRegion(s, region);  // v0.2.8: nemeses roam toward it
   uint8_t* b = regionBytes(s, region);
   if (b[12] == 0 || b[12] > kTiles || !walkable(l, static_cast<uint8_t>(b[12] - 1))) {
     setPosition(s, region, l.entrance);
@@ -644,7 +647,18 @@ uint8_t bodyCut(const GameState& s) { return trials::bodyCutPercent(s); }
 
 uint32_t stepCounter(const GameState& s) { return counter(s); }
 
+int pendingNemesis(const GameState& s) {
+  if (s.exploration[5] != static_cast<uint8_t>(FightKind::Beast)) return -1;
+  const uint8_t v = s.exploration[7];
+  if ((v & 0xF0) != kNemesisSlot || (v & 0x0F) == 0 || (v & 0x0F) > rivals::kNemesisMax) return -1;
+  rivals::Nemesis n;
+  return rivals::nemesis(s, static_cast<uint8_t>((v & 0x0F) - 1), n) ? (v & 0x0F) - 1 : -1;
+}
+
 uint32_t beastSeed(const GameState& s) {
+  const int nemi = pendingNemesis(s);
+  rivals::Nemesis n;
+  if (nemi >= 0 && rivals::nemesis(s, static_cast<uint8_t>(nemi), n)) return n.seed;  // v0.2.8
   Foe f;
   const int ring = returningFoe(s);
   if (ring >= 0 && foe(s, static_cast<uint8_t>(ring), f)) return f.seed;  // v0.2.1: the same enemy again
@@ -711,6 +725,14 @@ Fight pendingFight(const GameState& s, const Layout& l) {
   f.tile = position(s, l, f.region);
   switch (kind) {
     case FightKind::Beast: {
+      const int nemi = pendingNemesis(s);
+      rivals::Nemesis n;
+      if (nemi >= 0 && rivals::nemesis(s, static_cast<uint8_t>(nemi), n)) {  // v0.2.8: a nemesis
+        f.nemesis = static_cast<int8_t>(nemi);
+        f.enemy = n.kind;
+        f.level = rivals::fightLevel(s, n, rivals::clockHour());
+        break;
+      }
       f.enemy = encounterEnemy(s, f.region);
       Rng rng(beastSeed(s));
       const int extra = static_cast<int>(rng.below(5));
@@ -737,18 +759,23 @@ Fight pendingFight(const GameState& s, const Layout& l) {
   const int d = playerLevel(s, f.enemy == Enemy::Cultivator) - f.level;
   f.danger = dangerFor(d);
   f.chance = winChance(d);
-  f.canSlip = f.enemy != Enemy::Spirit;
+  rivals::Nemesis nm;
+  const bool isNemesis = f.nemesis >= 0 && rivals::nemesis(s, static_cast<uint8_t>(f.nemesis), nm);
+  f.canSlip = f.enemy != Enemy::Spirit && !(isNemesis && rivals::hasTrait(nm, rivals::Trait::Hunter));
   f.slipChance = !f.canSlip ? 0
-                 : hasMovement(s)
+                 : hasMovement(s) || (isNemesis && rivals::hasTrait(nm, rivals::Trait::Slow))
                      ? 100
                      : static_cast<uint8_t>(50u + meridians::slipBonus(s) + daily::slipBonus(s));  // Gallbladder, omen
-  if (f.enemy == Enemy::Bandit && kind != FightKind::Guardian) {
+  if (isNemesis) {
+    f.payCost = rivals::payCost(nm);  // v0.2.8: a bandit, or a Greedy one for half
+  } else if (f.enemy == Enemy::Bandit && kind != FightKind::Guardian) {
     f.payCost = (kind == FightKind::Lair ? 30u : 15u) * (f.region + 1u);
   }
   f.canIncense = f.enemy == Enemy::Spirit && inventory::count(s, inventory::Item::CalmIncense) > 0;
   // v0.2.4: reckoned without Lung's HP, then cut by Bladder points.
   const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(f.danger));
   f.damage = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), fightDamagePermille(s)));
+  if (isNemesis && rivals::hasTrait(nm, rivals::Trait::Venomous)) f.damage = static_cast<uint16_t>(f.damage * 3u / 2u);
   f.slipDamage = static_cast<uint16_t>((f.damage + 1u) / 2u);
   return f;
 }
@@ -783,6 +810,29 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     r.fight = true;
     return r;
   }
+  // v0.2.8: a nemesis roaming this region finds you (6%, Ambusher 12%), unless resting.
+  if (!afterRandomFight) {
+    const int nemi = rivals::ambush(s, region, contentSeed(worldSeedOf(s), kKindNemesisFind, c));
+    if (nemi >= 0) {
+      s.exploration[7] = static_cast<uint8_t>(kNemesisSlot | (nemi + 1));
+      setPending(s, region, FightKind::Beast);
+      s.exploration[6] = static_cast<uint8_t>(s.exploration[6] | 0x01);
+      rivals::Nemesis n;
+      rivals::nemesis(s, static_cast<uint8_t>(nemi), n);
+      if (rivals::hasTrait(n, rivals::Trait::Coward) && pendingFight(s, l).chance >= 60) {
+        // A Coward runs when your chance is 60% or better: no fight, the tile as usual.
+        setPending(s, region, FightKind::None);
+        s.exploration[7] = 0;
+        rivals::itFled(s, static_cast<uint8_t>(nemi));
+        r.nemesisFled = static_cast<int8_t>(nemi);
+        resolveTile(s, l, region, r);
+        checkClear(s, l, region, r);
+        return r;
+      }
+      r.fight = true;
+      return r;
+    }
+  }
   Rng encounter(contentSeed(worldSeedOf(s), kKindEncounter, c));
   // v0.2.1 (user): never two random fights on consecutive steps.
   if (encounter.below(100) < l.encounterPercent && !afterRandomFight) {
@@ -800,6 +850,11 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     const int waiting = waitingCultIn(s, region, roll.next());
     const bool again = waiting >= 0 && roll.below(3) == 0;  // one meeting in three is a remembered face
     s.exploration[7] = again ? static_cast<uint8_t>(waiting + 1) : 0;
+    // v0.2.8: one meeting in four is your rival, once their realm has opened this region.
+    if (rivals::canMeetIn(s, region) && roll.below(100) < rivals::kRivalMeetPercent) {
+      s.exploration[7] = kRivalSlot;
+      rivals::markKnown(s);
+    }
     s.exploration[6] = static_cast<uint8_t>((s.exploration[6] & ~kMeetFlags) | 0x01);
     setPending(s, region, FightKind::Meeting);
     r.meeting = true;
@@ -831,6 +886,8 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   // v0.2.1: who this was, before the counter (which names new enemies) moves on.
   const int ring = f.kind == FightKind::Beast ? returningFoe(s) : -1;
   const uint32_t seed = beastSeed(s);
+  const int nemi = f.nemesis;  // v0.2.8
+  res.nemesis = f.nemesis;
   res.returning = ring >= 0;
   const uint32_t c = counter(s);
   setCounter(s, c + 1);
@@ -839,7 +896,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   Rng rng(contentSeed(worldSeedOf(s), kKindFightRoll, c));
   // A beast or bandit that got away (slipped past or paid off) is remembered.
   auto remember = [&](const bool paid) {
-    if (f.kind != FightKind::Beast || (f.enemy != Enemy::Beast && f.enemy != Enemy::Bandit)) return;
+    if (nemi >= 0 || f.kind != FightKind::Beast || (f.enemy != Enemy::Beast && f.enemy != Enemy::Bandit)) return;
     Foe back;
     if (ring >= 0 && foe(s, static_cast<uint8_t>(ring), back)) {
       if (back.returns < kFoeMaxReturns) ++back.returns;
@@ -857,6 +914,11 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   res.roll = static_cast<uint8_t>(rng.below(100));
   ProgressBlock& p = s.progress;
   const bool half = trivialYield(s, f.region);
+  const uint32_t afterSeed = contentSeed(worldSeedOf(s), kKindNemesisFind, c | 0x80000000u);
+  auto noteAfter = [&](const rivals::Aftermath& a) {
+    res.nemesisNewTrait = static_cast<uint8_t>(a.newTrait);
+    res.nemesisRevealedTrait = static_cast<uint8_t>(a.revealedTrait);
+  };
 
   uint16_t damage = f.damage;
   // v0.2.0: paying off a bandit or driving off a spirit ends it like slipping away.
@@ -866,6 +928,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
       res.paid = true;
       res.paidStones = f.payCost;
       remember(true);
+      if (nemi >= 0) noteAfter(rivals::youEscaped(s, static_cast<uint8_t>(nemi), true, afterSeed));
     } else {
       inventory::remove(s, inventory::Item::CalmIncense);
       res.drivenOff = true;
@@ -882,6 +945,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     if (res.roll < f.slipChance) {
       res.slipped = true;
       remember(false);
+      if (nemi >= 0) noteAfter(rivals::youEscaped(s, static_cast<uint8_t>(nemi), false, afterSeed));
       if (f.kind == FightKind::Beast) {
         resolveTile(s, l, f.region, res.tile);
         checkClear(s, l, f.region, res.tile);
@@ -897,8 +961,18 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     switch (f.kind) {
       case FightKind::Beast:
         res.reward.stones = halve(kindStones(f.enemy, rng.range(5, 10) * (f.region + 1u)), half);
+        if (nemi >= 0) {  // v0.2.8: a nemesis pays like a challenge, three times a beast, and escapes scarred
+          res.reward.stones = kindStones(f.enemy, 3u * rng.range(5, 10) * (f.region + 1u));
+          noteAfter(rivals::youWon(s, static_cast<uint8_t>(nemi), afterSeed));
+        }
         if (ring >= 0) {  // v0.2.1: a returning foe pays half again, and is gone
           res.reward.stones = res.reward.stones * 3u / 2u;
+          Foe back;
+          // v0.2.8: beaten on its third meeting, one in four survives as a nemesis.
+          if (foe(s, static_cast<uint8_t>(ring), back) && back.returns >= kFoeMaxReturns &&
+              rng.below(100) < rivals::kReturningBirthPercent) {
+            res.nemesisBorn = static_cast<int8_t>(rivals::bear(s, f.enemy, f.region, f.level, back.seed, c));
+          }
           forgetFoe(s, static_cast<uint8_t>(ring));
           res.foeBeaten = true;
         }
@@ -934,8 +1008,17 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
         rng.below(100) < 20u + daos::prizeChanceBonus(s)) {
       res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
     }
-    // v0.2.1: a hard fight sometimes pays with something better.
-    if (rng.below(100) < prizeChance(s, f.danger)) {
+    // v0.2.1: a hard fight sometimes pays with something better. v0.2.8: a
+    // nemesis always counts as a hard fight; a Pack leader's prize is likelier.
+    uint32_t prize = prizeChance(s, f.danger);
+    if (nemi >= 0) {
+      rivals::Nemesis nm;
+      rivals::nemesis(s, static_cast<uint8_t>(nemi), nm);
+      const uint8_t hard = prizeChance(s, Danger::Hazardous);
+      if (prize < hard) prize = hard;
+      if (rivals::hasTrait(nm, rivals::Trait::PackLeader)) prize += 20u;
+    }
+    if (rng.below(100) < prize) {
       if (res.reward.recipe < 0 && alchemy::slipRecipe(s) >= 0) {
         res.reward.recipe = static_cast<int8_t>(alchemy::learnSlip(s));
       } else {
@@ -954,6 +1037,19 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   // The step that led here may have charted the region's last tile.
   res.hpLost = damage < p.hp ? damage : p.hp;
   p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
+  if (nemi >= 0) {  // v0.2.8: it grows from beating you
+    noteAfter(rivals::youLost(s, static_cast<uint8_t>(nemi), playerLevel(s), afterSeed));
+  } else if (f.kind == FightKind::Beast && choice == FightChoice::Fight && f.enemy != Enemy::Spirit &&
+             f.danger >= Danger::Dangerous && rng.below(100) < rivals::kBirthPercent) {
+    // v0.2.8: a beast, bandit or cultivator that beats you in a Dangerous or harder fight
+    // may become your nemesis (a returning foe leaves the ring for it).
+    res.nemesisBorn = static_cast<int8_t>(rivals::bear(s, f.enemy, f.region, f.level, seed, c));
+    if (res.nemesisBorn >= 0 && ring >= 0) {
+      forgetFoe(s, static_cast<uint8_t>(ring));
+    } else if (res.nemesisBorn < 0 && ring < 0 && f.enemy != Enemy::Cultivator) {
+      remember(false);  // all three places taken: an ordinary returning foe instead
+    }
+  }
   res.thrownTo = throwBack(s, l, f.region, rng);
   checkClear(s, l, f.region, res.tile);
   return res;
@@ -1001,8 +1097,27 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   if (region < 0) return m;
   m.active = true;
   m.region = static_cast<uint8_t>(region);
-  Cult cult;
   const uint8_t slot = s.exploration[7];
+  const rivals::Rival rv = rivals::rival(s);
+  if (slot == kRivalSlot && rv.exists) {  // v0.2.8: your rival, at their own level, never scaled to you
+    m.rival = true;
+    m.firstRival = !rv.metBefore;
+    m.nameSeed = rv.seed;
+    m.meets = static_cast<uint8_t>(rv.metBefore ? 1 : 0);
+    m.temperament = Temperament::Cautious;  // a fair price, like a cautious traveller
+    m.offer = rivals::offersTrade(s, static_cast<uint8_t>(counter(s))) ? Offer::Trade : Offer::Spar;
+    m.level = rivals::rivalLevel(s);
+    const int d = playerLevel(s, true) - m.level;
+    m.danger = dangerFor(d);
+    m.chance = winChance(d);
+    m.dares = false;
+    m.damage = 0;  // a spar: no HP lost
+    m.talked = (s.exploration[6] & kMeetFlagTalked) != 0;
+    m.traded = (s.exploration[6] & kMeetFlagBought) != 0;
+    (void)l;
+    return m;
+  }
+  Cult cult;
   if (slot >= 1 && slot <= kMeetRing && readCult(s, static_cast<uint8_t>(slot - 1), cult) && cult.region == region) {
     m.ring = slot - 1;
     m.id = cult.id;
@@ -1069,6 +1184,15 @@ void finishMeeting(GameState& s, const Layout& l, const Meeting& m, const MeetOu
   setCounter(s, counter(s) + 1);
   setPending(s, m.region, FightKind::None);
   s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
+  if (m.rival) {  // v0.2.8: the rival is remembered in their own block
+    rivals::markMet(s);
+    res.done = true;
+    res.outcome = outcome;
+    res.rival = true;
+    if (tileToo) resolveTile(s, l, m.region, res.tile);
+    checkClear(s, l, m.region, res.tile);
+    return;
+  }
   Cult c;
   c.region = m.region;
   c.id = m.id;
@@ -1107,7 +1231,7 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
     const bool hint = guardianHint(s, l, m.region, kind, danger);
     uint32_t cost = 0;
     bool tells = hint;
-    if (m.temperament == Temperament::Cautious) tells = hint && m.ring >= 0;  // only to a face they know
+    if (m.temperament == Temperament::Cautious && !m.rival) tells = hint && m.ring >= 0;  // only to a face they know
     if (m.temperament == Temperament::Greedy && hint) cost = 10u * (m.region + 1u);
     if (tells && cost > p.stones) {
       res.talk = TalkResult::TooPoor;
@@ -1115,6 +1239,16 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
       return res;  // nothing happened; they will ask again
     }
     flags = static_cast<uint8_t>(flags | kMeetFlagTalked);
+    res.rival = m.rival;
+    // v0.2.8: talk on the road names a nemesis's trait, when one is still hidden.
+    {
+      rivals::Trait t = rivals::Trait::None;
+      const int named = rivals::revealOne(s, t, counter(s));
+      if (named >= 0 && t != rivals::Trait::None) {
+        res.nemesisRevealed = static_cast<int8_t>(named);
+        res.revealedTrait = static_cast<uint8_t>(t);
+      }
+    }
     if (tells) {
       p.stones -= cost;
       res.talk = TalkResult::Hint;
@@ -1145,6 +1279,17 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   res.won = res.roll < m.chance;
   if (res.won) daily::note(s, daily::Task::WinFight);  // v0.2.6
   const bool half = trivialYield(s, m.region);
+  if (m.rival) {  // v0.2.8: a spar with your rival: twice a beast's stones, no HP either way
+    if (res.won) {
+      res.reward.stones = 2u * rng.range(5, 10) * (m.region + 1u);
+      p.stones += res.reward.stones;
+      rivals::beaten(s, daily::live(s) ? daily::today(s) : StatsSnapshot::kNoDay);
+    } else {
+      rivals::lostTo(s);
+    }
+    finishMeeting(s, l, m, res.won ? MeetOutcome::Won : MeetOutcome::Lost, true, res);
+    return res;
+  }
   if (m.offer == Offer::Spar) {
     if (res.won) {
       res.reward.stones = halve(rng.range(5, 10) * (m.region + 1u), half);  // like a beast, no herbs
@@ -1177,7 +1322,20 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   res.hpLost = m.damage < p.hp ? m.damage : p.hp;
   p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
   res.thrownTo = throwBack(s, l, m.region, rng);
+  // v0.2.8: a road cultivator who beats you in a Dangerous or harder challenge may become your nemesis.
+  if (m.danger >= Danger::Dangerous && rng.below(100) < rivals::kBirthPercent) {
+    res.nemesisBorn = static_cast<int8_t>(rivals::bear(s, Enemy::Cultivator, m.region, m.level, m.nameSeed, c));
+  }
   finishMeeting(s, l, m, MeetOutcome::Lost, false, res);
+  if (res.nemesisBorn >= 0) {  // a nemesis now, not a face on the road
+    for (uint8_t i = 0; i < kMeetRing; ++i) {
+      Cult cult;
+      if (readCult(s, i, cult) && cult.region == m.region && cult.id == m.id) {
+        forgetCult(s, i);
+        break;
+      }
+    }
+  }
   return res;
 }
 
