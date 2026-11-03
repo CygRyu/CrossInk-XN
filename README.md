@@ -59,5 +59,4 @@ Built on [CrossInk](https://github.com/uxjulia/CrossInk), itself a fork of [Cros
 
 If the game keeps you reading, you can support its development on Ko-fi:
 
-\[!\[Support me on Ko-fi](https://ko-fi.com/img/githubbutton\_sm.svg)](https://ko-fi.com/cygryu)
-
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/cygryu)
