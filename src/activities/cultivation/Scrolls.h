@@ -14,7 +14,7 @@
 // packed at the front in the order they were minted:
 //
 //   [0..3] title hash (u32 LE, never 0)   [4] hours read in that book (cap 255)
-//   [5] element (bits 0-2) | kind << 3    [6] comprehension 0..100 (quality)
+//   [5] element (bits 0-2) | kind << 3    [6] comprehension 0..100 (quality); 101 Sacred (v0.2.9)
 //   [7] flags: kEquippedManual, kEquippedTechnique
 //
 // Tier is derived from the hours, so it is never stored. The name is
@@ -35,7 +35,11 @@ enum class Tier : uint8_t { Mortal = 0, Yellow, Earth, Heaven, Saint, Count };
 // DOC kinds. Manual is the "Cultivation manual": equip one for its Qi rate.
 enum class Kind : uint8_t { Sword = 0, PalmFist, Body, Movement, Mind, Manual, Count };
 // Quality bands from comprehension (share of the book read): DOC example 92% -> Refined.
-enum class Quality : uint8_t { Fragmentary = 0, Incomplete, Complete, Refined, Perfected, Count };
+// v0.2.9: Sacred, above Perfected: re-finishing the book of a Perfected scroll
+// (after reading it again: at least half the scroll's hours more, 1 hour at
+// least, and 98% or more of it) raises it once, stored as comprehension 101.
+enum class Quality : uint8_t { Fragmentary = 0, Incomplete, Complete, Refined, Perfected, Sacred, Count };
+constexpr uint8_t kSacredComprehension = 101;
 
 struct Scroll {
   uint32_t titleHash = 0;
@@ -59,14 +63,14 @@ inline Tier tierOf(const Scroll& s) { return tierForHours(s.hours); }
 // levels 3, 6 and 9 of the Dao of its element (Daos.h), at most Saint. Never
 // used for Cultivation manuals (no Dao touches the Qi rate).
 Tier effectiveTier(const GameState& state, const Scroll& s);
-Quality qualityFor(uint8_t comprehension);  // <50, 50-74, 75-89, 90-97, 98+
+Quality qualityFor(uint8_t comprehension);  // <50, 50-74, 75-89, 90-97, 98-100; 101 Sacred (v0.2.9)
 // DOC: Morning Wood, Afternoon Fire, Evening Metal, Night Water; Earth when no
 // time-of-day bucket holds more than 40% of the book's reading.
 Element elementForBuckets(const uint32_t seconds[4]);
 // Manual luck (user): random from the title and the world, plus pity.
 Kind kindFor(uint32_t titleHash, uint32_t worldSeed, uint8_t sinceManual);
 
-// Qi multiplier of a manual, permille: tier (1.15 .. 2.00) x quality (0.90 .. 1.10).
+// Qi multiplier of a manual, permille: tier (1.15 .. 2.00) x quality (0.90 .. 1.10; Sacred 1.15, v0.2.9).
 uint32_t manualPermille(const Scroll& s);
 uint32_t sellPrice(const Scroll& s);  // Spirit Stones by tier (proposed: 25 / 60 / 150 / 300 / 500)
 // For "weakest" (auto-sell, key choice): tier first, then comprehension.
@@ -129,6 +133,7 @@ enum class EventKind : uint8_t {
   Minted,       // a new scroll
   AutoSold,     // the library was full: the weakest unequipped scroll was sold
   Improved,     // a reread raised the scroll's quality
+  Sacred,       // v0.2.9: a Perfected scroll's book finished again: Sacred (oldComprehension holds the old value)
   Unchanged,    // finished again, nothing new
   AlreadyUsed,  // this life already learned from the book (the scroll was spent or sold)
   TooShort,     // read for under 30 minutes: no scroll

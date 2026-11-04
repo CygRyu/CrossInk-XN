@@ -405,6 +405,13 @@ uint8_t throwBack(GameState& s, const Layout& l, const uint8_t region, Rng& rng)
   return to;
 }
 
+// v0.2.9: a collapse ends at the region's entrance (the way in is always charted).
+uint8_t carryToEntrance(GameState& s, const Layout& l, const uint8_t region) {
+  setPosition(s, region, l.entrance);
+  chart(s, region, l.entrance);
+  return l.entrance;
+}
+
 uint8_t merchantOrdinal(const Layout& l, const uint8_t tile) {
   uint8_t ordinal = 0;
   for (uint8_t i = 0; i < tile && i < kTiles; ++i) {
@@ -624,6 +631,18 @@ Danger regionDanger(const GameState& s, const uint8_t region) {
   return dangerFor(playerLevel(s) - (regionBase(region) + 2));
 }
 
+Wound woundOf(const GameState& s) {
+  const uint32_t hp = s.progress.hp, max = s.progress.hpMax;
+  if (max == 0) return Wound::None;
+  if (hp * 100u < max * kBadlyWoundedPercent) return Wound::Badly;
+  if (hp * 100u < max * kWoundedPercent) return Wound::Wounded;
+  return Wound::None;
+}
+
+int woundLevels(const Wound w) { return w == Wound::Badly ? 6 : w == Wound::Wounded ? 3 : 0; }
+
+uint8_t woundSlipCut(const Wound w) { return w == Wound::Badly ? 30 : w == Wound::Wounded ? 15 : 0; }
+
 uint8_t winChance(const int d) {
   const int c = 50 + 6 * d;
   return static_cast<uint8_t>(c < 5 ? 5 : c > 95 ? 95 : c);
@@ -756,7 +775,8 @@ Fight pendingFight(const GameState& s, const Layout& l) {
       if (f.enemy == Enemy::Cultivator) f.level += l.guardianLevel - (regionBase(f.region) + 6);
       break;
   }
-  const int d = playerLevel(s, f.enemy == Enemy::Cultivator) - f.level;
+  f.wound = woundOf(s);  // v0.2.9
+  const int d = playerLevel(s, f.enemy == Enemy::Cultivator) - f.level - woundLevels(f.wound);
   f.danger = dangerFor(d);
   f.chance = winChance(d);
   rivals::Nemesis nm;
@@ -766,6 +786,11 @@ Fight pendingFight(const GameState& s, const Layout& l) {
                  : hasMovement(s) || (isNemesis && rivals::hasTrait(nm, rivals::Trait::Slow))
                      ? 100
                      : static_cast<uint8_t>(50u + meridians::slipBonus(s) + daily::slipBonus(s));  // Gallbladder, omen
+  if (f.canSlip && !(isNemesis && rivals::hasTrait(nm, rivals::Trait::Slow))) {
+    // v0.2.9: a wound slows you down, even with a Movement technique (a Slow nemesis still never catches you)
+    const uint8_t cut = woundSlipCut(f.wound);
+    f.slipChance = static_cast<uint8_t>(f.slipChance > cut + 5u ? f.slipChance - cut : 5u);
+  }
   if (isNemesis) {
     f.payCost = rivals::payCost(nm);  // v0.2.8: a bandit, or a Greedy one for half
   } else if (f.enemy == Enemy::Bandit && kind != FightKind::Guardian) {
@@ -1035,6 +1060,9 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
 
   // Lost (or failed to slip away): HP, then thrown onto a charted neighbour.
   // The step that led here may have charted the region's last tile.
+  // v0.2.9 (user): a loss that takes the last HP is a collapse: carried back
+  // to the entrance; nothing owned is lost.
+  res.collapsed = damage >= p.hp;
   res.hpLost = damage < p.hp ? damage : p.hp;
   p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
   if (nemi >= 0) {  // v0.2.8: it grows from beating you
@@ -1050,7 +1078,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
       remember(false);  // all three places taken: an ordinary returning foe instead
     }
   }
-  res.thrownTo = throwBack(s, l, f.region, rng);
+  res.thrownTo = res.collapsed ? carryToEntrance(s, l, f.region) : throwBack(s, l, f.region, rng);
   checkClear(s, l, f.region, res.tile);
   return res;
 }
@@ -1107,7 +1135,8 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
     m.temperament = Temperament::Cautious;  // a fair price, like a cautious traveller
     m.offer = rivals::offersTrade(s, static_cast<uint8_t>(counter(s))) ? Offer::Trade : Offer::Spar;
     m.level = rivals::rivalLevel(s);
-    const int d = playerLevel(s, true) - m.level;
+    m.wound = woundOf(s);  // v0.2.9: costs nothing in a spar, but you fight worse
+    const int d = playerLevel(s, true) - m.level - woundLevels(m.wound);
     m.danger = dangerFor(d);
     m.chance = winChance(d);
     m.dares = false;
@@ -1140,10 +1169,12 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   const int plain = 2 * playerLevel(s, false) - with - ownLevelBonus(s);
   m.level = plain + offset + m.levelsAdded;
   if (m.level < 1) m.level = 1;
-  const int d = with - m.level;  // a cultivator: your Sword and Palm/Fist count double
+  const int whole = with - m.level;  // a cultivator: your Sword and Palm/Fist count double
+  m.dares = whole <= 3;              // Dangerous or worse: weaker ones do not challenge you
+  m.wound = woundOf(s);              // v0.2.9: who dares is judged on you unhurt
+  const int d = whole - woundLevels(m.wound);
   m.danger = dangerFor(d);
   m.chance = winChance(d);
-  m.dares = d <= 3;  // Dangerous or worse: weaker ones do not challenge you
   const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(m.danger));
   m.damage = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), fightDamagePermille(s)));
 
@@ -1319,9 +1350,10 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
     finishMeeting(s, l, m, MeetOutcome::Won, true, res);
     return res;
   }
+  res.collapsed = m.damage >= p.hp;  // v0.2.9
   res.hpLost = m.damage < p.hp ? m.damage : p.hp;
   p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
-  res.thrownTo = throwBack(s, l, m.region, rng);
+  res.thrownTo = res.collapsed ? carryToEntrance(s, l, m.region) : throwBack(s, l, m.region, rng);
   // v0.2.8: a road cultivator who beats you in a Dangerous or harder challenge may become your nemesis.
   if (m.danger >= Danger::Dangerous && rng.below(100) < rivals::kBirthPercent) {
     res.nemesisBorn = static_cast<int8_t>(rivals::bear(s, Enemy::Cultivator, m.region, m.level, m.nameSeed, c));

@@ -564,7 +564,9 @@ Bout boutAgainst(const GameState& s, const uint8_t rank) {
   b.block = Block::None;
   b.rank = rank;
   b.who = rung(s, rank);
-  const int d = explore::playerLevel(s, true) - b.who.level;  // a cultivator: your techniques count double
+  b.wound = explore::woundOf(s);  // v0.2.9
+  const int d = explore::playerLevel(s, true) - b.who.level -
+                explore::woundLevels(b.wound);  // a cultivator: your techniques count double
   b.danger = explore::dangerFor(d);
   b.chance = explore::winChance(d);
   b.hpCost = hpCostOf(s);

@@ -183,6 +183,84 @@ void knownTraits(const rivals::Nemesis& n, char* out, const size_t len) {
   }
 }
 
+namespace {
+void traitShort(const rivals::Nemesis& n, const rivals::Trait t, char* out, const size_t len) {
+  using rivals::Trait;
+  switch (t) {
+    case Trait::Overcoming:
+    case Trait::IronHide:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_PLUS3));
+      return;
+    case Trait::PackLeader:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_PLUS2));
+      return;
+    case Trait::Hunter:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_HUNTER));
+      return;
+    case Trait::Venomous:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_VENOMOUS));
+      return;
+    case Trait::Ambusher:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_AMBUSHER));
+      return;
+    case Trait::QuickToHeal:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_QUICK_TO_HEAL));
+      return;
+    case Trait::Overcome:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_MINUS3));
+      return;
+    case Trait::Proud:
+      snprintf(out, len, "%s", n.wonLast ? ctr(CULT_TRAIT_SHORT_PROUD_NOW) : ctr(CULT_TRAIT_SHORT_PROUD));
+      return;
+    case Trait::Coward:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_COWARD));
+      return;
+    case Trait::Slow:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_SLOW));
+      return;
+    case Trait::Greedy:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_GREEDY));
+      return;
+    case Trait::FearsDawn:
+      snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_FEARS_DAWN));
+      return;
+    case Trait::OldWound:
+      if (n.wins == 0) {
+        snprintf(out, len, "%s", ctr(CULT_TRAIT_SHORT_OLD_WOUND_NONE));
+      } else {
+        snprintf(out, len, ctr(CULT_TRAIT_SHORT_OLD_WOUND_FORMAT), static_cast<unsigned>(n.wins < 4 ? n.wins : 4));
+      }
+      return;
+    default:
+      if (len > 0) out[0] = '\0';
+      return;
+  }
+}
+}  // namespace
+
+void knownTraitsWithEffects(const rivals::Nemesis& n, char* out, const size_t len) {
+  if (len == 0) return;
+  out[0] = '\0';
+  for (uint8_t i = 0; i < n.traitCount; ++i) {
+    if ((n.revealed & (1u << i)) == 0) continue;
+    char effect[48];
+    traitShort(n, n.traits[i], effect, sizeof(effect));
+    const size_t used = strlen(out);
+    snprintf(out + used, len - used, "%s%s (%s)", used > 0 ? ", " : "", traitName(n.traits[i]), effect);
+  }
+}
+
+void woundLine(const GameState& s, char* out, const size_t len) {
+  if (len == 0) return;
+  out[0] = '\0';
+  const explore::Wound w = explore::woundOf(s);
+  if (w == explore::Wound::None) return;
+  const bool badly = w == explore::Wound::Badly;
+  snprintf(out, len, ctr(CULT_WOUND_INFO_FORMAT), badly ? ctr(CULT_WOUND_BADLY) : ctr(CULT_WOUND_WOUNDED),
+           static_cast<unsigned>(badly ? explore::kBadlyWoundedPercent : explore::kWoundedPercent),
+           static_cast<unsigned>(explore::woundLevels(w)), static_cast<unsigned>(explore::woundSlipCut(w)));
+}
+
 void ladderTitle(const GameState& s, char* out, const size_t len) {
   if (len == 0) return;
   out[0] = '\0';
@@ -304,12 +382,16 @@ void CultivationActivity::rivalLabels(const char*& confirmLabel) const {
 
 // One Chronicle line about the rival, a ladder bout or a nemesis.
 void CultivationActivity::rivalChronicle(const char* listKey, const char* region, const char* name, const char* what,
-                                         const uint32_t extra) {
+                                         const uint32_t extra, const char* note) {
   if (!grammar_) return;
   lifelog::Line line;
   const uint32_t seed =
       contentSeed(worldSeedOf(*state_), kKindRivalText, mix32(state_->progress.gameReadingSeconds, extra));
   if (exploretext::personLine(line, *state_, listKey, seed, region, name, what, *grammar_)) {
+    if (note != nullptr && note[0] != '\0') {  // v0.2.9: what you learnt goes into the Chronicle too
+      const size_t used = strlen(line.text);
+      if (used + 1 < sizeof(line.text)) snprintf(line.text + used, sizeof(line.text) - used, " %s", note);
+    }
     if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
     chronicle::appendLines(&line, 1);
     chronicleExists_ = chronicle::exists();
@@ -523,7 +605,8 @@ void CultivationActivity::renderRivalCard(const int x, int y, const int width, c
     snprintf(line, sizeof(line), ctr(CULT_RIVAL_SAY_FORMAT), v.say);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5) + metrics.verticalSpacing;
   }
-  const int d = explore::playerLevel(s, true) - rivals::rivalLevel(s);
+  const int d = explore::playerLevel(s, true) - rivals::rivalLevel(s) -
+                explore::woundLevels(explore::woundOf(s));  // v0.2.9: as in a spar on the road
   snprintf(line, sizeof(line), ctr(CULT_RIVAL_BOUT_FORMAT), dangerWord(explore::dangerFor(d)),
            static_cast<unsigned>(explore::winChance(d)));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
@@ -552,6 +635,10 @@ void CultivationActivity::renderLadder(const int x, int y, const int width, cons
     snprintf(line, sizeof(line), ctr(CULT_LADDER_YOU_FORMAT), static_cast<unsigned>(rank),
              static_cast<unsigned>(s.rivals[22] != 0 ? s.rivals[22] : rank));
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
+  }
+  if (explore::woundOf(s) != explore::Wound::None) {  // v0.2.9: why the chances are lower
+    ui::woundLine(s, line, sizeof(line));
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
   }
   y += metrics.verticalSpacing;
 

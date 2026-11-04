@@ -132,6 +132,47 @@ the {sect.name} closed the pass through {place.region} and charges [five|ten] ta
 {cultivator.name} sold fake {herb} to the {sect.name} and has not been seen since
 a caravan lost [six|ten|twenty] men to {beast.a} in {place.region}, and the survivors are hiring guards at double pay
 
+# v0.2.9: rumors of your own realm, one day in three (realm 4 also serves the later realms).
+[rumor.realm1]
+an outer disciple of the {sect.name} reached the ninth layer in one year and was poisoned before the test
+the {sect.name} charges [ten|twenty] Spirit Stones to sit in its meditation hall for a day, and the waiting list runs to autumn
+a boy of the fourth layer from {place.town} challenged {cultivator.name} in the market and lost three teeth
+the {sect.name} now asks for the fourth layer at its entrance test, and its recruiters take bribes
+{cultivator.name} has been stuck at the ninth layer for [eleven|twenty|thirty] years and now sells talismans
+a farmhand in {place.town} condensed Qi while carrying water, and two sects have sent men for him
+the pill shop in {place.town} cuts its Qi pills with flour, and two disciples have already coughed blood over it
+the {sect.name} lost [five|seven] outer disciples to {beast.a} in {place.region} on a herb-gathering run
+
+[rumor.realm2]
+{cultivator.name} built a cracked foundation and has been drinking in {place.town} ever since
+a Foundation-Building pill sold for [eight hundred|a thousand] Spirit Stones in {place.town}, and the buyer was robbed on the way home
+the {sect.name} keeps a Foundation Establishment elder chained in its cellar for selling its manuals
+two Foundation cultivators fought over one spirit herb on {name.mountain} and flattened a farmer's barley field doing it
+the governor wants a son-in-law of Foundation Establishment, and the {sect.name} has sent him [three|five] to choose from
+a Foundation cultivator is the new magistrate of {place.town}, and the bandits have moved two valleys over
+the {sect.name} executed an inner disciple for stealing a Foundation-Building pill from the elder who raised him
+caravans pay a Foundation cultivator [thirty|fifty] Spirit Stones to fly ahead and look over {place.region} for beasts
+
+[rumor.realm3]
+{cultivator.name} formed a ninth-grade golden core, and the {sect.name} gave him a mountain of his own all the same
+lightning struck {name.mountain} for three days while someone formed a core, and the woodcutters want compensation
+a Core Formation elder of the {sect.name} died in seclusion, and his disciples have been fighting over his cave for a month
+the {sect.name} hired a Core cultivator to kill {beast.a} in {place.region} and paid him with a valley
+a rogue Core cultivator has taken a salt well near {place.town} and collects a tax of his own from the county
+the {sect.name} lost its golden-core elder to his tribulation, and three sects have already sent marriage offers to his widow
+someone cut the golden core out of a dead cultivator in {place.region}, and pill-makers are bidding for it
+{cultivator.name} lived through his tribulation by hiding in a well, and every tea-house has heard
+
+[rumor.realm4]
+a Nascent Soul ancestor of the {sect.name} woke after [sixty|ninety] years of seclusion and found his sect had sold his cave
+the {sect.name} and its old enemy signed a truce because each is afraid of the other's Nascent Soul elder
+an old monster of the Nascent Soul realm has bought every {herb} in {place.region} for [three|five] years ahead
+the emperor sent a cartload of jade to a Nascent Soul cultivator on {name.mountain} and got back a single peach
+a Nascent Soul elder sent his soul out to fight a duel, and someone carried off his body while he was away
+a Nascent Soul cultivator ended a border war by standing on the bridge at {place.town} for one whole day
+the {sect.name} says its Nascent Soul ancestor is in seclusion, but its cooks say she has been dead for twenty years
+an old monster took a twelve-year-old from {place.town} as a disciple and paid the parents in gold
+
 [rumor@1]
 {rumor.opening} a floating island broke its anchor chains and drifted [three|five] days west before two Earth Immortals hauled it back.
 {rumor.opening} a swordsman who reached the Immortal Plane still owes three sects for the pills that got him there.
@@ -219,6 +260,35 @@ You open a new meridian in your left arm and can lift a full water cask with one
 The quartermaster of the {sect.name} charges you double for a sleeping mat because you are not a disciple.
 A wandering swordsman shows you three moves of a sword form for the price of your dinner and leaves before the fourth.
 You catch a thief at the market in {place.town} and find out he is the son of the man who hired you.
+
+# v0.2.9: Nascent Soul, and a shared list for Soul Transformation and later.
+[log.nascent]
+You spend the {$season} teaching the grandchildren of your first disciples, who are slower than their grandfathers were.
+The {sect.name} asks you to judge two elders who stole from each other, and you fine them both the same.
+A young cultivator walks a month from {place.town} to ask you one question, and you answer it in four words.
+Your nascent soul leaves your body for the first time on {name.mountain}, and a fox makes off with your boots.
+You settle a forty-year feud between two families of {place.town} by making their eldest sons dig a well together.
+An envoy offers you a title and a hundred taels a year to guard the border, and you send him home with a pot of tea.
+You outlive the last person who knew you as a child, and pay for her funeral in {place.town}.
+A demonic cultivator who wronged you long ago is found dead in {place.region}, and you feel less than you expected.
+You burn a box of letters from your youth and keep one.
+The magistrate of {place.town} turns out to be the great-grandson of the magistrate who once jailed you for vagrancy.
+You walk the old post road to {place.town} on foot, as you did at sixteen, and find the inn has become a temple.
+Bandits on {name.mountain} know your face and send a cart of rice to your gate before you have said a word.
+
+[log.late]
+A dynasty falls in the lowlands, and the new emperor sends three officials to ask whether you mind.
+You spend the {$season} learning the names of the towns around {name.mountain} again, since half of them have changed.
+The {sect.name} has had six sect masters since you joined, and the newest one bows lower than you would like.
+A river shifts its bed near {place.town}, and you move the village out of its way in one night.
+Pilgrims leave rice and copper cash at the foot of your mountain, and a disciple carries it down to the poor of {place.town}.
+You find a sword you lost two hundred years ago hanging on the wall of a tea-house in {place.town}, and leave it there.
+You settle a war between two sects over a spirit vein in {place.region}, and both send you their worst wine as thanks.
+A county in the south revises its tax rolls and finds it has listed you as a dead man for eighty years.
+You come out of seclusion to find someone has planted beans across the mouth of your cave.
+The great-granddaughter of an old enemy comes to kill you, and you send her home with a letter for her mother.
+The last of your own disciples dies of old age, and you carry the coffin yourself.
+A merchant guild in {place.town} names a bridge after you and charges two copper to cross it.
 
 [log.any]
 A peddler from {place.town} sells you a map of {place.region} that turns out to be [mostly|about half] right.
@@ -642,6 +712,10 @@ You read the last chapter twice, then start a fair copy of the {$scroll.name} be
 You go through the {$scroll.name} a second time and fill its margins with corrections.
 Reading it again, you find the mistakes in your copy of the {$scroll.name} and put them right.
 On a second reading the {$scroll.name} makes sense in places it never did before.
+
+[scroll.line.sacred]
+You finish the {$scroll.name} once more, and this time there is nothing left in it you do not understand.
+Reading the {$scroll.name} to its last page again, you find you could write it out from memory, and better.
 
 [scroll.line.sold]
 You sell the {$scroll.name} to a book dealer in {place.town}, who pays without haggling.

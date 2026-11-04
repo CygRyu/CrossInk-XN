@@ -189,14 +189,21 @@ SeasonPick seasonPick(const GameState& state, const uint32_t season, const Gramm
     } else if (realm == 3 && has("log.core")) {
       key = "log.core";
       slot = Slot::Realm;
+    } else if (realm == 4 && has("log.nascent")) {  // v0.2.9
+      key = "log.nascent";
+      slot = Slot::Realm;
+    } else if (realm >= 5 && has("log.late")) {  // v0.2.9: Soul Transformation and later share one
+      key = "log.late";
+      slot = Slot::Realm;
     }
   }
   if (key == nullptr) {
     if (!has("log.any")) return pick;
     key = "log.any";
     slot = Slot::Any;
-    // Realms without lists of their own use log.any every season.
-    everySeason = realm > 3;
+    // Realms without lists of their own use log.any every season (v0.2.9:
+    // Nascent Soul and later have theirs, unless a pack replaced them away).
+    everySeason = realm > 3 && !has(realm == 4 ? "log.nascent" : "log.late");
   }
   pick.key = key;
 

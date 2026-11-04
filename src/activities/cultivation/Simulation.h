@@ -25,6 +25,9 @@ constexpr uint8_t kHiddenTraitCount = 8;
 // v0.2.7: flagsAndCodex[6] holds which Cultivator cells were opened at least
 // once (the activity's "(New!)" tags); this bit says the byte is set up.
 constexpr uint8_t kSeenFlagsSetUp = 0x80;
+// v0.2.9: flags/codex byte 7 bit 0x01: the Guide cell was opened ("(New!)" for every character until then).
+constexpr uint8_t kGuideSeenByte = 7;
+constexpr uint8_t kGuideSeenBit = 0x01;
 constexpr uint32_t kSecondsPerStamina =
     6 * 60;                          // 4A: per minutes read, nothing per session; 1 per 6 min (v0.2.7, user; was 15)
 constexpr uint8_t kStaminaCap = 20;  // DOC: bank cap (12 until v0.2.3)

@@ -170,6 +170,15 @@ Danger regionDanger(const GameState& state, uint8_t region);
 uint8_t winChance(int difference);  // 50 + 6 x d, 5..95
 uint8_t lossPercent(Danger danger);
 bool hasMovement(const GameState& state);
+// v0.2.9 (user): low HP. Wounded below 30% of max HP (-3 fight levels, -15 to
+// slip away), badly wounded below 10% (-6, -30). For every fight, road
+// challenge and spar, and ranking bout; never for the levels enemies follow.
+enum class Wound : uint8_t { None = 0, Wounded, Badly };
+constexpr uint8_t kWoundedPercent = 30;
+constexpr uint8_t kBadlyWoundedPercent = 10;
+Wound woundOf(const GameState& state);
+int woundLevels(Wound wound);             // 0, 3, 6
+uint8_t woundSlipCut(Wound wound);        // 0, 15, 30
 uint8_t bodyCut(const GameState& state);  // the best equipped Body technique's cut, 0-50%
 
 enum class FightKind : uint8_t { None = 0, Beast, Lair, Guardian, Meeting };  // Meeting: v0.2.2, not a fight
@@ -185,11 +194,12 @@ struct Fight {
   uint8_t slipChance = 0;  // percent to slip away (100 with a Movement technique)
   uint16_t damage = 0;     // HP lost if the fight is lost
   uint16_t slipDamage = 0;
-  bool canSlip = true;      // not from a spirit
-  uint32_t payCost = 0;     // bandits (not a guardian): stones to be let go; 0 = cannot pay
-  bool canIncense = false;  // a spirit, and a Calm-Heart Incense is held
-  uint8_t returns = 0;      // v0.2.1: a returning foe, back for the Nth time (0 = new)
-  int8_t nemesis = -1;      // v0.2.8: a nemesis (Rivals.h), its index
+  bool canSlip = true;        // not from a spirit
+  uint32_t payCost = 0;       // bandits (not a guardian): stones to be let go; 0 = cannot pay
+  bool canIncense = false;    // a spirit, and a Calm-Heart Incense is held
+  uint8_t returns = 0;        // v0.2.1: a returning foe, back for the Nth time (0 = new)
+  int8_t nemesis = -1;        // v0.2.8: a nemesis (Rivals.h), its index
+  Wound wound = Wound::None;  // v0.2.9: levels and slip chance already taken off above
 };
 
 // The fight waiting on the map (after a step), if any.
@@ -283,6 +293,7 @@ struct FightResult {
   uint8_t roll = 0;
   uint16_t hpLost = 0;
   uint8_t thrownTo = kNoTile;  // after a loss or slipping away from a lair or guardian
+  bool collapsed = false;      // v0.2.9: the loss took the last HP: carried back to the entrance
   Reward reward;
   bool guardianBeaten = false;
   StepResult tile;  // after winning or slipping past a beast: the tile's content
@@ -338,10 +349,11 @@ struct Meeting {
   uint8_t chance = 0;   // percent to win a spar or a challenge
   uint16_t damage = 0;  // HP lost when a challenge is lost
   bool talked = false;
-  bool traded = false;      // bought something
-  uint8_t levelsAdded = 0;  // 3 x earlier meetings (at most 6)
-  bool rival = false;       // v0.2.8: your rival (Rivals.h): a spar never costs HP
-  bool firstRival = false;  // ... met on the road for the first time
+  bool traded = false;        // bought something
+  uint8_t levelsAdded = 0;    // 3 x earlier meetings (at most 6)
+  bool rival = false;         // v0.2.8: your rival (Rivals.h): a spar never costs HP
+  bool firstRival = false;    // ... met on the road for the first time
+  Wound wound = Wound::None;  // v0.2.9: already in level difference, chance and damage
 };
 
 int meetingRegion(const GameState& state);  // the region whose map holds the waiting meeting, or -1
@@ -359,6 +371,7 @@ struct MeetResult {
   uint8_t roll = 0;
   uint16_t hpLost = 0;
   uint8_t thrownTo = kNoTile;
+  bool collapsed = false;  // v0.2.9: a lost challenge took the last HP: back to the entrance
   Reward reward;
   StepResult tile;
   MeetOutcome outcome = MeetOutcome::None;

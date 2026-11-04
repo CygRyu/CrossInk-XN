@@ -74,6 +74,7 @@ add_executable(CultivationCoreTest
   V024Test.cpp
   V026Test.cpp
   V028Test.cpp
+  V029Test.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp

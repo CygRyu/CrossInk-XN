@@ -46,6 +46,12 @@ const char* traitName(rivals::Trait t);
 const char* traitEffect(rivals::Trait t);
 const char* traitRumor(rivals::Trait t);
 void knownTraits(const rivals::Nemesis& n, char* out, size_t len);
+// v0.2.9: the same with a short effect each, for the fight screen:
+// "iron hide (+3 levels), fears the dawn (-3 levels in the morning)".
+void knownTraitsWithEffects(const rivals::Nemesis& n, char* out, size_t len);
+// v0.2.9: "Wounded (under 30% HP): you fight 3 levels lower and are 15% less
+// likely to slip away." ("" when not wounded).
+void woundLine(const GameState& s, char* out, size_t len);
 // "First of the Qi Condensation Ranking" while in the top three ("" otherwise).
 void ladderTitle(const GameState& s, char* out, size_t len);
 

@@ -97,6 +97,8 @@ class CultivationActivity final : public Activity {
     RivalCard,      // the rival: who, how far, what people say
     Ladder,         // the realm's ranking: challenges, then the 20 rows
     Nemeses,        // up to three, with what is known of each
+    Guide,          // v0.2.9 (CultivationGuideScreens.cpp): the topics
+    GuidePage,      // one topic, a page at a time
     Error
   };
   // What the Cultivator screen's list offers right now.
@@ -112,9 +114,10 @@ class CultivationActivity final : public Activity {
     Daos,       // v0.2.6, from Qi Condensation
     Rivals,     // v0.2.8, from Qi Condensation
     Chronicle,
-    Trial
+    Trial,
+    Guide  // v0.2.9: always, last
   };
-  static constexpr uint8_t kMaxActions = 11;
+  static constexpr uint8_t kMaxActions = 12;
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -266,6 +269,19 @@ class CultivationActivity final : public Activity {
   void renderRivalCard(int x, int y, int width, int bottom);
   void renderLadder(int x, int y, int width, int bottom);
   void renderNemeses(int x, int y, int width, int bottom);
+  // v0.2.9: the Guide (CultivationGuideScreens.cpp). No heap: topics and pages are flash strings.
+  void openGuide();
+  void closeGuide();
+  bool handleGuide(bool back, bool confirm, bool up, bool down);  // true on a Guide screen
+  void renderGuide(int x, int y, int width, int bottom);
+  void renderGuidePage(int x, int y, int width, int bottom);
+  uint8_t guideTopics(uint8_t* out) const;  // the topics shown now (some wait for their feature)
+  uint8_t guidePageCount(uint8_t topic) const;
+  const char* guideTitle(char* buf, size_t len) const;
+  int guideReturn_ = 0;
+  int guideListSelected_ = 0;
+  uint8_t guideTopic_ = 0;
+  uint8_t guidePage_ = 0;
   void rivalLabels(const char*& confirmLabel) const;
   void loadRivalNames();
   enum class LadderRow : uint8_t { Challenge, Accept, Decline, Rank };
@@ -274,7 +290,8 @@ class CultivationActivity final : public Activity {
   // The visit's news of the rival (life log or Chronicle) and the nemesis rumor.
   void appendRivalLines(const cultivation::rivals::News& news);
   bool nemesisRumor(uint32_t day);
-  void rivalChronicle(const char* listKey, const char* region, const char* name, const char* what, uint32_t extra);
+  void rivalChronicle(const char* listKey, const char* region, const char* name, const char* what, uint32_t extra,
+                      const char* note = nullptr);  // v0.2.9: a sentence added at the end ("Noticed: ...")
   cultivation::rivals::News rivalNews_;
   int rivalsReturn_ = 0;
   struct RivalsView {
@@ -471,7 +488,7 @@ class CultivationActivity final : public Activity {
     char fightText[280] = {};
     char fightResult[280] = {};  // v0.2.8: a rival's news, a hint and a nemesis heard of
     char text[200] = {};         // the last thing that happened on the map
-    char numbers[200] = {};      // what it gave or cost
+    char numbers[280] = {};      // what it gave or cost (v0.2.9: 280, up to five lines)
     cultivation::explore::Stock stock;
     uint8_t merchantTile = 0;
     uint8_t qtyLine = 0;  // v0.2.1: the stock line being bought in bulk

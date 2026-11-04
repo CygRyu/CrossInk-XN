@@ -162,6 +162,7 @@ struct Bout {
   uint8_t chance = 0;
   uint16_t hpCost = 0;
   uint32_t stones = 0;
+  explore::Wound wound = explore::Wound::None;  // v0.2.9: already in danger and chance
 };
 Bout challengeBout(const GameState& state);
 Bout defenceBout(const GameState& state);  // block None: someone below challenges you today

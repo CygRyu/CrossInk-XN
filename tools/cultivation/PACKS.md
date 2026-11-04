@@ -64,7 +64,9 @@ Within a realm, each list's sentences are used once each, in an order shuffled p
 | `log.qi` | Qi Condensation |
 | `log.foundation` | Foundation Establishment |
 | `log.core` | Core Formation |
-| `log.any` | every realm; the only list after Core Formation for now |
+| `log.nascent` | Nascent Soul (v0.2.9) |
+| `log.late` | Soul Transformation and every later realm (v0.2.9) |
+| `log.any` | every realm, mixed with the realm's own list |
 | `log.gp` | seasons spent in Great Perfection (mixed with the realm's lists) |
 | `log.halfstep` | seasons after a failed breakthrough, until the next success |
 | `log.stage` | the visit gained stages; use `{$player.realm}, {$player.stage}` ("Body Tempering, Layer 4") |
@@ -100,6 +102,7 @@ with the scroll's element as the theme, so `[scroll.image~water]` replaces `scro
 | `scroll.tier.mortal`, `.yellow`, `.earth`, `.heaven`, `.saint` | the suffix: Method, Art, Scripture, Canon, True Classic |
 | `scroll.line.new` | Chronicle: a new scroll; `{$scroll.name}` is its name |
 | `scroll.line.reread` | Chronicle: a reread raised its quality |
+| `scroll.line.sacred` | Chronicle: v0.2.9, a Perfected scroll's book was read and finished again (the Sacred Step) |
 | `scroll.line.sold` | Chronicle: sold, by the player or because the library was full |
 | `scroll.line.key` | Chronicle: spent as the key of a breakthrough; `{$player.realm}` is the new realm |
 
@@ -152,6 +155,7 @@ Region slots have a theme each, in order: `marsh`, `wastes`, `forest`, `gorge`, 
 | `nemesis.name.beast`, `nemesis.name.bandit`, `nemesis.epithet`, `nemesis.epithet.scar`, `nemesis.epithet.victor` | v0.2.8: a nemesis's name and epithet, joined as "Greymaw the Twice-Burned"; write epithets without "the" |
 | `explore.fight.nemesis`, `explore.fight.nemesis.person` | v0.2.8: a nemesis finds you (a beast; a bandit or cultivator) |
 | `nemesis.line.born`, `.won`, `.lost`, `.escaped`, `.fled` | v0.2.8: Chronicle lines: it beat you and became your nemesis, beat you again, was beaten and got away, you got away, it ran |
+| `rumor.realm1` ... `rumor.realm4` | v0.2.9: one day in three the rumor of the day is `{rumor.opening} {rumor.realmN}.` for your realm: 1 Qi Condensation, 2 Foundation Establishment, 3 Core Formation, 4 Nascent Soul and later. Lower case, no full stop |
 | `rumor.nemesis` | v0.2.8: the rumor of the day about a nemesis, lower case, no full stop (the game adds them); `{$what}` is how the rumor tells a trait ("will not fight in the morning") |
 | `ladder.line.won`, `.lost`, `.defended`, `.fell` | v0.2.8: ranking bouts; `{$beast.name}` the opponent, `{$what}` the rank ("rank 14") |
 | `demon.history.rival`, `demon.history.nemesis` | v0.2.8: Heart Demon scenes with the rival (a mocking voice) or a nemesis (`{$region.name}` set) |

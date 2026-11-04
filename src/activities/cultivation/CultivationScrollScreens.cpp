@@ -41,7 +41,7 @@ static const GameStr kKindNames[static_cast<int>(scrolls::Kind::Count)] = {
     GameStr::CULT_KIND_MOVEMENT, GameStr::CULT_KIND_MIND, GameStr::CULT_KIND_MANUAL};
 static const GameStr kQualityNames[static_cast<int>(scrolls::Quality::Count)] = {
     GameStr::CULT_QUALITY_FRAGMENTARY, GameStr::CULT_QUALITY_INCOMPLETE, GameStr::CULT_QUALITY_COMPLETE,
-    GameStr::CULT_QUALITY_REFINED, GameStr::CULT_QUALITY_PERFECTED};
+    GameStr::CULT_QUALITY_REFINED,     GameStr::CULT_QUALITY_PERFECTED,  GameStr::CULT_QUALITY_SACRED};
 
 int clampIndex(const int v, const int count) { return v < 0 ? 0 : (v >= count ? count - 1 : v); }
 
@@ -100,6 +100,9 @@ std::unique_ptr<CultivationActivity::MintWork> CultivationActivity::mintScrolls(
           break;
         case scrolls::EventKind::Improved:
           appendScrollLine("scroll.line.reread", e.scroll);
+          break;
+        case scrolls::EventKind::Sacred:  // v0.2.9
+          appendScrollLine("scroll.line.sacred", e.scroll);
           break;
         case scrolls::EventKind::AutoSold:
           appendScrollLine("scroll.line.sold", e.scroll);
@@ -490,6 +493,10 @@ void CultivationActivity::renderScrollNews(const int x, int y, const int width, 
                  ui::qualityName(scrolls::qualityFor(s.comprehension)), static_cast<unsigned>(e.oldComprehension),
                  static_cast<unsigned>(s.comprehension));
         break;
+      case scrolls::EventKind::Sacred:  // v0.2.9
+        snprintf(line, sizeof(line), "%s",
+                 s.kind == scrolls::Kind::Manual ? ctr(CULT_NEWS_SACRED_MANUAL) : ctr(CULT_NEWS_SACRED));
+        break;
       case scrolls::EventKind::Unchanged:
         snprintf(line, sizeof(line), "%s", ctr(CULT_NEWS_UNCHANGED));
         break;
@@ -665,8 +672,12 @@ void CultivationActivity::renderScrollDetail(const int x, int y, const int width
   y += 4;
   scrollAttributes(sc, attrs, sizeof(attrs));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, attrs, 2);
-  snprintf(line, sizeof(line), ctr(CULT_SCROLL_QUALITY_FORMAT), ui::qualityName(scrolls::qualityFor(sc.comprehension)),
-           static_cast<unsigned>(sc.comprehension));
+  if (sc.comprehension >= scrolls::kSacredComprehension) {  // v0.2.9: no percent above 100
+    snprintf(line, sizeof(line), "%s", ctr(CULT_SCROLL_QUALITY_SACRED));
+  } else {
+    snprintf(line, sizeof(line), ctr(CULT_SCROLL_QUALITY_FORMAT),
+             ui::qualityName(scrolls::qualityFor(sc.comprehension)), static_cast<unsigned>(sc.comprehension));
+  }
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
   snprintf(line, sizeof(line), ctr(CULT_SCROLL_HOURS_FORMAT), static_cast<unsigned>(sc.hours));
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;

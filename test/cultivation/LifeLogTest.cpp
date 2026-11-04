@@ -216,10 +216,14 @@ TEST(LifeLog, GreatPerfectionAndHalfStepHaveTheirOwnLines) {
   lists.clear();
   for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
   EXPECT_EQ(lists, (std::set<std::string>{"log.core", "log.any"}));
-  s.progress.realm = 4;
+  s.progress.realm = 4;  // v0.2.9: Nascent Soul has its own lines, and later realms share log.late
   lists.clear();
   for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
-  EXPECT_EQ(lists, (std::set<std::string>{"log.any"}));
+  EXPECT_EQ(lists, (std::set<std::string>{"log.nascent", "log.any"}));
+  s.progress.realm = 6;
+  lists.clear();
+  for (uint32_t season = 64; season < 400; ++season) lists.insert(seasonPick(s, season, *packs.grammar, ctx).key);
+  EXPECT_EQ(lists, (std::set<std::string>{"log.late", "log.any"}));
 }
 
 // Within a realm, each list is used up before any of its entries repeats,
@@ -316,12 +320,19 @@ TEST(LifeLog, LongRunsUseEveryEntry) {
   BuiltinPacks packs;
   GrammarContext ctx;
   GameState s = makeCharacter();
-  s.progress.realm = 5;  // log.any only
-  const uint32_t size = packs.grammar->entryCount("log.any", ctx);
-  std::set<uint32_t> seen;
-  for (uint32_t season = 64; season < 64 + 2 * size; ++season)
-    seen.insert(seasonPick(s, season, *packs.grammar, ctx).entry);
-  EXPECT_EQ(seen.size(), size);
+  s.progress.realm = 5;  // v0.2.9: log.late and log.any
+  for (const char* key : {"log.any", "log.late"}) {
+    const uint32_t size = packs.grammar->entryCount(key, ctx);
+    std::set<uint32_t> seen;
+    uint32_t picks = 0;
+    for (uint32_t season = 64; picks < size; ++season) {
+      const SeasonPick p = seasonPick(s, season, *packs.grammar, ctx);
+      if (std::string(p.key) != key) continue;
+      seen.insert(p.entry);
+      ++picks;
+    }
+    EXPECT_EQ(seen.size(), size) << key;  // a whole list before any repeat
+  }
 }
 
 TEST(LifeLog, EventLinesUseTheCurrentSeason) {

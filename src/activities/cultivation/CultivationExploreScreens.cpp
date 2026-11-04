@@ -693,6 +693,9 @@ void CultivationActivity::answerFight() {
                static_cast<unsigned>(f.chance));
     } else if (res.slipped) {
       snprintf(line, sizeof(line), "%s", ctr(CULT_SLIPPED));
+    } else if (res.collapsed) {  // v0.2.9: carried to the entrance, not thrown back
+      snprintf(line, sizeof(line), ctr(CULT_FIGHT_COLLAPSED_FORMAT), static_cast<unsigned>(res.roll),
+               static_cast<unsigned>(choice == explore::FightChoice::Slip ? f.slipChance : f.chance));
     } else if (choice == explore::FightChoice::Slip) {
       snprintf(line, sizeof(line), ctr(CULT_SLIP_FAILED_FORMAT), static_cast<unsigned>(res.roll));
     } else {
@@ -710,20 +713,21 @@ void CultivationActivity::answerFight() {
     }
     // v0.2.8: nemeses. The Chronicle line names it as it was in the fight.
     if (res.nemesis >= 0) {
+      char noticed[64] = {};  // v0.2.9: also written into the nemesis's Chronicle line
+      if (res.nemesisRevealedTrait != 0) {
+        snprintf(noticed, sizeof(noticed), ctr(CULT_NEMESIS_NOTICED_FORMAT),
+                 ui::traitName(static_cast<rivals::Trait>(res.nemesisRevealedTrait)));
+      }
       if (res.won) {
         appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_SCARRED));
-        rivalChronicle("nemesis.line.lost", v.regionNames[v.region], v.beast, nullptr, 11);
+        rivalChronicle("nemesis.line.lost", v.regionNames[v.region], v.beast, nullptr, 11, noticed);
       } else if (res.slipped || res.paid) {
-        rivalChronicle("nemesis.line.escaped", v.regionNames[v.region], v.beast, nullptr, 12);
+        rivalChronicle("nemesis.line.escaped", v.regionNames[v.region], v.beast, nullptr, 12, noticed);
       } else {
         appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_GREW));
-        rivalChronicle("nemesis.line.won", v.regionNames[v.region], v.beast, nullptr, 13);
+        rivalChronicle("nemesis.line.won", v.regionNames[v.region], v.beast, nullptr, 13, noticed);
       }
-      if (res.nemesisRevealedTrait != 0) {
-        snprintf(line, sizeof(line), ctr(CULT_NEMESIS_NOTICED_FORMAT),
-                 ui::traitName(static_cast<rivals::Trait>(res.nemesisRevealedTrait)));
-        appendSentence(v.numbers, sizeof(v.numbers), line);
-      }
+      if (noticed[0] != '\0') appendSentence(v.numbers, sizeof(v.numbers), noticed);
     }
     if (res.nemesisBorn >= 0) {
       appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_NEMESIS_BORN));
@@ -978,7 +982,10 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
       snprintf(line, sizeof(line), r.won ? ctr(CULT_SPAR_WON_FORMAT) : ctr(CULT_SPAR_LOST_FORMAT),
                static_cast<unsigned>(r.roll), static_cast<unsigned>(m.chance));
     } else {
-      snprintf(line, sizeof(line), r.won ? ctr(CULT_FIGHT_WON_FORMAT) : ctr(CULT_FIGHT_LOST_FORMAT),
+      snprintf(line, sizeof(line),
+               r.won         ? ctr(CULT_FIGHT_WON_FORMAT)
+               : r.collapsed ? ctr(CULT_FIGHT_COLLAPSED_FORMAT)  // v0.2.9
+                             : ctr(CULT_FIGHT_LOST_FORMAT),
                static_cast<unsigned>(r.roll), static_cast<unsigned>(m.chance));
     }
   } else {
@@ -1645,15 +1652,19 @@ void CultivationActivity::renderMapInfo(const int x, int y, const int width, con
     y = drawWrapped(SMALL_FONT_ID, x, y, width, message, (bottom - y) / smallLine < 2 ? 1 : 2);
   };
 
-  // What matters most first: no HP, then the last event's numbers and line,
-  // then what the selected tile is.
+  // What matters most first: the last event's numbers (v0.2.9: before the
+  // HP notice, so a collapse's result is not cut), no HP or a wound, the
+  // event's line, then what the selected tile is.
+  if (v.numbers[0] != '\0' && y + textLine <= bottom) {
+    const int room = (bottom - y) / textLine;  // v0.2.9: up to five lines when the map leaves room
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, v.numbers, room < 5 ? room : 5);
+  }
   if (p.hp == 0) {
     snprintf(line, sizeof(line), ctr(CULT_NO_HP_FORMAT), static_cast<unsigned>(p.hpMax));
     info(line);
-  }
-  if (v.numbers[0] != '\0' && y + textLine <= bottom) {
-    const int room = (bottom - y) / textLine;
-    y = drawWrapped(UI_10_FONT_ID, x, y, width, v.numbers, room < 3 ? room : 3);
+  } else if (explore::woundOf(s) != explore::Wound::None) {  // v0.2.9
+    ui::woundLine(s, line, sizeof(line));
+    info(line);
   }
   if (v.text[0] != '\0') info(v.text);
 
@@ -1756,18 +1767,22 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
   const int fill = p.hpMax > 0 ? static_cast<int>(static_cast<int64_t>(width - 4) * p.hp / p.hpMax) : 0;
   if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
   y += barHeight + metrics.verticalSpacing;
+  if (f.wound != explore::Wound::None) {  // v0.2.9: why the chance dropped
+    ui::woundLine(s, line, sizeof(line));
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
+  }
   rivals::Nemesis nm;
   if (v.fightResult[0] != '\0') {
     y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 2);
   } else if (f.nemesis >= 0 && rivals::nemesis(s, static_cast<uint8_t>(f.nemesis), nm)) {  // v0.2.8
-    char known[120];
-    ui::knownTraits(nm, known, sizeof(known));
+    char known[180];
+    ui::knownTraitsWithEffects(nm, known, sizeof(known));  // v0.2.9: with what each does
     if (known[0] != '\0') {
       snprintf(line, sizeof(line), ctr(CULT_NEMESIS_FIGHT_KNOWN_FORMAT), known);
     } else {
       snprintf(line, sizeof(line), "%s", ctr(CULT_NEMESIS_FIGHT_UNKNOWN));
     }
-    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 3);
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 4);
   } else if (f.returns > 0) {  // v0.2.1
     snprintf(line, sizeof(line), ctr(CULT_FOE_BACK_FORMAT), static_cast<unsigned>(explore::kFoeLevelStep * f.returns));
     y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
@@ -1884,6 +1899,10 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
     const int fill = p.hpMax > 0 ? static_cast<int>(static_cast<int64_t>(width - 4) * p.hp / p.hpMax) : 0;
     if (fill > 0) renderer.fillRect(x + 2, y + 2, fill, barHeight - 4);
     y += barHeight + metrics.verticalSpacing;
+  }
+  if (m.wound != explore::Wound::None && m.offer != explore::Offer::Trade) {  // v0.2.9
+    ui::woundLine(*state_, line, sizeof(line));
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2);
   }
   if (v.fightResult[0] != '\0') {  // v0.2.8: room for a rival's news and a nemesis heard of
     y = drawWrapped(SMALL_FONT_ID, x, y, width, v.fightResult, 5);

@@ -442,7 +442,21 @@ void CultivationActivity::updateRumor() {
   ctx.plane = 0;  // the Mortal Plane until ascension exists
   ctx.values = gameValues(*state_);
   grammar_->beginScene();
-  const char* text = grammar_->expand("{rumor}", contentSeed(worldSeedOf(*state_), kKindRumor, when), ctx);
+  // v0.2.9: one day in three, a rumor of your own realm (Nascent Soul's list serves the later realms too).
+  constexpr uint32_t kKindRealmRumor = 129;
+  static const char* const kRealmRumors[] = {"{rumor.opening} {rumor.realm1}.", "{rumor.opening} {rumor.realm2}.",
+                                             "{rumor.opening} {rumor.realm3}.", "{rumor.opening} {rumor.realm4}."};
+  static const char* const kRealmLists[] = {"rumor.realm1", "rumor.realm2", "rumor.realm3", "rumor.realm4"};
+  const char* pattern = "{rumor}";
+  const uint8_t realm = state_->progress.realm;
+  if (realm >= 1) {
+    const uint8_t i = static_cast<uint8_t>((realm < 4 ? realm : 4) - 1);
+    if (Rng(contentSeed(worldSeedOf(*state_), kKindRealmRumor, when)).below(3) == 0 &&
+        grammar_->hasKey(kRealmLists[i], ctx)) {
+      pattern = kRealmRumors[i];
+    }
+  }
+  const char* text = grammar_->expand(pattern, contentSeed(worldSeedOf(*state_), kKindRumor, when), ctx);
   snprintf(rumor_, sizeof(rumor_), "%s", text);
   packs_->closeFile();
   // v0.2.8: one day in four the rumor is about a nemesis (and tells you one of its ways).
@@ -724,6 +738,7 @@ void CultivationActivity::refreshActions() {
     }
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
+  if (state_ && state_->isCreated()) actions_[actionCount_++] = Action::Guide;  // v0.2.9
   if (selected_ >= actionCount_) selected_ = 0;
 }
 
@@ -771,13 +786,18 @@ uint8_t CultivationActivity::seenBit(const Action action) {
 }
 
 bool CultivationActivity::isNew(const Action action) const {
+  if (action == Action::Guide) return (state_->flagsAndCodex[kGuideSeenByte] & kGuideSeenBit) == 0;  // v0.2.9
   const uint8_t bit = seenBit(action);
   return bit != 0 && (state_->flagsAndCodex[6] & bit) == 0;
 }
 
 void CultivationActivity::markSeen(const Action action) {
   if (!isNew(action)) return;
-  state_->flagsAndCodex[6] = static_cast<uint8_t>(state_->flagsAndCodex[6] | seenBit(action));
+  if (action == Action::Guide) {  // v0.2.9: its own bit, so every character sees "(New!)" once
+    state_->flagsAndCodex[kGuideSeenByte] = static_cast<uint8_t>(state_->flagsAndCodex[kGuideSeenByte] | kGuideSeenBit);
+  } else {
+    state_->flagsAndCodex[6] = static_cast<uint8_t>(state_->flagsAndCodex[6] | seenBit(action));
+  }
   persist();  // so "(New!)" does not come back if nothing else is saved before leaving
 }
 
@@ -837,6 +857,9 @@ void CultivationActivity::runAction() {
     case Action::Trial:
       trialLast_[0] = '\0';
       openTrial();
+      return;
+    case Action::Guide:  // v0.2.9
+      openGuide();
       return;
   }
 }
@@ -976,6 +999,7 @@ void CultivationActivity::loop() {
   if (handleMeridians(back, confirm, up, down)) return;  // v0.2.4 (CultivationMeridianScreens.cpp)
   if (handleDaily(back, confirm, up, down)) return;      // v0.2.6 (CultivationDailyScreens.cpp)
   if (handleRivals(back, confirm, up, down)) return;     // v0.2.8 (CultivationRivalScreens.cpp)
+  if (handleGuide(back, confirm, up, down)) return;      // v0.2.9 (CultivationGuideScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -1382,6 +1406,9 @@ void CultivationActivity::render(RenderLock&&) {
     title = chronicleTitle;
   }
   if (screen_ == Screen::ChronicleMenu) title = ctr(CULT_ACTION_CHRONICLE);
+  char guideTitleBuf[72];
+  if (screen_ == Screen::Guide) title = ctr(CULT_GUIDE_TITLE);  // v0.2.9
+  if (screen_ == Screen::GuidePage) title = guideTitle(guideTitleBuf, sizeof(guideTitleBuf));
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, title);
   } else {
@@ -1574,6 +1601,18 @@ void CultivationActivity::render(RenderLock&&) {
       renderNemeses(x, top, width, bottom);
       rivalLabels(confirmLabel);
       break;
+    case Screen::Guide:  // v0.2.9
+      renderGuide(x, top, width, bottom);
+      confirmLabel = ctr(CULT_GUIDE_READ);
+      break;
+    case Screen::GuidePage: {
+      renderGuidePage(x, top, width, bottom);
+      const bool more = guidePage_ + 1 < guidePageCount(guideTopic_);
+      confirmLabel = more ? ctr(CULT_NEXT) : ctr(CULT_GUIDE_TOPICS);
+      upLabel = guidePage_ > 0 ? ctr(CULT_PREVIOUS) : "";
+      downLabel = more ? ctr(CULT_NEXT) : "";
+      break;
+    }
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
       alchemyLabels(confirmLabel, upLabel, downLabel);
@@ -1811,7 +1850,14 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   // HP on the Stamina line (v0.1.9: Tribulations spend it, reading heals it).
   snprintf(staminaLine, sizeof(staminaLine), ctr(CULT_STAMINA_FORMAT), static_cast<unsigned>(p.stamina),
            static_cast<unsigned>(kStaminaCap));
-  snprintf(hpLine, sizeof(hpLine), ctr(CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+  {  // v0.2.9: low HP shows on the Cultivator screen
+    const explore::Wound wound = p.hp > 0 ? explore::woundOf(s) : explore::Wound::None;
+    snprintf(hpLine, sizeof(hpLine),
+             wound == explore::Wound::Badly     ? ctr(CULT_HP_BADLY_FORMAT)
+             : wound == explore::Wound::Wounded ? ctr(CULT_HP_WOUNDED_FORMAT)
+                                                : ctr(CULT_HP_FORMAT),
+             static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
+  }
 
   const bool gp = breakthrough::inGreatPerfection(s);
   // v0.2.1: depth, from the first moment the Peak bar is full (it is kept after a failure too).
@@ -1963,6 +2009,9 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
           label = trials::kindFor(state_->progress.realm + 1) == trials::Kind::HeartDemon
                       ? ctr(CULT_ACTION_DEMON)
                       : ctr(CULT_ACTION_TRIBULATION);
+          break;
+        case Action::Guide:  // v0.2.9
+          label = ctr(CULT_ACTION_GUIDE);
           break;
       }
       // v0.2.7: a cell not opened yet reads "Explore (New!)" instead of its counts.

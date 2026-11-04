@@ -44,6 +44,7 @@ Tier tierForHours(const uint32_t hours) {
 }
 
 Quality qualityFor(const uint8_t c) {
+  if (c >= kSacredComprehension) return Quality::Sacred;  // v0.2.9
   if (c >= 98) return Quality::Perfected;
   if (c >= 90) return Quality::Refined;
   if (c >= 75) return Quality::Complete;
@@ -72,7 +73,8 @@ Kind kindFor(const uint32_t titleHash, const uint32_t worldSeed, const uint8_t s
 uint32_t manualPermille(const Scroll& s) {
   // balance_sim.py: quality 0.90 .. 1.10 over comprehension 75 .. 100%; lower comprehension stays at 0.90.
   const uint32_t c = s.comprehension < 75 ? 75 : (s.comprehension > 100 ? 100 : s.comprehension);
-  const uint32_t quality = 900u + (c - 75u) * 8u;  // 900 .. 1100
+  // v0.2.9: Sacred is one quality step more (user: x1.15).
+  const uint32_t quality = s.comprehension >= kSacredComprehension ? 1150u : 900u + (c - 75u) * 8u;  // 900 .. 1100
   return static_cast<uint32_t>(kManualTierPermille[static_cast<int>(tierOf(s))]) * quality / 1000u;
 }
 
@@ -99,7 +101,7 @@ Scroll decode(const uint8_t* b) {
   const uint8_t kind = (b[5] >> 3) & 0x07;
   s.element = element < static_cast<uint8_t>(Element::Count) ? static_cast<Element>(element) : Element::Earth;
   s.kind = kind < static_cast<uint8_t>(Kind::Count) ? static_cast<Kind>(kind) : Kind::Sword;
-  s.comprehension = b[6] <= 100 ? b[6] : 100;
+  s.comprehension = b[6] <= kSacredComprehension ? b[6] : 100;  // v0.2.9: 101 is Sacred
   s.flags = b[7];
   return s;
 }
@@ -261,7 +263,16 @@ uint8_t mint(GameState& state, const BookRecord& book, const bool alreadyMinted,
     Scroll s = get(state, static_cast<uint8_t>(existing));
     out[0].scroll = s;
     out[0].oldComprehension = s.comprehension;
-    if (share > s.comprehension) {
+    // v0.2.9: the Sacred Step, once: a Perfected scroll whose book was read
+    // again (half its hours more, at least one) and finished at 98% or more.
+    const uint32_t needHours = s.hours / 2u > 1u ? s.hours / 2u : 1u;
+    if (qualityFor(s.comprehension) == Quality::Perfected && share >= 98 &&
+        book.seconds / 3600u >= static_cast<uint32_t>(s.hours) + needHours) {
+      s.comprehension = kSacredComprehension;
+      put(state, static_cast<uint8_t>(existing), s);
+      out[0].kind = EventKind::Sacred;
+      out[0].scroll = s;
+    } else if (share > s.comprehension) {
       s.comprehension = share;
       put(state, static_cast<uint8_t>(existing), s);
       out[0].kind = EventKind::Improved;
