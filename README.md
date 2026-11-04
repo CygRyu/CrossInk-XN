@@ -2,6 +2,8 @@
 
 **A personal fork of CrossInk that adds a Xianxia cultivation game for your e-reader that grows when you read.** 
 
+[![Join the Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/aTMRnugDTt)
+
 <table>
   <tr>
     <td align="center"><img src="./docs/images/game/cultivator.png" alt="The Cultivator screen" width="200" /><br/><em>Your cultivator</em></td>
@@ -66,9 +68,14 @@ To go back to plain CrossInk, download its firmware for your device from the [Cr
 
 A personal project in active development. Only tested on a real **Xteink X3**; the other builds compile and should work, but have not been tried on a device. On readers whose clock drifts in sleep (the X4 family), date-based features may be less reliable.
 
+## Community
+
+Join the [Discord server](https://discord.gg/aTMRnugDTt) to chat with other cultivators, ask for help with installing, share your breakthroughs and nemesis stories, report bugs and suggest ideas. Game updates are announced there first.
+
 ## Credits
 
-Built on [CrossInk](https://github.com/uxjulia/CrossInk), itself a fork of [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader). Both are MIT-licensed; see [LICENSE](./LICENSE). This is an unofficial fork: please report game problems here, not to CrossInk or CrossPoint.
+Built on [CrossInk](https://github.com/uxjulia/CrossInk), itself a fork of [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-reader). Both are MIT-licensed; see [LICENSE](./LICENSE). This is an unofficial fork. 
+You can report game problems here on GitHub or in the #bugs channel on [Discord](https://discord.gg/aTMRnugDTt), not to CrossInk or CrossPoint.
 
 ## Support this project
 
