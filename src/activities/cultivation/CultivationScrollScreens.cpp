@@ -172,6 +172,12 @@ void CultivationActivity::scrollAttributes(const scrolls::Scroll& s, char* out, 
 // Callers that may be drawing hold the render lock.
 void CultivationActivity::afterSummary() {
   selected_ = 0;
+  // v0.3.0: the years of this realm are spent. The life ends here (after the
+  // summary and any scroll news), and the same screens as a reincarnation follow.
+  if (state_ && state_->isCreated() && lineage::ageState(*state_) == lineage::Age::Over && !news_) {
+    prepareLineage(true);
+    return;
+  }
   if (news_) {
     news_->page = 0;
     news_->pageStarts[0] = 0;

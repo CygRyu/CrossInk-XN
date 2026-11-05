@@ -3,6 +3,7 @@
 #if CROSSINK_CULTIVATION
 
 #include "Alchemy.h"
+#include "Codex.h"
 #include "Daily.h"
 #include "Daos.h"
 #include "Exploration.h"
@@ -16,6 +17,7 @@ namespace {
 
 constexpr uint32_t kKindOmen = 97;  // contentSeed kinds (97-99 were free)
 constexpr uint32_t kKindTasks = 98;
+constexpr uint32_t kKindDailyMemento = 131;  // v0.3.0: a memento for collecting all three tasks
 constexpr uint32_t kKindReroll = 99;
 constexpr uint32_t kMaxDaysFinished = 120;  // a longer gap only finishes its last 120 days (averages are ~0 by then)
 
@@ -324,7 +326,18 @@ bool collect(GameState& s, const uint8_t slot, Reward* out) {
   s.progress.stones = s.progress.stones + r.stones < s.progress.stones ? 0xFFFFFFFFu : s.progress.stones + r.stones;
   if (r.item != inventory::Item::None && r.count > 0) inventory::add(s, r.item, r.count);
   flags(s) = static_cast<uint8_t>(flags(s) | (kCollectedBase << slot));
-  if (out != nullptr) *out = r;
+  Reward given = r;
+  // v0.3.0: the third task collected today, 1 in 100 for a memento.
+  bool all = true;
+  for (uint8_t i = 0; i < kTaskSlots; ++i) all = all && collected(s, i);
+  if (all) {
+    const codex::Find f =
+        codex::roll(s, codex::Source::DailyTasks, contentSeed(worldSeedOf(s), kKindDailyMemento, today(s)));
+    given.memento = f.memento;
+    given.mementoDuplicate = f.duplicate;
+    given.mementoStones = f.stones;
+  }
+  if (out != nullptr) *out = given;
   return true;
 }
 

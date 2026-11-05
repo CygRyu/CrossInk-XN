@@ -17,6 +17,7 @@
 
 #include "Breakthrough.h"
 #include "Chronicle.h"
+#include "Codex.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "CultivatorSleepScreen.h"
@@ -403,6 +404,7 @@ void CultivationActivity::onEnter() {
 void CultivationActivity::onExit() {
   explore_.reset();
   rivals_.reset();
+  lineage_.reset();
   alchemy_.reset();
   ingredients_.reset();
   library_.reset();
@@ -468,6 +470,7 @@ void CultivationActivity::updateRumor() {
 }
 
 bool CultivationActivity::persist() {
+  codex::observe(*state_);  // v0.3.0: the codex follows what the life shows
   saveFailed_ = !save::store(*state_);
   if (saveFailed_) {
     LOG_ERR("CULT", "Saving the game failed");
@@ -489,9 +492,17 @@ void CultivationActivity::startVisit() {
   alchemy::grantStartingRecipe(*state_);
   lifelog::VisitChange change;
   change.ageMonthsBefore = state_->progress.ageMonths;
+  const lineage::Age ageBefore = lineage::ageState(*state_);
   const bool bottleneckBefore = atBottleneck(*state_);
   visit_ = absorb(*state_, gains);
   change.ageMonthsAfter = state_->progress.ageMonths;
+  // v0.3.0: a line when the years left cross 80% or 95% of the realm's lifespan.
+  {
+    const lineage::Age ageAfter = lineage::ageState(*state_);
+    ageWarning_ = ageAfter != ageBefore && (ageAfter == lineage::Age::Greying || ageAfter == lineage::Age::Failing)
+                      ? ageAfter
+                      : lineage::Age::Fine;
+  }
   change.stagesGained = visit_.stagesGained;
   // Only the first time the bar fills in a realm: after a failed breakthrough,
   // refilling it is not news (found in the simulator).
@@ -554,6 +565,13 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   lifelog::build(*lifeLog_, change, visit_.monthsPassed, *state_, grammar_.get());
   appendUpheavalLines(upheavals_);  // Spatial Upheaval: after the visit's own lines
   appendRivalLines(rivalNews_);     // v0.2.8: then the rival's news
+  if (ageWarning_ != lineage::Age::Fine && lifeLog_->count < lifelog::kMaxLines) {  // v0.3.0
+    lifelog::Line& line = lifeLog_->lines[lifeLog_->count++];
+    line.kind = lifelog::LineKind::Event;
+    line.season = lifelog::seasonOf(state_->progress.ageMonths);
+    snprintf(line.text, sizeof(line.text), "%s",
+             ageWarning_ == lineage::Age::Failing ? ctr(CULT_AGE_FAILING) : ctr(CULT_AGE_GREYING));
+  }
   if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
   chronicle::appendVisit(*lifeLog_);
   if (packs_) packs_->closeFile();
@@ -583,7 +601,7 @@ void CultivationActivity::openChronicle() {
     RenderLock lock(*this);
     notice_[0] = '\0';
     FsFile f;
-    if (Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+    if (Storage.openFileForRead("CULT", chroniclePath(), f)) {
       view->size = static_cast<uint32_t>(f.fileSize());
       view->starts[0] = chronicleNewestStart(f, view->size);
       view->age = chronicle::pageAge(f, view->size, view->starts[0]);
@@ -655,7 +673,7 @@ void CultivationActivity::chronicleRefreshAge() {
   if (!chronicle_) return;
   ChronicleView& v = *chronicle_;
   FsFile f;
-  if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) return;
+  if (!Storage.openFileForRead("CULT", chroniclePath(), f)) return;
   v.age = chronicle::pageAge(f, v.size, v.starts[v.cur]);
   f.close();
 }
@@ -671,7 +689,15 @@ void CultivationActivity::chronicleShow(const uint32_t start) {
 }
 
 // The jump menu's rows, in order (user, session 9).
-enum ChronicleMenuRow : uint8_t { kRowNewest, kRowBeginning, kRowBack, kRowForward, kRowExport, kChronicleMenuRows };
+enum ChronicleMenuRow : uint8_t {
+  kRowNewest,
+  kRowBeginning,
+  kRowBack,
+  kRowForward,
+  kRowExport,
+  kRowPast,  // v0.3.0
+  kChronicleMenuRows
+};
 
 void CultivationActivity::chronicleMenuChoose(const int row) {
   if (!chronicle_) return;
@@ -679,10 +705,17 @@ void CultivationActivity::chronicleMenuChoose(const int row) {
   RenderLock lock(*this);
   selected_ = v.savedSelected;
   screen_ = Screen::Chronicle;
+  if (row == kRowPast) {  // v0.3.0
+    lock.unlock();
+    openPastLives();
+    return;
+  }
   if (row == kRowExport) {
     // A copy the player can see and copy off the card; the notice says where.
     char path[96];
-    if (chronicle::exportCopy(*state_, path, sizeof(path))) {
+    if (chronicleLife_ != 0) {  // a past life is already a file of its own on the card
+      snprintf(notice_, sizeof(notice_), ctr(CULT_EXPORTED_FORMAT), chroniclePath_);
+    } else if (chronicle::exportCopy(*state_, path, sizeof(path))) {
       snprintf(notice_, sizeof(notice_), ctr(CULT_EXPORTED_FORMAT), path);
     } else {
       snprintf(notice_, sizeof(notice_), "%s", ctr(CULT_EXPORT_FAILED));
@@ -691,7 +724,7 @@ void CultivationActivity::chronicleMenuChoose(const int row) {
     return;
   }
   FsFile f;
-  if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+  if (!Storage.openFileForRead("CULT", chroniclePath(), f)) {
     requestUpdate();
     return;
   }
@@ -738,7 +771,8 @@ void CultivationActivity::refreshActions() {
     }
   }
   if (chronicleExists_) actions_[actionCount_++] = Action::Chronicle;
-  if (state_ && state_->isCreated()) actions_[actionCount_++] = Action::Guide;  // v0.2.9
+  if (state_ && state_->isCreated()) actions_[actionCount_++] = Action::Guide;    // v0.2.9
+  if (state_ && state_->isCreated()) actions_[actionCount_++] = Action::Lineage;  // v0.3.0
   if (selected_ >= actionCount_) selected_ = 0;
 }
 
@@ -787,13 +821,17 @@ uint8_t CultivationActivity::seenBit(const Action action) {
 
 bool CultivationActivity::isNew(const Action action) const {
   if (action == Action::Guide) return (state_->flagsAndCodex[kGuideSeenByte] & kGuideSeenBit) == 0;  // v0.2.9
+  // v0.3.0: new once reincarnation opens (Foundation Establishment); the bit outlives the life.
+  if (action == Action::Lineage) return lineage::canReincarnate(*state_) && !lineage::cellSeen(*state_);
   const uint8_t bit = seenBit(action);
   return bit != 0 && (state_->flagsAndCodex[6] & bit) == 0;
 }
 
 void CultivationActivity::markSeen(const Action action) {
   if (!isNew(action)) return;
-  if (action == Action::Guide) {  // v0.2.9: its own bit, so every character sees "(New!)" once
+  if (action == Action::Lineage) {
+    lineage::markCellSeen(*state_);
+  } else if (action == Action::Guide) {  // v0.2.9: its own bit, so every character sees "(New!)" once
     state_->flagsAndCodex[kGuideSeenByte] = static_cast<uint8_t>(state_->flagsAndCodex[kGuideSeenByte] | kGuideSeenBit);
   } else {
     state_->flagsAndCodex[6] = static_cast<uint8_t>(state_->flagsAndCodex[6] | seenBit(action));
@@ -861,6 +899,9 @@ void CultivationActivity::runAction() {
     case Action::Guide:  // v0.2.9
       openGuide();
       return;
+    case Action::Lineage:  // v0.3.0
+      openLineage(false);
+      return;
   }
 }
 
@@ -924,20 +965,40 @@ void CultivationActivity::closeChronicle() {
   {
     RenderLock lock(*this);
     chronicle_.reset();
+    chronicleLife_ = 0;  // v0.3.0: back to the current life's Chronicle
     screen_ = Screen::Cultivator;
   }
   requestUpdate();
 }
 
 void CultivationActivity::startCreation() {
+  // v0.3.0: after a life has ended, the legacy perks come first. A Chronicle
+  // still to be moved aside (power lost right after the save) goes now.
+  if (lineage::inUse(*state_)) {
+    if (lineage::chronicleMovePending(*state_) && chronicle::moveToLives(lineage::previousLife(*state_))) {
+      lineage::setChronicleMovePending(*state_, false);
+      persist();
+    }
+    chronicleExists_ = false;
+    lineage_ = makeUniqueNoThrow<LineageView>();  // the shop needs none of it, but its screens share the view
+    selected_ = 0;
+    screen_ = Screen::Perks;
+    return;
+  }
+  beginCreation();
+}
+
+void CultivationActivity::beginCreation() {
   draft_ = CharacterDraft{};
   uint8_t mac[6] = {};
   if (esp_efuse_mac_get_default(mac) != ESP_OK) {
     LOG_ERR("CULT", "Could not read the device MAC; using zeros");
   }
   const StatsSample now = readLocalStats();
-  draft_.worldSeed = worldSeed(mac, now.today, 1);
-  draft_.rerollsAllowed = kBaseRerolls;  // + Tested Again ranks once legacy exists (milestone 10)
+  // DOC: world seed = hash(device, creation date, life number).
+  draft_.worldSeed = worldSeed(mac, now.today, static_cast<uint16_t>(lineage::livesEnded(*state_) + 1u));
+  const uint32_t rerolls = kBaseRerolls + lineage::extraRerolls(*state_);  // v0.3.0: + Tested Again
+  draft_.rerollsAllowed = static_cast<uint8_t>(rerolls < kMaxRolls - 1u ? rerolls : kMaxRolls - 1u);
   rollCount_ = 0;
   rollView_ = 0;
   nameSuggestions_ = 0;
@@ -957,8 +1018,12 @@ void CultivationActivity::finishCreation() {
       LOG_ERR("CULT", "Could not keep the damaged save aside");
     }
   }
-  scrollstore::clearForNewLife();                    // books finished before this life give nothing (baseline rule)
-  chronicle::writeOpening(*state_, grammar_.get());  // a new chapter; the book's title too if it is new
+  scrollstore::clearForNewLife();  // books finished before this life give nothing (baseline rule)
+  {  // a new chapter; the book's title too if it is new (v0.3.0: a new file per life, with the life before)
+    char pastLife[200];
+    pastLifeLine(pastLife, sizeof(pastLife));
+    chronicle::writeOpening(*state_, grammar_.get(), pastLife);
+  }
   if (packs_) packs_->closeFile();
   chronicleExists_ = chronicle::exists();
   persist();
@@ -1000,6 +1065,7 @@ void CultivationActivity::loop() {
   if (handleDaily(back, confirm, up, down)) return;      // v0.2.6 (CultivationDailyScreens.cpp)
   if (handleRivals(back, confirm, up, down)) return;     // v0.2.8 (CultivationRivalScreens.cpp)
   if (handleGuide(back, confirm, up, down)) return;      // v0.2.9 (CultivationGuideScreens.cpp)
+  if (handleLineage(back, confirm, up, down)) return;    // v0.3.0 (CultivationLineageScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -1121,7 +1187,7 @@ void CultivationActivity::loop() {
           --v.cur;
         } else {  // before the first page known: lay it out from a little earlier
           FsFile f;
-          if (Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+          if (Storage.openFileForRead("CULT", chroniclePath(), f)) {
             const uint32_t previous = chroniclePreviousStart(f, v.starts[0]);
             f.close();
             if (v.count >= ChronicleView::kCache) --v.count;  // full: forget the newest page
@@ -1409,6 +1475,7 @@ void CultivationActivity::render(RenderLock&&) {
   char guideTitleBuf[72];
   if (screen_ == Screen::Guide) title = ctr(CULT_GUIDE_TITLE);  // v0.2.9
   if (screen_ == Screen::GuidePage) title = guideTitle(guideTitleBuf, sizeof(guideTitleBuf));
+  if (const char* t = lineageTitle()) title = t;  // v0.3.0
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, title);
   } else {
@@ -1613,6 +1680,38 @@ void CultivationActivity::render(RenderLock&&) {
       downLabel = more ? ctr(CULT_NEXT) : "";
       break;
     }
+    case Screen::Lineage:  // v0.3.0
+      renderLineage(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::LineageExport:
+      renderLineageExport(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::LineageConfirm:
+      renderLineageConfirm(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Echo:
+      renderEcho(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Perks:
+      renderPerks(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::Collection:
+      renderCollection(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::CollectionPage:
+      renderCollectionPage(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::PastLives:
+      renderPastLives(x, top, width, bottom);
+      lineageLabels(confirmLabel, upLabel, downLabel);
+      break;
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
       alchemyLabels(confirmLabel, upLabel, downLabel);
@@ -1829,8 +1928,13 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   };
   char ageLine[64], daoLine[64], rootLine[96], talentLine[96], rateLine[96], stonesLine[64], staminaLine[64],
       hpLine[64];
-  snprintf(ageLine, sizeof(ageLine), ctr(CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
-           static_cast<unsigned>(realm.lifespanYears));
+  if (lineage::ageState(s) >= lineage::Age::Greying) {  // v0.3.0: past 80% of the lifespan, the years left
+    snprintf(ageLine, sizeof(ageLine), ctr(CULT_AGE_LEFT_FORMAT), static_cast<unsigned>(ageYears(s)),
+             static_cast<unsigned>(realm.lifespanYears), static_cast<unsigned>(lineage::yearsLeft(s)));
+  } else {
+    snprintf(ageLine, sizeof(ageLine), ctr(CULT_AGE_FORMAT), static_cast<unsigned>(ageYears(s)),
+             static_cast<unsigned>(realm.lifespanYears));
+  }
   snprintf(daoLine, sizeof(daoLine), ctr(CULT_DAO_HEART_FORMAT), static_cast<unsigned>(p.daoHeart));
   snprintf(rootLine, sizeof(rootLine), ctr(CULT_ROOT_FORMAT),
            text(kElementNames[static_cast<int>(s.character.rootElement)]),
@@ -2012,6 +2116,9 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
           break;
         case Action::Guide:  // v0.2.9
           label = ctr(CULT_ACTION_GUIDE);
+          break;
+        case Action::Lineage:  // v0.3.0
+          label = ctr(CULT_ACTION_LINEAGE);
           break;
       }
       // v0.2.7: a cell not opened yet reads "Explore (New!)" instead of its counts.
@@ -2369,7 +2476,7 @@ void CultivationActivity::renderChronicle(const int x, int y, const int width, i
   v.next = v.starts[v.cur];
 
   FsFile f;
-  if (!Storage.openFileForRead("CULT", chronicle::kPath, f)) {
+  if (!Storage.openFileForRead("CULT", chroniclePath(), f)) {
     drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_CHRONICLE_EMPTY), 3);
     return;
   }
@@ -2436,8 +2543,8 @@ uint32_t CultivationActivity::chronicleLayout(FsFile& f, const uint32_t size, co
 // v0.2.3: the jump menu; Select chooses, Back returns to the page.
 void CultivationActivity::renderChronicleMenu(const int top, const int bottom) {
   static const GameStr kRows[kChronicleMenuRows] = {
-      GameStr::CULT_CHRONICLE_NEWEST, GameStr::CULT_CHRONICLE_BEGINNING, GameStr::CULT_CHRONICLE_YEARS_BACK,
-      GameStr::CULT_CHRONICLE_YEARS_FORWARD, GameStr::CULT_CHRONICLE_EXPORT};
+      GameStr::CULT_CHRONICLE_NEWEST,        GameStr::CULT_CHRONICLE_BEGINNING, GameStr::CULT_CHRONICLE_YEARS_BACK,
+      GameStr::CULT_CHRONICLE_YEARS_FORWARD, GameStr::CULT_CHRONICLE_EXPORT,    GameStr::CULT_CHRONICLE_ROW_PAST};
   const auto& metrics = UITheme::getInstance().getMetrics();
   int height = metrics.listRowHeight * kChronicleMenuRows;
   if (top + height > bottom) height = bottom - top;

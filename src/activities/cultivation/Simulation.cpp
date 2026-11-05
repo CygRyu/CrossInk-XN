@@ -7,7 +7,9 @@
 
 #include "Alchemy.h"
 #include "Breakthrough.h"
+#include "Codex.h"
 #include "Daos.h"
+#include "Lineage.h"
 #include "Meridians.h"
 #include "Rng.h"
 #include "Scrolls.h"
@@ -182,11 +184,22 @@ uint32_t qiMultiplierPermille(const GameState& state) {
   const uint32_t graded = root * breakthrough::gradeQiPermille(state) / 1000u;  // Foundation and Golden Core grades
   const uint32_t manual =
       static_cast<uint32_t>(static_cast<uint64_t>(graded) * scrolls::equippedManualPermille(state) / 1000u);
-  return static_cast<uint32_t>(static_cast<uint64_t>(manual) * meridians::qiPermille(state) / 1000u);  // v0.2.4
+  const uint32_t opened =
+      static_cast<uint32_t>(static_cast<uint64_t>(manual) * meridians::qiPermille(state) / 1000u);  // v0.2.4
+  // v0.3.0: the lineage's bonus from the best realm of past lives (+3% a realm past Foundation).
+  return static_cast<uint32_t>(static_cast<uint64_t>(opened) * (1000u + lineage::qiBonusPermille(state)) / 1000u);
 }
 
 void createCharacter(GameState& state, const CharacterDraft& draft, const StatsSample& now) {
+  // v0.3.0: the lineage and the codex outlive a life; so does having read the Guide.
+  const std::array<uint8_t, 72> lineageKept = state.lineage;
+  uint8_t codexKept[codex::kBytes];
+  memcpy(codexKept, state.flagsAndCodex.data() + codex::kFirstByte, codex::kBytes);
+  const uint8_t guideKept = static_cast<uint8_t>(state.flagsAndCodex[kGuideSeenByte] & kGuideSeenBit);
   state.reset();
+  state.lineage = lineageKept;
+  memcpy(state.flagsAndCodex.data() + codex::kFirstByte, codexKept, codex::kBytes);
+  state.flagsAndCodex[kGuideSeenByte] = guideKept;
   state.snapshot = bridge::takeBaseline(now);
   state.baseline = bridge::baselineTotals(now);
 
@@ -209,8 +222,10 @@ void createCharacter(GameState& state, const CharacterDraft& draft, const StatsS
   alchemy::grantStartingRecipe(state);  // v0.2.0: the Herbalist's apprentice knows the Qi Gathering pill
 
   writeLe32(state.world.data() + kWorldSeedOffset, draft.worldSeed);
-  state.world[kLifeNumberOffset] = 1;  // first life
-  state.world[kLifeNumberOffset + 1] = 0;
+  const uint16_t life = static_cast<uint16_t>(lineage::livesEnded(state) + 1u);  // v0.3.0: 1 for a first life
+  state.world[kLifeNumberOffset] = static_cast<uint8_t>(life);
+  state.world[kLifeNumberOffset + 1] = static_cast<uint8_t>(life >> 8);
+  lineage::applyToNewLife(state);  // v0.3.0: perks and Echo scrolls
 }
 
 uint32_t worldSeedOf(const GameState& state) { return readLe32(state.world.data() + kWorldSeedOffset); }

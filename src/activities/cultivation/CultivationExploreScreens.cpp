@@ -12,6 +12,7 @@
 #include <string>
 
 #include "Chronicle.h"
+#include "Codex.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "CultivatorSleepScreen.h"
@@ -451,6 +452,7 @@ void CultivationActivity::showStep(const explore::StepResult& r) {
     if (packs_) packs_->closeFile();
   }
   formatReward(r.reward, r.hpLost, r.hpHealed, v.numbers, sizeof(v.numbers));
+  noteMementos(r);                       // v0.3.0
   if (r.nemesisFled >= 0 && grammar_) {  // v0.2.8: a Coward nemesis ran before the fight
     char name[exploretext::kNameSize];
     if (exploretext::nemesisName(*state_, static_cast<uint8_t>(r.nemesisFled), *grammar_, name, sizeof(name))) {
@@ -517,6 +519,9 @@ void CultivationActivity::formatReward(const explore::Reward& r, const uint16_t 
   if (hpHealed > 0) {
     snprintf(part, sizeof(part), ctr(CULT_HEALED_FORMAT), static_cast<unsigned>(hpHealed));
     appendPart(out, len, part);
+  }
+  if (r.memento != codex::kNone) {  // v0.3.0
+    appendMemento(r.memento, r.mementoDuplicate, r.mementoStones, out, len);
   }
 }
 
@@ -705,6 +710,7 @@ void CultivationActivity::answerFight() {
     char parts[160] = {};
     formatReward(res.reward, res.hpLost, 0, parts, sizeof(parts));
     formatReward(res.tile.reward, res.tile.hpLost, res.tile.hpHealed, parts, sizeof(parts));
+    noteMementos(res.tile);  // v0.3.0
     snprintf(v.numbers, sizeof(v.numbers), "%s", line);
     if (parts[0] != '\0') {
       appendSentence(v.numbers, sizeof(v.numbers), parts);
@@ -994,6 +1000,7 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
   char parts[160] = {};
   formatReward(r.reward, r.hpLost, 0, parts, sizeof(parts));
   formatReward(r.tile.reward, r.tile.hpLost, r.tile.hpHealed, parts, sizeof(parts));
+  noteMementos(r.tile);  // v0.3.0
   snprintf(v.numbers, sizeof(v.numbers), "%s", line);
   if (parts[0] != '\0') {
     appendSentence(v.numbers, sizeof(v.numbers), parts);

@@ -29,6 +29,8 @@ Nothing happens while the book is closed, and nothing is lost either: no decay, 
 - **Nemeses:** enemies who beat you may come back, stronger and with habits of their own to discover.
 - **Wounds that matter:** fight low on HP and you fight worse; lose with your last HP and you come to at the region's entrance, with nothing taken.
 - **The Chronicle:** your character's whole life, written as you go, readable as a book in the reader.
+- **Lives and rebirth:** each realm gives a lifespan. From Foundation Establishment you can reincarnate into a new world, carrying imprints, legacy perks and a small Qi bonus from your best realm; every past life's Chronicle is kept.
+- **A collection:** a codex that fills as your lineage sees more, and 64 mementos to find across lives. Cosmetic only.
 - **A Guide in the game** that explains how reading turns into progress, with more topics as the game opens up.
 - **Fair to every reader:** night or morning, daily or weekends only, fast or slow pages, all earn the same power. Only time spent reading counts, and only on this device.
 
@@ -45,10 +47,10 @@ The game uses CrossInk's own reading stats, from this device only:
 
 |Device|File|
 |-|-|
-|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.2.9.bin`|
-|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.2.9.bin`|
-|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.2.9.bin`|
-|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.2.9.bin`|
+|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.0.bin`|
+|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.0.bin`|
+|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.0.bin`|
+|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.0.bin`|
 
 2. Flash it. If your reader already runs CrossInk, copy the file to the SD card and choose **Settings > System > SD Card Firmware Update**. Otherwise see the [command line instructions](./docs/installation.md#command-line).
 3. Set the date and time in the settings. The daily systems, your rival and the ranking need them.

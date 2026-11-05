@@ -3,9 +3,11 @@
 #if CROSSINK_CULTIVATION
 
 #include "Alchemy.h"
+#include "Codex.h"
 #include "Daily.h"
 #include "Daos.h"
 #include "Exploration.h"
+#include "Lineage.h"
 #include "Meridians.h"
 #include "Rivals.h"
 #include "Rng.h"
@@ -30,6 +32,7 @@ constexpr uint32_t kKindMeetRoll = 94;      // v0.2.2: does a cultivator walk th
 constexpr uint32_t kKindMeetWho = 95;       // ... who: name, temperament, level (and the id of a new one)
 constexpr uint32_t kKindMeetStock = 96;     // ... what a traveller sells
 constexpr uint32_t kKindNemesisFind = 126;  // v0.2.8: a nemesis finds you (Rivals.cpp has 122-127)
+constexpr uint32_t kKindMemento = 130;      // v0.3.0: a memento turns up (cleared region, cave, ruin)
 
 constexpr size_t kHeaderBytes = 8;
 constexpr size_t kRegionBytes = 19;
@@ -280,6 +283,15 @@ void give(GameState& s, Reward& r, const inventory::Item item, const uint16_t n)
   }
 }
 
+// v0.3.0: a memento may turn up with a find (Codex.h has the chances).
+void mementoChance(GameState& s, Reward& r, const codex::Source source, const uint32_t index) {
+  const codex::Find f = codex::roll(s, source, contentSeed(worldSeedOf(s), kKindMemento, index));
+  if (f.memento == codex::kNone) return;
+  r.memento = f.memento;
+  r.mementoDuplicate = f.duplicate;
+  r.mementoStones = f.stones;
+}
+
 inventory::Item treasure(Rng& rng) {
   return rng.below(2) == 0 ? inventory::Item::ThunderTalisman : inventory::Item::CalmIncense;
 }
@@ -296,6 +308,7 @@ void checkClear(GameState& s, const Layout& l, const uint8_t region, StepResult&
   s.progress.stones += r.clearReward.stones;
   give(s, r.clearReward, inventory::Item::TonicGreater, 1);
   give(s, r.clearReward, treasure(rng), 1);
+  mementoChance(s, r.clearReward, codex::Source::RegionCleared, (static_cast<uint32_t>(region) << 8) | b[10]);
 }
 
 // The content of the tile the player stands on. Caller checks the clear.
@@ -330,7 +343,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
       break;
     case Tile::Ruin: {
       // v0.2.6: the Dao of Time and the omen "Old ruins" add to the search.
-      const uint32_t luck = 50u + originBonus(s.character.origin).eventLuck + daos::ruinBonus(s) + daily::ruinBonus(s);
+      // v0.3.0: and the Fated perk, +3 a rank.
+      const uint32_t luck = 50u + originBonus(s.character.origin).eventLuck + daos::ruinBonus(s) + daily::ruinBonus(s) +
+                            lineage::fatedLuck(s);
       if (rng.below(100) < luck) {
         // v0.2.0: one won ruin in five holds a recipe slip instead of stones (v0.2.6: Fate adds).
         if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20u + daos::prizeChanceBonus(s)) {
@@ -340,6 +355,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
           p.stones += r.reward.stones;
         }
         r.outcome = TileOutcome::RuinWon;
+        mementoChance(s, r.reward, codex::Source::Ruin,
+                      0x10000u | (static_cast<uint32_t>(region) << 8) |
+                          (static_cast<uint32_t>(reshapeCount(s, region)) << 6) | tile);
       } else {
         const uint32_t loss = ceilPercent(meridians::damageHpBase(s), 10);
         r.hpLost = static_cast<uint16_t>(loss < p.hp ? loss : p.hp);
@@ -360,6 +378,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
         give(s, r.reward, inventory::herbFor(region), 1);
       }
       r.outcome = TileOutcome::CaveFound;
+      mementoChance(s, r.reward, codex::Source::Cave,
+                    0x20000u | (static_cast<uint32_t>(region) << 8) |
+                        (static_cast<uint32_t>(reshapeCount(s, region)) << 6) | tile);
       markUsed(s, region, tile);
       break;
     case Tile::Quiet: {
@@ -556,6 +577,14 @@ uint8_t chartedCount(const GameState& s, const uint8_t region) {
   return n;
 }
 uint8_t reshapeCount(const GameState& s, const uint8_t region) { return regionBytes(s, region)[10]; }
+
+void chartAll(GameState& s, const uint8_t region) {
+  if (region >= kRegionCount) return;
+  const Layout l = layoutOf(s, region);
+  for (uint8_t i = 0; i < kTiles; ++i) {
+    if (walkable(l, i)) chart(s, region, i);
+  }
+}
 bool cleared(const GameState& s, const uint8_t region) { return (regionBytes(s, region)[11] & kFlagCleared) != 0; }
 bool guardianBeaten(const GameState& s, const uint8_t region) {
   return (regionBytes(s, region)[11] & kFlagGuardian) != 0;

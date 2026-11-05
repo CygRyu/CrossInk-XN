@@ -167,3 +167,7 @@ Dao sets found (300 of 300 each): evening, night or morning daily readers Time +
 ### v0.2.8: the rival, the ranking and nemeses
 
 Nothing here changes Qi, stamina, keys or the breakthrough chance, so the pacing above is unchanged and the simulator is not. The rival's virtual pace uses this report's median hours per realm at 30 min/day (4.0, 12.2, 37.4, 51.8, 79.3, 100.3, 116.0, 135.7, 154.9, 163.3; `kRealmDeciHours` in `Rivals.h`); re-copy them if the pacing is ever re-tuned. Ranking bouts and nemesis fights pay Spirit Stones and prizes like the fights already modelled as left out.
+
+### v0.3.0: the lineage's Qi bonus
+
+`--legacy-realm N` models a later life whose best past realm is N (0-9): the Qi rate gets +3% per realm past Foundation Establishment (N - 2), up to +21% at N = 9, never added up across lives (user, session 14). At 30 min/day (300 characters, meridians at 5%) the Mortal Plane takes a median 854 reading hours in a first life, 828 with a best realm of Core Formation (+3%), 820 with Nascent Soul (+6%), 793 with Void Refinement (+12%) and 733 with Tribulation Transcendence (+21%). The bonus saves less than its size because breakthroughs, keys and pill brewing take fixed reading time. The same run found no character using more than 62% of any realm's lifespan, so old age only ends a life after a very long stall. `test_balance_sim.py` checks the multiplier and that a later life is faster but by less than a quarter.

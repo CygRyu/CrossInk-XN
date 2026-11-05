@@ -93,6 +93,10 @@ struct Reward {
   uint32_t stones = 0;
   inventory::Item item = inventory::Item::None;
   uint16_t count = 0;
+  // v0.3.0: collect() only, when the third task of the day is collected: a memento (0xFF = none, Codex.h).
+  uint8_t memento = 0xFF;
+  bool mementoDuplicate = false;
+  uint16_t mementoStones = 0;
 };
 Reward rewardFor(const GameState& state, uint8_t slot);
 // Grants a done task's reward once. Returns false (and changes nothing) otherwise.

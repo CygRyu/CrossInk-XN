@@ -4,6 +4,7 @@
 
 #include "Daily.h"
 #include "Exploration.h"
+#include "Lineage.h"
 #include "Rivals.h"
 #include "Rng.h"
 #include "Simulation.h"
@@ -298,7 +299,11 @@ Trait countFight(GameState& s, const uint8_t index) {
 
 // --- The rival -------------------------------------------------------------------------------
 
-uint32_t rivalSeed(const GameState& s) { return contentSeed(worldSeedOf(s), kKindRival, 0); }
+uint32_t rivalSeed(const GameState& s) {
+  // v0.3.0: Familiar Face brings the last life's rival back (same name, temper and talent).
+  const uint32_t carried = lineage::carriedRivalSeed(s);
+  return carried != 0 ? carried : contentSeed(worldSeedOf(s), kKindRival, 0);
+}
 
 void positionFor(const uint32_t deciMinutes, const uint8_t talentPercent, uint8_t& realm, uint8_t& stage) {
   uint64_t left = deciMinutes;

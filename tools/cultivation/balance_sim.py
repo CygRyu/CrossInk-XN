@@ -177,6 +177,11 @@ TUNING = {
     # "furthest": a slot is filled the moment it opens by the Dao furthest along (progress > 0),
     # "complete": a slot waits until a Dao reaches 100% of its condition.
     "dao_fill": "complete",            # rule A (user, session 10)
+    # v0.3.0 (user, session 14): a lineage's best realm in past lives adds +3% Qi rate per realm past
+    # Foundation Establishment (+21% at most), never added up across lives. 0 for a first life;
+    # set legacy_best_realm (or --legacy-realm) to model a later life.
+    "legacy_qi_per_realm": 0.03,
+    "legacy_best_realm": -1,
 }
 
 DAO_BUCKET = {"sun": 0, "fire": 1, "metal": 2, "water": 3}   # BUCKETS: Morning, Afternoon, Evening, Night
@@ -185,6 +190,12 @@ DAO_ORDER = ["time", "stillness", "tide", "water", "sun", "fire", "metal", "myri
 
 def mhat(r: int) -> float:
     return TUNING["mhat_base"] ** r
+
+
+def legacy_multiplier() -> float:
+    """v0.3.0: x(1 + 0.03 per realm past Foundation Establishment) from the best realm of past lives."""
+    best = TUNING["legacy_best_realm"]
+    return 1 + TUNING["legacy_qi_per_realm"] * max(0, min(best, len(TARGET_HOURS) - 1) - 2)
 
 
 def realm_qi(r: int) -> float:
@@ -461,6 +472,7 @@ class Character:
         m *= 1 + t["study_bonus_max"] * min(1.0, self.book.read_h / self.book.hours)
         m *= self.foundation_mult * self.core_mult
         m *= (1 + t["meridian_qi_per_point"]) ** self.meridian_points
+        m *= legacy_multiplier()
         # Decision 1A: no time-of-day Dao gives Qi (Flowing Water's night perk is event luck).
         if bucket == self.omen_bucket:
             m *= 1 + t["omen_bucket_bonus"]
@@ -472,7 +484,7 @@ class Character:
             return mhat(self.realm)
         t = TUNING
         return (self.talent * self._purity_mult(self.purity) * self.manual_mult * self.foundation_mult
-                * self.core_mult * (1 + t["meridian_qi_per_point"]) ** self.meridian_points)
+                * self.core_mult * (1 + t["meridian_qi_per_point"]) ** self.meridian_points * legacy_multiplier())
 
     # -- realm transitions --------------------------------------------------
     def _enter_realm(self, r: int, day: float):
@@ -1013,7 +1025,10 @@ def main(argv=None):
     p.add_argument("--linger", type=float, default=0.0,
                    help="reading hours to stay in Great Perfection before each breakthrough")
     p.add_argument("--extra", action="store_true", help="also show the extra comparison profiles")
+    p.add_argument("--legacy-realm", type=int, default=-1,
+                   help="v0.3.0: the best realm of past lives (0-9) for a later life's Qi bonus; -1 = a first life")
     a = p.parse_args(argv)
+    TUNING["legacy_best_realm"] = a.legacy_realm
     profiles = dict(PROFILES)
     if a.extra:
         profiles.update(EXTRA_PROFILES)

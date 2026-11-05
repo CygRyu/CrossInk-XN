@@ -556,11 +556,11 @@ TEST_F(ChronicleTest, ExportCopiesTheWholeFileUnderTheCharactersName) {
   Storage.put(chronicle::kPath, big);
   char path[96];
   ASSERT_TRUE(chronicle::exportCopy(s, path, sizeof(path)));
-  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Lin Yue.txt");
+  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Lin Yue (life 1).txt");
   const auto* copy = Storage.bytesOf(path);
   ASSERT_NE(copy, nullptr);
   EXPECT_EQ(std::string(copy->begin(), copy->end()), big);
-  EXPECT_FALSE(Storage.exists("/Chronicles/The Chronicle of Lin Yue.txt.tmp"));
+  EXPECT_FALSE(Storage.exists("/Chronicles/The Chronicle of Lin Yue (life 1).txt.tmp"));
 
   // A second export replaces the first.
   Storage.put(chronicle::kPath, "Short now.\n");
@@ -576,10 +576,10 @@ TEST_F(ChronicleTest, ExportNamesAreSafeForTheCard) {
   memcpy(s.character.name.data(), odd, sizeof(odd) - 1);
   char path[96];
   chronicle::exportPath(s, path, sizeof(path));
-  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Mo_Yan_Who__.txt");
+  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Mo_Yan_Who__ (life 1).txt");
   s.character.name.fill(0);
   chronicle::exportPath(s, path, sizeof(path));
-  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Nameless.txt");
+  EXPECT_STREQ(path, "/Chronicles/The Chronicle of Nameless (life 1).txt");
 }
 
 TEST_F(ChronicleTest, ExportWithoutAChronicleFails) {

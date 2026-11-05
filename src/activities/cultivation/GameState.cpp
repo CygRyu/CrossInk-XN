@@ -30,6 +30,7 @@ void GameState::reset() {
   bag.fill(0);
   memory.fill(0);
   rivals.fill(0);
+  lineage.fill(0);
 }
 
 namespace save {
@@ -243,6 +244,8 @@ void transfer(Io& io, State& s) {
   io.bytes(s.memory.data(), s.memory.size());
   // Save v6 (v0.2.8): 96 bytes
   io.bytes(s.rivals.data(), s.rivals.size());
+  // Save v7 (v0.3.0): 72 bytes
+  io.bytes(s.lineage.data(), s.lineage.size());
 }
 
 uint16_t readLe16(const uint8_t* p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)); }

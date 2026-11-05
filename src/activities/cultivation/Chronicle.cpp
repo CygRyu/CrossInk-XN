@@ -118,7 +118,7 @@ int32_t ageInLine(const char* line) {
   return -1;
 }
 
-bool writeOpening(const GameState& state, Grammar* grammar) {
+bool writeOpening(const GameState& state, Grammar* grammar, const char* pastLife) {
   Storage.mkdir(save::kDirectory);
   const Tail tail = readTail();
   Appender out;
@@ -155,6 +155,7 @@ bool writeOpening(const GameState& state, Grammar* grammar) {
       openingLine(out, "chronicle.past", contentSeed(world, kKindOpening, 2), *grammar, ctx);
     }
   }
+  if (pastLife != nullptr && pastLife[0] != '\0') out.line(pastLife);
   const bool ok = out.close();
   if (!ok) {
     LOG_ERR("CULT", "Writing the Chronicle opening failed");
@@ -207,7 +208,48 @@ void exportPath(const GameState& state, char* out, const size_t len) {
     if (strchr("\\/:*?\"<>|", *c) != nullptr || static_cast<unsigned char>(*c) < 0x20) *c = '_';
   }
   if (name[0] == '\0' || strspn(name, " .") == strlen(name)) snprintf(name, sizeof(name), "%s", "Nameless");
-  snprintf(out, len, "%s/The Chronicle of %s.txt", kExportDirectory, name);
+  snprintf(out, len, "%s/The Chronicle of %s (life %u).txt", kExportDirectory, name,
+           static_cast<unsigned>(lifeNumberOf(state) > 0 ? lifeNumberOf(state) : 1));
+}
+
+void lifePath(const uint16_t lifeNumber, char* out, const size_t len) {
+  snprintf(out, len, "%s/life %u.txt", kLivesDirectory, static_cast<unsigned>(lifeNumber));
+}
+
+bool moveToLives(const uint16_t lifeNumber) {
+  if (!Storage.exists(kPath)) return true;
+  char path[64];
+  lifePath(lifeNumber, path, sizeof(path));
+  Storage.mkdir(save::kDirectory);
+  Storage.mkdir(kLivesDirectory);
+  if (Storage.exists(path)) Storage.remove(path);
+  if (!Storage.rename(kPath, path)) {
+    LOG_ERR("CULT", "Could not move the Chronicle to %s", path);
+    return false;
+  }
+  return true;
+}
+
+bool lifeName(const char* path, char* out, const size_t len) {
+  if (len == 0) return false;
+  out[0] = '\0';
+  FsFile f;
+  if (!Storage.openFileForRead("CULT", path, f)) return false;
+  char buf[200];
+  const int got = f.read(reinterpret_cast<uint8_t*>(buf), sizeof(buf) - 1);
+  f.close();
+  if (got <= 0) return false;
+  buf[got] = '\0';
+  const char* life = strstr(buf, "\nLife ");
+  if (life == nullptr) return false;
+  const char* colon = strstr(life, ": ");
+  if (colon == nullptr) return false;
+  const char* start = colon + 2;
+  size_t n = strcspn(start, "\r\n");
+  if (n >= len) n = len - 1;
+  memcpy(out, start, n);
+  out[n] = '\0';
+  return n > 0;
 }
 
 bool exportCopy(const GameState& state, char* pathOut, const size_t pathLen) {

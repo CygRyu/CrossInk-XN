@@ -21,6 +21,7 @@
 #include "Grammar.h"
 #include "Inventory.h"
 #include "LifeLog.h"
+#include "Lineage.h"
 #include "PackStore.h"
 #include "Rivals.h"
 #include "ScrollNames.h"
@@ -70,35 +71,43 @@ class CultivationActivity final : public Activity {
     GreatPerfection,  // what staying at the peak does; Confirm enters it
     Outcome,          // the result of either, with its Chronicle line
     Chronicle,
-    ChronicleMenu,  // v0.2.3: Newest, Beginning, 10 years back / forward, Export
-    ScrollNews,     // scrolls minted, improved or sold this visit
-    BetterManual,   // a new manual beats the equipped one: offer to equip it
-    Techniques,     // the library
-    ScrollDetail,   // one scroll: equip, unequip, sell
-    SellConfirm,    // selling cannot be undone
-    Trial,          // a Tribulation strike or a Heart Demon scene (CultivationTrialScreens.cpp)
-    Regions,        // exploration (CultivationExploreScreens.cpp): the open regions and the bag
-    Map,            // one region's 6x6 map
-    Fight,          // a random encounter, a lair or the guardian
-    Meeting,        // v0.2.2: a cultivator on the road
-    Merchant,       // a wandering merchant's stock
-    MerchantSell,   // selling items back at a third
-    Bag,            // items; tonics are drunk here
-    Talisman,       // which cleared region a Region Talisman reshapes
-    MerchantQty,    // v0.2.1: how many herbs or ores to buy
-    Alchemy,        // v0.2.0 (CultivationAlchemyScreens.cpp): the cauldron and what to do with it
-    Recipes,        // the recipes known
-    RecipeDetail,   // one recipe: its parts, what it makes, the brew time; Confirm brews
-    Experiment,     // pick 2-3 ingredients and mix them
-    Meridians,      // v0.2.4 (CultivationMeridianScreens.cpp): one row per channel, Select opens its next point
-    Daily,          // v0.2.6 (CultivationDailyScreens.cpp): the omen, three tasks, the streak
-    Daos,           // v0.2.6: the five slots and the found Daos
-    Rivals,         // v0.2.8 (CultivationRivalScreens.cpp): the rival, the ranking, the nemeses
-    RivalCard,      // the rival: who, how far, what people say
-    Ladder,         // the realm's ranking: challenges, then the 20 rows
-    Nemeses,        // up to three, with what is known of each
-    Guide,          // v0.2.9 (CultivationGuideScreens.cpp): the topics
-    GuidePage,      // one topic, a page at a time
+    ChronicleMenu,   // v0.2.3: Newest, Beginning, 10 years back / forward, Export
+    ScrollNews,      // scrolls minted, improved or sold this visit
+    BetterManual,    // a new manual beats the equipped one: offer to equip it
+    Techniques,      // the library
+    ScrollDetail,    // one scroll: equip, unequip, sell
+    SellConfirm,     // selling cannot be undone
+    Trial,           // a Tribulation strike or a Heart Demon scene (CultivationTrialScreens.cpp)
+    Regions,         // exploration (CultivationExploreScreens.cpp): the open regions and the bag
+    Map,             // one region's 6x6 map
+    Fight,           // a random encounter, a lair or the guardian
+    Meeting,         // v0.2.2: a cultivator on the road
+    Merchant,        // a wandering merchant's stock
+    MerchantSell,    // selling items back at a third
+    Bag,             // items; tonics are drunk here
+    Talisman,        // which cleared region a Region Talisman reshapes
+    MerchantQty,     // v0.2.1: how many herbs or ores to buy
+    Alchemy,         // v0.2.0 (CultivationAlchemyScreens.cpp): the cauldron and what to do with it
+    Recipes,         // the recipes known
+    RecipeDetail,    // one recipe: its parts, what it makes, the brew time; Confirm brews
+    Experiment,      // pick 2-3 ingredients and mix them
+    Meridians,       // v0.2.4 (CultivationMeridianScreens.cpp): one row per channel, Select opens its next point
+    Daily,           // v0.2.6 (CultivationDailyScreens.cpp): the omen, three tasks, the streak
+    Daos,            // v0.2.6: the five slots and the found Daos
+    Rivals,          // v0.2.8 (CultivationRivalScreens.cpp): the rival, the ranking, the nemeses
+    RivalCard,       // the rival: who, how far, what people say
+    Ladder,          // the realm's ranking: challenges, then the 20 rows
+    Nemeses,         // up to three, with what is known of each
+    Guide,           // v0.2.9 (CultivationGuideScreens.cpp): the topics
+    GuidePage,       // one topic, a page at a time
+    Lineage,         // v0.3.0 (CultivationLineageScreens.cpp): lives, the Qi bonus, imprints; reincarnate or abandon
+    LineageExport,   // export the Chronicle before a life ends?
+    LineageConfirm,  // the two confirmations (none at old age)
+    Echo,            // Past Life Echo: the scrolls to carry over
+    Perks,           // legacy perks, then a new life
+    Collection,      // the codex and the memento sets
+    CollectionPage,  // one set (or the codex)
+    PastLives,       // the Chronicles of lives that ended
     Error
   };
   // What the Cultivator screen's list offers right now.
@@ -115,9 +124,10 @@ class CultivationActivity final : public Activity {
     Rivals,     // v0.2.8, from Qi Condensation
     Chronicle,
     Trial,
-    Guide  // v0.2.9: always, last
+    Guide,   // v0.2.9: always, last
+    Lineage  // v0.3.0: always (abandoning is allowed any time); "(New!)" from Foundation Establishment
   };
-  static constexpr uint8_t kMaxActions = 12;
+  static constexpr uint8_t kMaxActions = 13;
   enum class OutcomeKind : uint8_t { BreakthroughSuccess, BreakthroughFailure, EnteredGreatPerfection, TrialLost };
 
   // Visit
@@ -280,6 +290,60 @@ class CultivationActivity final : public Activity {
   const char* guideTitle(char* buf, size_t len) const;
   int guideReturn_ = 0;
   int guideListSelected_ = 0;
+  // v0.3.0: the lineage (CultivationLineageScreens.cpp). ~1.3 KB while its screens are open.
+  void openLineage(bool oldAge);
+  void prepareLineage(bool oldAge);  // the same, for callers that already hold the render lock
+  void closeLineage();
+  bool handleLineage(bool back, bool confirm, bool up, bool down);  // true on a lineage screen
+  void renderLineage(int x, int y, int width, int bottom);
+  void renderLineageExport(int x, int y, int width, int bottom);
+  void renderLineageConfirm(int x, int y, int width, int bottom);
+  void renderEcho(int x, int y, int width, int bottom);
+  void renderPerks(int x, int y, int width, int bottom);
+  void renderCollection(int x, int y, int width, int bottom);
+  void renderCollectionPage(int x, int y, int width, int bottom);
+  void renderPastLives(int x, int y, int width, int bottom);
+  void lineageLabels(const char*& confirmLabel, const char*& upLabel, const char*& downLabel) const;
+  const char* lineageTitle() const;
+  int lineageRows() const;
+  void lineageChoose();
+  void afterConfirm();
+  void endThisLife();
+  void beginCreation();  // the Name screen: character creation proper
+  void openPastLives();
+  void openPastLife(uint16_t life);
+  void pastLifeLine(char* out, size_t len) const;
+  // "a memento: Grey wolf fang (common)" (or a duplicate sold), appended to a reward line.
+  void appendMemento(uint8_t memento, bool duplicate, uint16_t stones, char* out, size_t len) const;
+  void mementoChronicle(uint8_t memento);                        // a Chronicle line for a new one
+  void noteMementos(const cultivation::explore::StepResult& r);  // the line for each new one in a step's result
+  enum class LineageRow : uint8_t { Collection, Reincarnate, Abandon, NewLife };
+  uint8_t lineageRowList(LineageRow* out) const;
+  struct LineageView {
+    static constexpr uint8_t kCandidates = 12;
+    static constexpr uint8_t kPastShown = 10;
+    bool oldAge = false;
+    cultivation::lineage::EndKind kind = cultivation::lineage::EndKind::Reincarnated;
+    uint8_t confirmStep = 0;
+    uint8_t chosen[cultivation::lineage::kEchoSlots] = {};
+    uint8_t chosenCount = 0;
+    uint8_t candidates[kCandidates] = {};  // library slots, strongest first
+    uint8_t candidateCount = 0;
+    char names[kCandidates][cultivation::scrollnames::kNameSize] = {};
+    uint16_t pastLives[kPastShown] = {};
+    char pastNames[kPastShown][28] = {};
+    uint8_t pastCount = 0;
+    uint8_t page = 0;  // CollectionPage: 0 the codex, 1-8 a memento set
+    int lineageSelected = 0;
+    int collectionSelected = 0;
+  };
+  std::unique_ptr<LineageView> lineage_;
+  int lineageReturn_ = 0;
+  cultivation::lineage::Age ageWarning_ = cultivation::lineage::Age::Fine;  // crossed this visit
+  // v0.3.0: the viewer shows the current life (chronicle::kPath) or a past one.
+  char chroniclePath_[64] = {};
+  uint16_t chronicleLife_ = 0;  // the past life on screen, 0 = the current one
+  const char* chroniclePath() const;
   uint8_t guideTopic_ = 0;
   uint8_t guidePage_ = 0;
   void rivalLabels(const char*& confirmLabel) const;

@@ -11,6 +11,7 @@
 #include <string>
 
 #include "Chronicle.h"
+#include "Codex.h"
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "Daily.h"
@@ -321,6 +322,7 @@ void CultivationActivity::formatDailyReward(const daily::Reward& r, char* out, c
   } else {
     snprintf(out, len, ctr(CULT_TASK_REWARD_STONES_FORMAT), static_cast<unsigned long>(r.stones));
   }
+  if (r.memento != codex::kNone) appendMemento(r.memento, r.mementoDuplicate, r.mementoStones, out, len);  // v0.3.0
 }
 
 bool CultivationActivity::handleDaily(const bool back, const bool confirm, const bool up, const bool down) {
@@ -338,9 +340,10 @@ bool CultivationActivity::handleDaily(const bool back, const bool confirm, const
     const uint8_t slot = dailySlotAt(selected_);
     daily::Reward r;
     if (slot < daily::kTaskSlots && daily::collect(*state_, slot, &r)) {
-      char what[96];
+      char what[160];
       formatDailyReward(r, what, sizeof(what));
       snprintf(notice_, sizeof(notice_), ctr(CULT_TASK_COLLECTED_FORMAT), what);
+      if (r.memento != codex::kNone && !r.mementoDuplicate) mementoChronicle(r.memento);  // v0.3.0
       persist();
       LOG_INF("CULT", "Daily task %u collected", static_cast<unsigned>(slot));
     } else if (slot < daily::kTaskSlots && !daily::done(*state_, slot) && daily::reroll(*state_, slot)) {

@@ -77,6 +77,24 @@ class FormulaTests(unittest.TestCase):
                          [0, 0, 1, 1, 2, 3, 3, 4, 4])
 
 
+class LegacyTests(unittest.TestCase):  # v0.3.0
+    def tearDown(self):
+        b.TUNING["legacy_best_realm"] = -1
+
+    def test_bonus_three_percent_per_realm_past_foundation(self):
+        for best, mult in [(-1, 1.0), (2, 1.0), (3, 1.03), (5, 1.09), (9, 1.21), (12, 1.21)]:
+            b.TUNING["legacy_best_realm"] = best
+            self.assertAlmostEqual(b.legacy_multiplier(), mult)
+
+    def test_bonus_makes_a_later_life_modestly_faster(self):
+        prof = b.PROFILES["30/day"]
+        first = statistics.median(b.summarize(b.simulate(prof, "modeled", 40, 3))["total_hours"])
+        b.TUNING["legacy_best_realm"] = 9
+        later = statistics.median(b.summarize(b.simulate(prof, "modeled", 40, 3))["total_hours"])
+        self.assertLess(later, first)
+        self.assertGreater(later, first * 0.75)  # small: never the doc's old x3
+
+
 class SimulationTests(unittest.TestCase):
     def test_nominal_reproduces_targets_exactly(self):
         c = b.Character(b.random.Random(0), "nominal", b.PROFILES["30/day"]).run()

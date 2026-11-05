@@ -44,7 +44,8 @@ bool exists();
 // book's title first when the file is new. Used at creation, and on the first
 // visit of a character made before the Chronicle existed (the file is
 // missing then). Without a grammar engine only the headings are written.
-bool writeOpening(const GameState& state, Grammar* grammar);
+// v0.3.0: `pastLife`, when given, is one more paragraph about the life before.
+bool writeOpening(const GameState& state, Grammar* grammar, const char* pastLife = nullptr);
 
 // Appends one visit's life-log lines, with an "Age N" heading whenever the
 // age changes. Does nothing for an empty log or one already written.
@@ -57,7 +58,8 @@ bool appendLines(const lifelog::Line* lines, uint8_t count);
 int32_t ageInLine(const char* line);
 
 // Export (user request): a copy of the whole Chronicle in a folder the
-// player can see, "/Chronicles/The Chronicle of <name>.txt", replacing the
+// player can see, "/Chronicles/The Chronicle of <name> (life N).txt" (v0.3.0
+// added the life, agreed in session 9), replacing the
 // previous copy. Copied in 256-byte pieces through the stack, never held in
 // RAM; written to a .tmp first, so a failed copy leaves the old export. The
 // name's characters that FAT cannot store (\ / : * ? " < > |) become '_'.
@@ -65,6 +67,17 @@ int32_t ageInLine(const char* line);
 constexpr char kExportDirectory[] = "/Chronicles";
 bool exportCopy(const GameState& state, char* pathOut, size_t pathLen);
 void exportPath(const GameState& state, char* out, size_t len);
+
+// v0.3.0: one Chronicle per life. When a life ends its file moves to
+// "/.crosspoint/cultivation/lives/life N.txt" and the next life starts a new
+// chronicle.txt. The viewer reads those files too (Chronicle > Past lives).
+constexpr char kLivesDirectory[] = "/.crosspoint/cultivation/lives";
+void lifePath(uint16_t lifeNumber, char* out, size_t len);
+// Moves chronicle.txt to lifePath(lifeNumber), replacing a file already there.
+// True when it was moved, or when there was nothing to move.
+bool moveToLives(uint16_t lifeNumber);
+// The name in a past life's "Life N: <name>" heading (near the top of the file).
+bool lifeName(const char* path, char* out, size_t len);
 
 // --- Reading helpers for the viewer (v0.2.3) -----------------------------------
 // The viewer opens on the newest page and jumps by years, so it must never

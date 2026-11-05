@@ -96,6 +96,8 @@ const char* themeKey(uint8_t region);  // grammar theme: "marsh", "wastes" ...
 bool charted(const GameState& state, uint8_t region, uint8_t tile);
 bool used(const GameState& state, uint8_t region, uint8_t tile);
 uint8_t chartedCount(const GameState& state, uint8_t region);
+// v0.3.0 (Old Roads): every walkable tile of the region's current layout charted.
+void chartAll(GameState& state, uint8_t region);
 uint8_t reshapeCount(const GameState& state, uint8_t region);
 bool cleared(const GameState& state, uint8_t region);
 bool guardianBeaten(const GameState& state, uint8_t region);
@@ -222,6 +224,10 @@ struct Reward {
   uint16_t item3Count = 0;
   uint32_t soldStones = 0;  // v0.2.1: herbs or ores past 9,999, sold at a third
   uint16_t lost = 0;        // other items past 9,999
+  // v0.3.0: a memento (Codex.h), 0xFF = none. A duplicate was sold: its stones are in mementoStones only.
+  uint8_t memento = 0xFF;
+  bool mementoDuplicate = false;
+  uint16_t mementoStones = 0;
 };
 
 // v0.2.1 (user): a won Hazardous, Extreme or Impossible fight has a 15 / 25 /
