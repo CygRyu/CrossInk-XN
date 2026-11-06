@@ -759,6 +759,10 @@ void CultivationActivity::answerFight() {
       appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_GUARDIAN_BEATEN));
       exploreChronicle("explore.line.guardian", v.region, v.beast, 2);
     }
+    if (res.campBroken) {  // v0.3.2
+      appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_CAMP_BROKEN));
+      worldChronicle("world.line.cond.camp.broken", v.region, res.campSect, -1, 15);
+    }
     if (res.tile.clearedNow) {
       char reward[120] = {};
       formatReward(res.tile.clearReward, 0, 0, reward, sizeof(reward));
@@ -1189,8 +1193,8 @@ void CultivationActivity::useBagItem() {
     char name[64];
     itemLabel(item, name, sizeof(name));
     if (screen_ == Screen::MerchantSell) {
-      const uint16_t price = inventory::sellPrice(item);
-      if (explore::sell(*state_, item)) {
+      const uint16_t price = explore::sellPrice(*state_, v.region, item);  // v0.3.2: a blight
+      if (explore::sell(*state_, item, v.region)) {
         snprintf(notice_, sizeof(notice_), ctr(CULT_SOLD_ITEM_FORMAT), name, static_cast<unsigned>(price));
         persist();
       }
@@ -1538,6 +1542,13 @@ void CultivationActivity::renderRegions(const int x, int y, const int width, con
         if (i < ev.regionCount) {
           const auto region = static_cast<uint8_t>(i);
           const char* danger = dangerName(explore::regionDanger(*state_, region));
+          // v0.3.2: a region condition comes first ("Sect war · Dangerous · ...").
+          char withWord[64];
+          const char* word = conditionWord(sects::conditionIn(*state_, region));
+          if (word != nullptr) {
+            snprintf(withWord, sizeof(withWord), ctr(CULT_REGION_COND_FORMAT), word, danger);
+            danger = withWord;
+          }
           if (explore::cleared(*state_, region)) {
             const uint32_t hours = (explore::upheavalMinutesLeft(*state_, region) + 59u) / 60u;
             snprintf(sub, sizeof(sub), ctr(CULT_REGION_CLEARED_SUB_FORMAT), danger, static_cast<unsigned>(hours));
@@ -1599,6 +1610,17 @@ void CultivationActivity::renderMap(const int x, int y, const int width, const i
   }
   renderer.drawText(UI_10_FONT_ID, x, y, line);
   y += renderer.getLineHeight(UI_10_FONT_ID) + metrics.verticalSpacing;
+  // v0.3.2: a region condition here, what it does and how long it lasts.
+  const sects::Condition cond = sects::conditionIn(s, v.region);
+  if (cond != sects::Condition::None) {
+    const uint16_t left = sects::conditionYearsLeft(s);
+    if (left <= 1) {
+      snprintf(line, sizeof(line), ctr(CULT_COND_HOUR_FORMAT), conditionHere(cond));
+    } else {
+      snprintf(line, sizeof(line), ctr(CULT_COND_HOURS_FORMAT), conditionHere(cond), static_cast<unsigned>(left));
+    }
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
+  }
 
   int cell = width / explore::kGrid;
   if (cell > kMaxCell) cell = kMaxCell;
@@ -2068,7 +2090,7 @@ void CultivationActivity::renderBag(const int x, int y, const int width, const i
         char sub[160];
         if (selling) {
           snprintf(sub, sizeof(sub), ctr(CULT_SELL_SUB_FORMAT), static_cast<unsigned>(inventory::count(*state_, item)),
-                   static_cast<unsigned>(inventory::sellPrice(item)));
+                   static_cast<unsigned>(explore::sellPrice(*state_, explore_->region, item)));
         } else {
           char desc[96];
           ui::itemDescription(item, desc, sizeof(desc));

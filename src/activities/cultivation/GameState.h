@@ -136,6 +136,9 @@ struct GameState {
   // Save v7 (v0.3.0): the lineage, what outlives one life (Lineage.h): the
   // best realm, imprints, perks, Echo scrolls, the last life's name and age.
   std::array<uint8_t, 72> lineage{};
+  // Save v8 (v0.3.2): the living world, five sects and their stories, and the
+  // region condition one of them made (Sects.h). Per life.
+  std::array<uint8_t, 64> living{};
 
   bool isCreated() const { return (character.flags & CharacterBlock::kCharacterCreated) != 0; }
   // Field by field, so no ~1 KB temporary GameState lands on the stack.
@@ -149,7 +152,7 @@ struct GameState {
 namespace save {
 
 constexpr uint16_t kMagic = 0x4950;  // "PI" when read as bytes 'P','I'
-constexpr uint16_t kSaveVersion = 7;
+constexpr uint16_t kSaveVersion = 8;
 constexpr size_t kHeaderSize = 10;
 constexpr size_t kPayloadSizeV1 = 945;
 constexpr size_t kPayloadSizeV2 = 949;   // + techniqueMeta (milestone 7)
@@ -158,7 +161,8 @@ constexpr size_t kPayloadSizeV4 = 1341;  // + bag (v0.2.0)
 constexpr size_t kPayloadSizeV5 = 1389;  // + memory (v0.2.1)
 constexpr size_t kPayloadSizeV6 = 1485;  // + rivals (v0.2.8)
 constexpr size_t kPayloadSizeV7 = 1557;  // + lineage (v0.3.0)
-constexpr size_t kPayloadSize = kPayloadSizeV7;
+constexpr size_t kPayloadSizeV8 = 1621;  // + living (v0.3.2)
+constexpr size_t kPayloadSize = kPayloadSizeV8;
 constexpr size_t kFileSize = kHeaderSize + kPayloadSize;
 
 constexpr char kDirectory[] = "/.crosspoint/cultivation";

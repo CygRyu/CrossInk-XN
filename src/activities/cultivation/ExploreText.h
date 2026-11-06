@@ -72,5 +72,14 @@ bool seatName(const GameState& state, uint32_t seed, Grammar& grammar, char* out
 bool nemesisName(const GameState& state, uint8_t index, Grammar& grammar, char* out, size_t len);
 bool nemesisKind(const GameState& state, uint8_t index, Grammar& grammar, char* out, size_t len);
 
+// v0.3.2: the living world (Sects.h). A sect's name ("the Azure Cloud Sect"),
+// the five always different; a line ({$sect}, {$sect2}, {$region.name}; sect2
+// -1 for none) capitalised; a rumor "{world.rumor.opening} {listKey}.".
+bool sectName(const GameState& state, uint8_t index, Grammar& grammar, char* out, size_t len);
+bool worldLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed, uint8_t region,
+               uint8_t sect, int8_t sect2, Grammar& grammar);
+bool worldRumor(const GameState& state, const char* listKey, uint32_t seed, uint8_t region, uint8_t sect, int8_t sect2,
+                Grammar& grammar, char* out, size_t len);
+
 }  // namespace exploretext
 }  // namespace cultivation

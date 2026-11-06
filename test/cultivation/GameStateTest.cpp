@@ -106,9 +106,9 @@ TEST_F(GameStateTest, FileIsAboutOnePointSixKilobytes) {
   ASSERT_NE(bytes, nullptr);
   EXPECT_EQ(bytes->size(), save::kFileSize);
   // v2: + 4 bytes techniqueMeta; v3: + 200 bytes exploration; v4: + 192 bytes bag; v5: + 48 bytes memory;
-  // v6: + 96 bytes rivals; v7: + 72 bytes lineage
-  EXPECT_EQ(save::kFileSize, 1567u);
-  EXPECT_LT(save::kFileSize, 1600u);  // over the doc's 1 KB since v0.1.10 (told to the user)
+  // v6: + 96 bytes rivals; v7: + 72 bytes lineage; v8: + 64 bytes living (v0.3.2)
+  EXPECT_EQ(save::kFileSize, 1631u);
+  EXPECT_LT(save::kFileSize, 1700u);  // over the doc's 1 KB since v0.1.10 (told to the user)
 }
 
 TEST_F(GameStateTest, RoundTrip) {

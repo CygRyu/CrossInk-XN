@@ -1790,6 +1790,282 @@ While crossing {place.region>where}, you find {ruin.desc}.
   @lose hp-10 text={ruin.trap}
 > Burn incense for the dead and move on
   @effect karma+3 text=You burn a stick of incense for the dead of {$where} and go on your way.
+
+# --- v0.3.2: The Living World ---------------------------------------------------------------
+# Five sects per world and their stories (Sects.h). In every list below:
+# {$sect} the sect whose story it is ("the Azure Cloud Sect"), {$sect2} a feud's
+# other sect, {$region.name} the story's region ("the Mistveil Marshes").
+# Rumor lists finish "{rumor.opening} ..." (lower case, no full stop); the
+# line lists are whole sentences for the life log and the Chronicle.
+
+# Openings for the world's rumors: no sect names here, so only the five real sects are named.
+[world.rumor.opening]
+Travellers say
+In {place.town} they say
+A ferryman swears
+The porters say
+A herb seller says
+The innkeeper says
+
+[world.rumor.feud.early]
+{$sect} and {$sect2} both claim the new vein in {$region.name}, and both sent surveyors with swords
+an elder of {$sect} spat at the gate of {$sect2} over a vein in {$region.name}
+{$sect} has started paying porters double to carry stones out of {$region.name} before {$sect2} can stop them
+
+[world.rumor.feud.late]
+{$sect} and {$sect2} have stopped talking and started burying people in {$region.name}
+the vein in {$region.name} is running red these days, and it is not the ore
+inner disciples of {$sect} now walk {$region.name} in threes, and those of {$sect2} in fives
+
+[world.rumor.succession.early]
+the master of {$sect} has missed a month of lectures, and three elders are suddenly kind to the servants
+the master of {$sect} coughed blood at the founding feast, and two of his disciples have stopped speaking
+{$sect} has closed its upper halls, and its cooks say the master eats nothing but rice broth now
+
+[world.rumor.succession.late]
+the master of {$sect} is dead, and his two best disciples each hold half the scripture pavilion
+{$sect} buried its master without a successor, and the outer disciples are taking bets
+half of {$sect} has walked out behind the second disciple, and the other half is counting the silver
+
+[world.rumor.bandits.early]
+someone has been collecting tolls on the roads into {$region.name}, and {$sect} says it is not them
+{$sect} has posted notices offering silver for bandit ears from {$region.name}
+the caravans to {$region.name} now hire twice the guards, and still lose a cart in four
+
+[world.rumor.bandits.late]
+the bandits in {$region.name} have built a stockade and a flag, and {$sect} is still writing letters about it
+a bandit chief in {$region.name} calls himself King of the Pass, and {$sect} has sent a hall of disciples to argue
+{$sect} lost six outer disciples in {$region.name} last week, and the bandits sent back their boots
+
+[world.rumor.tournament.early]
+{$sect} is holding a martial tournament in {$region.name}, and every loafer with a sword is walking that way
+{$sect} promises a pill of the third grade to whoever wins its tournament, and nobody believes it
+the inns near {$region.name} have tripled their prices for the tournament of {$sect}
+
+[world.rumor.tournament.late]
+the tournament of {$sect} is in its fourth day, and the healers outnumber the fighters
+a girl nobody knows has beaten three disciples of {$sect} at its own tournament
+the judges of the tournament of {$sect} have been bribed so often that they now post their prices
+
+[world.rumor.fair.early]
+{$sect} is holding a temple fair in {$region.name}, and the pedlars are already fighting over the best pitches
+the monks of {$sect} are painting the shrines in {$region.name} for a fair, and charging the painters a fee
+{$sect} has promised lanterns, opera and blessed noodles at its fair in {$region.name}
+
+[world.rumor.fair.late]
+the fair of {$sect} in {$region.name} has a fortune teller who is right too often, and the elders want a word with her
+half the merchants of {place.town} have packed up for the fair of {$sect}, and the other half are sulking
+the opera at the fair of {$sect} ran out of actors, so disciples are playing the generals now
+
+[world.rumor.tide.early]
+the beasts in the valleys {$sect} guards in {$region.name} have stopped being afraid of the bells
+{$sect} has asked for help with its beast valley in {$region.name}, which it has never done before
+something in {$region.name} has been taking the oxen of {$sect}, and leaving the ropes
+
+[world.rumor.tide.late]
+the beasts are out of the valleys in {$region.name}, and {$sect} guards its own gate instead of the passes
+there are beasts all over {$region.name} this season; {$sect} has stopped counting and started selling hides
+the herders say the beasts in {$region.name} move in herds now, with a big one walking at the back
+
+[world.rumor.ruins.early]
+diggers of {$sect} brought down half a hillside in {$region.name}, and there is a door behind it
+{$sect} has been quarrying in {$region.name}, and last week the quarry fell into something older
+a landslide in {$region.name} has opened a stair going down, and {$sect} has put a fence around it
+
+[world.rumor.ruins.late]
+the ruins {$sect} uncovered in {$region.name} go down nine floors, and the lamps go out on the fifth
+{$sect} has lost two inner disciples in the ruins in {$region.name}, and is now sending outer ones
+anyone with a rope and no sense is going into the ruins in {$region.name}; {$sect} takes a cut at the entrance
+
+[world.rumor.blight.early]
+the herbs in {$region.name} are turning grey at the roots, and {$sect} is buying every sound one it can find
+{$sect} has bought up the spirit grass of {$region.name} at the old price, before anyone noticed the blight
+the herb pickers in {$region.name} come back with empty baskets and black fingers
+
+[world.rumor.blight.late]
+{$sect} sells herbs from its storehouse at three times the price, and calls it charity
+the blight in {$region.name} has reached the old orchards, and {$sect} has locked its granary
+{$sect} says it has a cure for the blight in {$region.name}, but only for those who join the sect
+
+[world.line.feud.start]
+News on the road: {$sect} and {$sect2} have both laid claim to a spirit vein in {$region.name}.
+A peddler tells you that {$sect} and {$sect2} are quarrelling over a new vein in {$region.name}.
+Word comes that {$sect} has marked out a vein in {$region.name}, and {$sect2} has torn up the markers.
+
+[world.line.feud.good]
+The feud over the vein in {$region.name} is over: {$sect} holds it, and {$sect2} is licking its wounds.
+{$sect} has driven {$sect2} from the vein in {$region.name}. The victors are already digging.
+The vein in {$region.name} belongs to {$sect} now; {$sect2} signed it away at a banquet nobody enjoyed.
+
+[world.line.feud.bad]
+The feud between {$sect} and {$sect2} has ended with both sects poorer and the vein in {$region.name} collapsed.
+{$sect} and {$sect2} fought over {$region.name} until a third party bought the vein from both of them.
+Neither {$sect} nor {$sect2} won in {$region.name}; the vein went dry while they were busy.
+
+[world.line.succession.start]
+Word comes that the master of {$sect} is dying.
+You hear that the master of {$sect} has taken to his bed, and his disciples have taken to whispering.
+A traveller says the master of {$sect} has named no heir, and is not expected to see the spring.
+
+[world.line.succession.good]
+{$sect} has a new master, chosen by the elders without bloodshed. Mostly without.
+The first disciple of {$sect} has taken the master's seat, and the others have bowed. For now.
+{$sect} buried its old master and seated a new one in the same week. It is weaker, but whole.
+
+[world.line.succession.bad]
+{$sect} has split in two over its master's seat, and both halves claim the name.
+The succession in {$sect} ended in a duel in the scripture hall. The sect lost its best disciple and half its books.
+{$sect} has a new master and two fewer elders; the elders left by night with the treasury key.
+
+[world.line.bandits.start]
+Bandits are gathering in {$region.name}, and {$sect} has promised to deal with them.
+You hear that the roads into {$region.name} are not safe; {$sect} blames the bandits, and the bandits blame {$sect}.
+A carter tells you that bandits in {$region.name} have taken a tax wagon of {$sect}.
+
+[world.line.bandits.good]
+{$sect} has cleared the bandits out of {$region.name}, and hung their chief at the crossroads.
+The bandits in {$region.name} have scattered; {$sect} takes the credit.
+The roads into {$region.name} are open again. {$sect} sent its elders at last.
+
+[world.line.bandits.bad]
+The bandits in {$region.name} have outlasted {$sect}, which now pays them not to rob its own caravans.
+{$sect} gave up on the bandits in {$region.name}, and the bandits gave up on the roads. Both claim victory.
+The bandit chief of {$region.name} has married into {$sect}. Nobody is sure who won.
+
+[world.line.tournament.start]
+{$sect} has announced a martial tournament in {$region.name}.
+Heralds of {$sect} are on the roads: a tournament in {$region.name}, open to all.
+You hear that {$sect} is holding a tournament in {$region.name}, with a prize nobody has seen.
+
+[world.line.tournament.good]
+The tournament of {$sect} is over, and one of its own disciples won it. The sect stands taller.
+A disciple of {$sect} won the tournament in {$region.name}, and the sect has had three new applicants since breakfast.
+{$sect} won its own tournament, which surprises nobody but pleases the sect.
+
+[world.line.tournament.bad]
+A wandering swordsman won the tournament of {$sect} and left with the prize before the speeches.
+The tournament in {$region.name} ended in a riot; {$sect} has stopped counting the broken benches.
+Nobody from {$sect} reached the last round of its own tournament.
+
+[world.line.fair.start]
+{$sect} is holding a temple fair in {$region.name}.
+You hear drums from the direction of {$region.name}: {$sect} has opened its temple fair.
+Lanterns are going up in {$region.name}; {$sect} holds its fair this season.
+
+[world.line.fair.good]
+The fair of {$sect} in {$region.name} has ended well. The temple roof is new, and so is the sect's reputation.
+{$sect} counted its fair takings and smiled; even the beggars in {$region.name} did well this year.
+The fair in {$region.name} is over, and {$sect} has three hundred new friends.
+
+[world.line.fair.bad]
+The fair of {$sect} ended in a brawl over a winning lottery ticket.
+Rain ruined the fair of {$sect} in {$region.name}, and the opera singers want to be paid anyway.
+The fair in {$region.name} ended early when the lanterns caught the temple. {$sect} is not talking about it.
+
+[world.line.tide.start]
+{$sect} reports that the beasts of its valleys in {$region.name} are restless.
+You hear that the beast valleys {$sect} keeps in {$region.name} have broken their fences.
+Word comes that {$sect} has lost the beast valley in {$region.name}.
+
+[world.line.tide.good]
+{$sect} has driven the beasts back into their valleys in {$region.name}, and nailed new bells to the trees.
+The beast tide in {$region.name} has ebbed; {$sect} holds its valleys again.
+{$sect} has penned the beasts of {$region.name} once more. The hide merchants are sorry to hear it.
+
+[world.line.tide.bad]
+{$sect} has given up its beast valleys in {$region.name}. The beasts have kept them.
+The beasts of {$region.name} won. {$sect} has moved its gate a day's walk back.
+{$sect} lost an elder and a valley to the beasts of {$region.name}, and sold the elder's sword to pay for the funeral.
+
+[world.line.ruins.start]
+A landslide in {$region.name} has uncovered old ruins, and {$sect} has fenced them off.
+Diggers of {$sect} have broken into something old in {$region.name}.
+You hear that {$sect} found a buried stair in {$region.name} and lost a quarryman down it.
+
+[world.line.ruins.good]
+{$sect} has brought something up from the ruins in {$region.name}, and will not say what. Its elders look pleased.
+The ruins in {$region.name} gave {$sect} a cart of old jade and one very old book.
+{$sect} has emptied the ruins in {$region.name} and sealed them again. Its storehouse is fuller.
+
+[world.line.ruins.bad]
+The ruins in {$region.name} took five disciples of {$sect} and gave back nothing.
+{$sect} has walled up the ruins in {$region.name} after something walked out of them.
+Whatever {$sect} found in the ruins in {$region.name}, it was cursed; the sect is selling it off cheap.
+
+[world.line.blight.start]
+A blight has come to the herb fields of {$region.name}, and {$sect} has started buying.
+You hear that the spirit herbs in {$region.name} are withering; {$sect} is filling its storehouse.
+Word comes of a grey blight in {$region.name}. {$sect} says it is nothing, and doubles its guards.
+
+[world.line.blight.good]
+The blight in {$region.name} has passed, and {$sect} sold its hoard before the price fell.
+{$sect} found a cure for the blight in {$region.name}, and is charging for it.
+The herbs of {$region.name} are green again, and {$sect} is richer than before the blight.
+
+[world.line.blight.bad]
+{$sect} hoarded herbs through the blight in {$region.name} and was left with a storehouse of rot.
+The blight in {$region.name} is gone, and so is the good name of {$sect}, which sold dead herbs as living ones.
+{$sect} burned its own herb fields in {$region.name} to stop the blight. It stopped the blight.
+
+[world.line.cond.war.start]
+{$sect} and {$sect2} are at war in {$region.name}. The roads there are full of cultivators looking for a fight.
+War in {$region.name}: {$sect} and {$sect2} have stopped writing letters.
+
+[world.line.cond.war.end]
+The fighting in {$region.name} has died down; {$sect} and {$sect2} are counting their dead.
+It is quiet again in {$region.name}. The war between {$sect} and {$sect2} has moved to the negotiating table.
+
+[world.line.cond.camp.start]
+Bandits have built a camp in {$region.name}. {$sect} has sent word that anyone who breaks it will be thanked.
+A bandit camp now stands in {$region.name}, and the roads there are theirs.
+
+[world.line.cond.camp.end]
+The bandits have struck their camp in {$region.name} and moved on before anyone could break it.
+The camp in {$region.name} is empty; the bandits left in the night.
+
+[world.line.cond.camp.broken]
+You broke the bandit camp in {$region.name}. {$sect} sends its thanks, and the roads are open again.
+The bandit camp in {$region.name} is broken, and it was your doing. {$sect} has heard.
+
+[world.line.cond.tournament.start]
+The tournament of {$sect} has begun in {$region.name}. Fighters fill the roads, and the ranking pays double.
+{$sect} has opened its tournament in {$region.name}. Every challenge on the ranking is worth twice the stones while it lasts.
+
+[world.line.cond.tournament.end]
+The tournament in {$region.name} is over, and the fighters have gone home with their bruises.
+The last bout of the tournament of {$sect} has been fought; the roads of {$region.name} are quieter.
+
+[world.line.cond.fair.start]
+The temple fair of {$sect} fills {$region.name}. Merchants there sell cheap, and travellers crowd the roads.
+Lanterns and pedlars fill {$region.name}: {$sect} holds its fair, and prices are down.
+
+[world.line.cond.fair.end]
+The fair in {$region.name} has packed up its stalls. Prices are back to what they were.
+The last lantern of the fair of {$sect} has gone out in {$region.name}.
+
+[world.line.cond.tide.start]
+Beasts have come out of the valleys in {$region.name}. They are everywhere, and they carry more than usual.
+A beast tide has spilled across {$region.name}. {$sect} cannot hold it.
+
+[world.line.cond.tide.end]
+The beast tide in {$region.name} has ebbed back into the valleys.
+The beasts of {$region.name} have gone back to their valleys, as suddenly as they came.
+
+[world.line.cond.ruins.start]
+A landslide in {$region.name} has laid old ruins open; the searching there is good while it lasts.
+The ruins {$sect} uncovered in {$region.name} stand open, and there is more in them than in most.
+
+[world.line.cond.ruins.end]
+{$sect} has sealed the ruins in {$region.name} again.
+The open ruins in {$region.name} have been picked clean, or walled up. Either way, they are done.
+
+[world.line.cond.blight.start]
+Blight in {$region.name}: herbs grow thin there, and merchants pay half again for every sound one.
+The herb fields of {$region.name} are grey with blight. Herbs there are scarce and dear.
+
+[world.line.cond.blight.end]
+The blight in {$region.name} has run its course; the herbs are coming back.
+New shoots in {$region.name}: the blight is over.
 )PACK";
 
 }  // namespace

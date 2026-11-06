@@ -115,7 +115,7 @@ bool walkTo(GameState& s, const Layout& l, const uint8_t region, const uint8_t t
 
 struct BuiltinPacks {
   std::string text = std::string(builtinPackText(), builtinPackSize());
-  std::vector<PackSection> storage = std::vector<PackSection>(384);
+  std::vector<PackSection> storage = std::vector<PackSection>(448);
   PackIndex index;
   MemoryPackReader reader;
   std::unique_ptr<Grammar> grammar;

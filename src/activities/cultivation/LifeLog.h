@@ -26,8 +26,9 @@ namespace lifelog {
 constexpr uint8_t kMaxSeasonLines = 6;    // DOC: "up to 6"
 constexpr uint8_t kMaxUpheavalLines = 2;  // v0.1.10: regions reshaped by Spatial Upheaval this visit
 constexpr uint8_t kMaxRivalLines = 2;     // v0.2.8: news of your rival this visit
-// + one stage line + one bottleneck line + upheavals + rival news
-constexpr uint8_t kMaxLines = kMaxSeasonLines + 2 + kMaxUpheavalLines + kMaxRivalLines;
+constexpr uint8_t kMaxWorldLines = 1;     // v0.3.2: the living world's news (the rest go to the Chronicle)
+// + one stage line + one bottleneck line + upheavals + rival news + world news
+constexpr uint8_t kMaxLines = kMaxSeasonLines + 2 + kMaxUpheavalLines + kMaxRivalLines + kMaxWorldLines;
 constexpr size_t kLineSize = 200;  // "Winter, age 123. " plus a pack line (under 180 bytes)
 
 inline uint32_t seasonOf(const uint32_t ageMonths) { return ageMonths / 3; }

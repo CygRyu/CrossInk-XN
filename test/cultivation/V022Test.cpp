@@ -474,7 +474,7 @@ TEST(Meetings, WalkingOnTakesWhatTheTileHolds) {
 
 TEST(Meetings, TheTextListsExpandCleanly) {
   std::string text(builtinPackText(), builtinPackSize());
-  std::vector<PackSection> storage(384);
+  std::vector<PackSection> storage(448);
   PackIndex index;
   index.sections = storage.data();
   index.capacity = static_cast<uint16_t>(storage.size());

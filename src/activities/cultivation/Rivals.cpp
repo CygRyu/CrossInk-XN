@@ -7,6 +7,7 @@
 #include "Lineage.h"
 #include "Rivals.h"
 #include "Rng.h"
+#include "Sects.h"
 #include "Simulation.h"
 
 namespace cultivation {
@@ -586,6 +587,7 @@ Bout boutAgainst(const GameState& s, const uint8_t rank) {
   b.chance = explore::winChance(d);
   b.hpCost = hpCostOf(s);
   b.stones = 20u * (s.progress.realm + 1u);
+  if (sects::tournamentOn(s)) b.stones *= 2u;  // v0.3.2: a tournament somewhere doubles the ranking's prizes
   return b;
 }
 }  // namespace

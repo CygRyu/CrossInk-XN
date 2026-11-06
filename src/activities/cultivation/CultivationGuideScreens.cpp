@@ -87,6 +87,11 @@ constexpr GuideTopic kTopics[] = {
      {GameStr::CULT_GUIDE_T10_P1, GameStr::CULT_GUIDE_T10_P1, GameStr::CULT_GUIDE_T10_P1},
      1,
      GuideGate::Always},
+    {GameStr::CULT_GUIDE_T11,  // v0.3.2
+     GameStr::CULT_GUIDE_T11_SUB,
+     {GameStr::CULT_GUIDE_T11_P1, GameStr::CULT_GUIDE_T11_P1, GameStr::CULT_GUIDE_T11_P1},
+     1,
+     GuideGate::Always},
 };
 constexpr uint8_t kTopicCount = sizeof(kTopics) / sizeof(kTopics[0]);
 

@@ -27,6 +27,7 @@
 #include "ScrollNames.h"
 #include "ScrollStore.h"
 #include "Scrolls.h"
+#include "Sects.h"
 #include "Simulation.h"
 #include "Trials.h"
 #include "activities/Activity.h"
@@ -357,6 +358,17 @@ class CultivationActivity final : public Activity {
   void rivalChronicle(const char* listKey, const char* region, const char* name, const char* what, uint32_t extra,
                       const char* note = nullptr);  // v0.2.9: a sentence added at the end ("Noticed: ...")
   cultivation::rivals::News rivalNews_;
+  // v0.3.2: the living world (CultivationWorld.cpp). This visit's world years and their events; the
+  // event whose line went into the Return summary (-1 none); the rest go to the Chronicle after it.
+  cultivation::sects::Steps worldSteps_;
+  int8_t worldSummary_ = -1;
+  void appendWorldSummaryLine();
+  void appendWorldChronicleLines();
+  bool worldEventLine(const cultivation::sects::Event& e, cultivation::lifelog::Line& line);
+  bool worldRumorOfTheDay(uint32_t when);
+  void worldChronicle(const char* listKey, uint8_t region, uint8_t sect, int8_t sect2, uint32_t extra);
+  const char* conditionWord(cultivation::sects::Condition c) const;
+  const char* conditionHere(cultivation::sects::Condition c) const;  // the word and what it does
   int rivalsReturn_ = 0;
   struct RivalsView {
     static constexpr size_t kNameSize = 64;

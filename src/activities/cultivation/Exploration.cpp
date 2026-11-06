@@ -12,6 +12,7 @@
 #include "Rivals.h"
 #include "Rng.h"
 #include "Scrolls.h"
+#include "Sects.h"
 #include "Simulation.h"
 #include "Trials.h"
 
@@ -266,6 +267,11 @@ bool trivialYield(const GameState& s, const uint8_t region) {
 }
 uint32_t halve(const uint32_t v, const bool half) { return half ? (v / 2 > 0 ? v / 2 : (v > 0 ? 1 : 0)) : v; }
 
+// v0.3.2: fight stones in a region at war, +50%.
+uint32_t warStones(const GameState& s, const uint8_t region, const uint32_t stones) {
+  return stones * sects::fightStonesPermille(s, region) / 1000u;
+}
+
 void give(GameState& s, Reward& r, const inventory::Item item, const uint16_t n) {
   if (item == inventory::Item::None || n == 0) return;
   const inventory::AddResult a = inventory::addOrSell(s, item, n);
@@ -326,8 +332,10 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
   ProgressBlock& p = s.progress;
   switch (t) {
     case Tile::Herb:  // v0.2.4: Liver points add one herb each; v0.2.6: and the omen "Herbs grow thick"
+      // v0.3.2: a blight halves what the tile gives.
       give(s, r.reward, inventory::herbFor(region),
-           static_cast<uint16_t>(halve(rng.range(1, 3), half) + meridians::extraHerbs(s) + daily::extraHerbs(s)));
+           static_cast<uint16_t>(halve(halve(rng.range(1, 3), half) + meridians::extraHerbs(s) + daily::extraHerbs(s),
+                                       sects::herbsHalved(s, region))));
       daily::note(s, daily::Task::Gather, r.reward.itemCount);
       r.outcome = TileOutcome::Gathered;
       markUsed(s, region, tile);
@@ -344,8 +352,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
     case Tile::Ruin: {
       // v0.2.6: the Dao of Time and the omen "Old ruins" add to the search.
       // v0.3.0: and the Fated perk, +3 a rank.
+      // v0.3.2: and ruins a landslide exposed, +15.
       const uint32_t luck = 50u + originBonus(s.character.origin).eventLuck + daos::ruinBonus(s) + daily::ruinBonus(s) +
-                            lineage::fatedLuck(s);
+                            lineage::fatedLuck(s) + sects::ruinBonus(s, region);
       if (rng.below(100) < luck) {
         // v0.2.0: one won ruin in five holds a recipe slip instead of stones (v0.2.6: Fate adds).
         if (alchemy::slipRecipe(s) >= 0 && rng.below(100) < 20u + daos::prizeChanceBonus(s)) {
@@ -804,7 +813,8 @@ Fight pendingFight(const GameState& s, const Layout& l) {
       if (f.enemy == Enemy::Cultivator) f.level += l.guardianLevel - (regionBase(f.region) + 6);
       break;
   }
-  f.wound = woundOf(s);  // v0.2.9
+  f.level += sects::enemyLevelBonus(s, f.region);  // v0.3.2: a sect war, +2
+  f.wound = woundOf(s);                            // v0.2.9
   const int d = playerLevel(s, f.enemy == Enemy::Cultivator) - f.level - woundLevels(f.wound);
   f.danger = dangerFor(d);
   f.chance = winChance(d);
@@ -888,17 +898,23 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     }
   }
   Rng encounter(contentSeed(worldSeedOf(s), kKindEncounter, c));
-  if (encounter.below(100) < l.encounterPercent) {
+  if (encounter.below(100) < sects::encounterPercent(s, region, l.encounterPercent)) {  // v0.3.2: beast tide
     // A foe that got away from you here comes back one time in three.
     const int waiting = waitingFoeIn(s, region);
     s.exploration[7] = waiting >= 0 && encounter.below(3) == 0 ? static_cast<uint8_t>(waiting + 1) : 0;
     setPending(s, region, FightKind::Beast);
+    // v0.3.2: a sect war calls cultivators, a bandit camp bandits: one more roll toward them (the
+    // step counter moves on one, so the waiting enemy stays the same until it is fought).
+    const uint8_t favoured = sects::favouredEnemy(s, region);
+    if (favoured != 0xFF && s.exploration[7] == 0 && static_cast<uint8_t>(encounterEnemy(s, region)) != favoured) {
+      setCounter(s, counter(s) + 1);
+    }
     r.fight = true;
     return r;
   }
   // v0.2.2: a cultivator on the road (v0.3.1: 6%, no cap).
   Rng roll(contentSeed(worldSeedOf(s), kKindMeetRoll, c));
-  if (t != Tile::Merchant && roll.below(100) < kMeetPercent) {
+  if (t != Tile::Merchant && roll.below(100) < sects::meetPercent(s, region, kMeetPercent)) {  // v0.3.2: x2
     const int waiting = waitingCultIn(s, region, roll.next());
     const bool again = waiting >= 0 && roll.below(3) == 0;  // one meeting in three is a remembered face
     s.exploration[7] = again ? static_cast<uint8_t>(waiting + 1) : 0;
@@ -1028,24 +1044,27 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
           forgetFoe(s, static_cast<uint8_t>(ring));
           res.foeBeaten = true;
         }
-        if (f.enemy == Enemy::Beast && rng.below(100) < 25) {  // only beasts carry herbs and ores
+        // Only beasts carry herbs and ores (v0.3.2: twice as often in a beast tide).
+        if (f.enemy == Enemy::Beast && rng.below(100) < sects::beastLootPercent(s, f.region, 25)) {
           give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(f.region) : inventory::oreFor(f.region), 1);
         }
+        res.reward.stones = warStones(s, f.region, res.reward.stones);
         p.stones += res.reward.stones;
         resolveTile(s, l, f.region, res.tile);
         break;
       case FightKind::Lair:
         res.reward.stones = halve(kindStones(f.enemy, 2u * rng.range(5, 10) * (f.region + 1u)), half);
-        if (f.enemy == Enemy::Beast && rng.below(100) < 50) {
+        if (f.enemy == Enemy::Beast && rng.below(100) < sects::beastLootPercent(s, f.region, 50)) {
           give(s, res.reward, rng.below(2) == 0 ? inventory::herbFor(f.region) : inventory::oreFor(f.region), 1);
         }
+        res.reward.stones = warStones(s, f.region, res.reward.stones);
         p.stones += res.reward.stones;
         markUsed(s, f.region, f.tile);
         startRegrow(s, f.region);
         break;
       default: {
         uint8_t* b = regionBytes(s, f.region);
-        res.reward.stones = 40u * (f.region + 1u);
+        res.reward.stones = warStones(s, f.region, 40u * (f.region + 1u));
         p.stones += res.reward.stones;
         give(s, res.reward, treasure(rng), 1);
         give(s, res.reward, inventory::Item::TonicMinor, 1);
@@ -1053,6 +1072,17 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
         b[11] = static_cast<uint8_t>(b[11] | kFlagGuardian);
         res.guardianBeaten = true;
         break;
+      }
+    }
+    // v0.3.2: the third bandit beaten at a bandit camp breaks it.
+    if (f.enemy == Enemy::Bandit) {
+      const sects::CampResult camp = sects::banditWon(s, f.region);
+      if (camp.broken) {
+        res.campBroken = true;
+        res.campSect = camp.sect;
+        res.reward.stones += camp.stones;
+        p.stones += camp.stones;
+        give(s, res.reward, inventory::Item::TonicGreater, 1);
       }
     }
     // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
@@ -1412,10 +1442,15 @@ uint16_t listPrice(const GameState& s, const inventory::Item item) {
   return inventory::price(item);
 }
 
-uint16_t buyPrice(const GameState& s, const uint16_t price) {
+uint16_t buyPrice(const GameState& s, const uint16_t price, const uint16_t regionPermille = 1000) {
   if (price == 0) return 0;
   // v0.2.4: Pericardium points; v0.2.6: the omen "Generous road".
-  const uint32_t permille = static_cast<uint32_t>(meridians::buyPermille(s)) * daily::buyPermille(s) / 1000u;
+  uint32_t permille = static_cast<uint32_t>(meridians::buyPermille(s)) * daily::buyPermille(s) / 1000u;
+  // v0.3.2: a temple fair or a blight in the merchant's region; a fair's discount stops at 30% in all.
+  if (regionPermille != 1000) {
+    permille = permille * regionPermille / 1000u;
+    if (regionPermille < 1000 && permille < sects::kBuyFloorPermille) permille = sects::kBuyFloorPermille;
+  }
   const uint32_t p = (static_cast<uint32_t>(price) * permille + 500u) / 1000u;
   return static_cast<uint16_t>(p == 0 ? 1u : p);
 }
@@ -1568,6 +1603,11 @@ Stock stockFor(const GameState& s, const Layout& l, const uint8_t region, const 
     const uint8_t bitIndex = static_cast<uint8_t>(base + i - 2);
     st.lines[i].soldOut = bitIndex < 8 && (b[18] & (1u << bitIndex)) != 0;
   }
+  // v0.3.2: a temple fair or a blight here sets the line's own price.
+  for (uint8_t i = 0; i < st.count; ++i) {
+    const uint16_t permille = sects::buyPermille(s, region, inventory::isHerb(st.lines[i].item));
+    if (permille != 1000) st.lines[i].price = buyPrice(s, listPrice(s, st.lines[i].item), permille);
+  }
   return st;
 }
 
@@ -1600,8 +1640,8 @@ bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile
   const Stock st = stockFor(s, l, region, tile);
   if (line >= st.count || st.lines[line].soldOut || count == 0) return false;
   if (st.lines[line].limited && count != 1) return false;
-  if (!st.lines[line].limited && count > affordable(s, st.lines[line].item)) return false;
-  const uint32_t cost = static_cast<uint32_t>(stockPrice(s, st.lines[line].item)) * count;
+  if (!st.lines[line].limited && count > affordable(s, st.lines[line])) return false;
+  const uint32_t cost = static_cast<uint32_t>(linePrice(s, st.lines[line])) * count;  // v0.3.2: a fair or blight
   if (cost == 0 || s.progress.stones < cost) return false;
   s.progress.stones -= cost;
   if (st.lines[line].item == inventory::Item::RecipeSlip) {
@@ -1617,8 +1657,14 @@ bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile
   return true;
 }
 
-bool sell(GameState& s, const inventory::Item item) {
-  const uint16_t price = inventory::sellPrice(item);
+uint16_t sellPrice(const GameState& s, const uint8_t region, const inventory::Item item) {
+  const uint32_t p = static_cast<uint32_t>(inventory::sellPrice(item)) *
+                     (region < kRegionCount ? sects::sellPermille(s, region, inventory::isHerb(item)) : 1000u) / 1000u;
+  return static_cast<uint16_t>(p > 0xFFFFu ? 0xFFFFu : p);
+}
+
+bool sell(GameState& s, const inventory::Item item, const uint8_t region) {
+  const uint16_t price = sellPrice(s, region, item);
   if (price == 0 || !inventory::remove(s, item)) return false;
   s.progress.stones += price;
   daily::note(s, daily::Task::Merchant);  // v0.2.6

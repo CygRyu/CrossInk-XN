@@ -9,6 +9,7 @@
 #include <Inventory.h>
 #include <LifeLog.h>
 #include <PackCheck.h>
+#include <PackStore.h>
 #include <Rivals.h>
 #include <Simulation.h>
 #include <StatsBridge.h>
@@ -897,6 +898,7 @@ TEST(RivalText, EveryNewListFitsTheScreenAndTheChronicle) {
 
 TEST(RivalText, TheBuiltInPackStillFitsTheDeviceIndex) {
   Pack pack;
-  // PackStore::kMaxSections is 384: leave room for the player's own SD packs.
-  EXPECT_LT(pack.index.count, 320u);
+  // PackStore::kMaxSections is 448 since v0.3.2 (384 before): leave room for the player's own SD packs.
+  EXPECT_LT(pack.index.count, 384u);
+  EXPECT_EQ(PackStore::kMaxSections, 448u);
 }

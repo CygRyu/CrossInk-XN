@@ -17,6 +17,7 @@ namespace exploretext {
 namespace {
 
 constexpr uint32_t kKindRegionName = 81;
+constexpr uint32_t kKindSectName = 136;  // v0.3.2: the five sects of a world
 constexpr uint32_t kKindGuardianName = 89;
 constexpr uint32_t kKindLairName = 90;
 constexpr uint32_t kKindIngredientName = 101;  // 100-119: alchemy
@@ -30,6 +31,8 @@ struct Names {
   const char* point = nullptr;   // v0.2.4: a meridian point and where it is
   const char* place = nullptr;
   const char* what = nullptr;  // v0.2.8: a realm, a rank, a trait
+  const char* sect = nullptr;  // v0.3.2: the living world's sects
+  const char* sect2 = nullptr;
 };
 
 bool lookupNames(const void* user, const char* key, const size_t len, char* out, const size_t outLen) {
@@ -60,6 +63,14 @@ bool lookupNames(const void* user, const char* key, const size_t len, char* out,
   }
   if (len == 4 && memcmp(key, "what", 4) == 0 && n->what != nullptr) {
     snprintf(out, outLen, "%s", n->what);
+    return true;
+  }
+  if (len == 4 && memcmp(key, "sect", 4) == 0 && n->sect != nullptr) {
+    snprintf(out, outLen, "%s", n->sect);
+    return true;
+  }
+  if (len == 5 && memcmp(key, "sect2", 5) == 0 && n->sect2 != nullptr) {
+    snprintf(out, outLen, "%s", n->sect2);
     return true;
   }
   if (len == 9 && memcmp(key, "pill.name", 9) == 0 && n->pill != nullptr) {
@@ -281,6 +292,113 @@ bool nemesisKind(const GameState& s, const uint8_t index, Grammar& grammar, char
   rivals::Nemesis n;
   if (!rivals::nemesis(s, index, n)) return false;
   return enemyName(s, n.birthRegion, n.kind, n.seed, grammar, out, len);
+}
+
+}  // namespace exploretext
+}  // namespace cultivation
+
+namespace cultivation {
+namespace exploretext {
+
+namespace {
+// A sentence never starts in lower case: the first letter, and any after ". "
+// (lines put "the Azure Cloud Sect" at the start of a sentence).
+void sentenceCase(char* t) {
+  if (t[0] >= 'a' && t[0] <= 'z') t[0] = static_cast<char>(t[0] - 'a' + 'A');
+  for (char* p = t; (p = strstr(p, ". ")) != nullptr; p += 2) {
+    if (p[2] >= 'a' && p[2] <= 'z') p[2] = static_cast<char>(p[2] - 'a' + 'A');
+  }
+}
+
+// "the Azure Cloud Sect" -> the two words that tell sects apart, "Azure" and "Cloud".
+bool sameWord(const char* a, const char* b, const int word) {
+  for (int w = 0; w <= word; ++w) {  // skip "the " and earlier words
+    a = strchr(a, ' ');
+    b = strchr(b, ' ');
+    if (a == nullptr || b == nullptr) return false;
+    ++a;
+    ++b;
+  }
+  const char* ae = strchr(a, ' ');
+  const char* be = strchr(b, ' ');
+  const size_t al = ae != nullptr ? static_cast<size_t>(ae - a) : strlen(a);
+  const size_t bl = be != nullptr ? static_cast<size_t>(be - b) : strlen(b);
+  return al == bl && memcmp(a, b, al) == 0;
+}
+}  // namespace
+
+bool sectName(const GameState& s, const uint8_t index, Grammar& grammar, char* out, const size_t len) {
+  // Five names easy to tell apart: each sect's first word ("Azure", "Jade") is
+  // its own. Worked out in order, so sect i needs the names before it.
+  if (index >= 5) return false;
+  char names[5][kNameSize];
+  for (uint8_t i = 0; i <= index; ++i) {
+    bool found = false;
+    for (uint8_t attempt = 0; attempt < 48 && !found; ++attempt) {
+      if (!expandName(s, "the {sect.name}", 0, contentSeed(worldSeedOf(s), kKindSectName, i * 64u + attempt), grammar,
+                      names[i], sizeof(names[i]))) {
+        return false;
+      }
+      found = true;
+      for (uint8_t j = 0; j < i && found; ++j) found = !sameWord(names[i], names[j], 0);
+    }
+  }
+  snprintf(out, len, "%s", names[index]);
+  return true;
+}
+
+namespace {
+struct WorldNames {
+  char region[kNameSize];
+  char sect[kNameSize];
+  char sect2[kNameSize];
+};
+bool worldNames(const GameState& s, const uint8_t region, const uint8_t sect, const int8_t sect2, Grammar& grammar,
+                WorldNames& n) {
+  n.region[0] = n.sect[0] = n.sect2[0] = '\0';
+  if (!regionName(s, region, grammar, n.region, sizeof(n.region))) return false;
+  if (!sectName(s, sect, grammar, n.sect, sizeof(n.sect))) return false;
+  if (sect2 >= 0 && !sectName(s, static_cast<uint8_t>(sect2), grammar, n.sect2, sizeof(n.sect2))) return false;
+  return true;
+}
+}  // namespace
+
+bool worldLine(lifelog::Line& line, const GameState& s, const char* listKey, const uint32_t seed, const uint8_t region,
+               const uint8_t sect, const int8_t sect2, Grammar& grammar) {
+  WorldNames wn;
+  if (!worldNames(s, region, sect, sect2, grammar, wn)) return false;
+  Names names{wn.region, nullptr};
+  names.sect = wn.sect;
+  names.sect2 = sect2 >= 0 ? wn.sect2 : nullptr;
+  GrammarValues extra;
+  extra.lookup = lookupNames;
+  extra.user = &names;
+  if (!lifelog::eventLine(line, lifelog::LineKind::Event, listKey, seed, s, grammar, &extra)) return false;
+  sentenceCase(line.text);
+  return true;
+}
+
+bool worldRumor(const GameState& s, const char* listKey, const uint32_t seed, const uint8_t region, const uint8_t sect,
+                const int8_t sect2, Grammar& grammar, char* out, const size_t len) {
+  out[0] = '\0';
+  WorldNames wn;
+  if (!worldNames(s, region, sect, sect2, grammar, wn)) return false;
+  Names names{wn.region, nullptr};
+  names.sect = wn.sect;
+  names.sect2 = sect2 >= 0 ? wn.sect2 : nullptr;
+  Chain chain{names, gameValues(s)};
+  GrammarContext ctx;
+  ctx.values.lookup = lookupChain;
+  ctx.values.user = &chain;
+  if (!grammar.hasKey(listKey, ctx)) return false;
+  char tmpl[64];
+  snprintf(tmpl, sizeof(tmpl), "{world.rumor.opening} {%s}.", listKey);
+  grammar.beginScene();
+  const char* text = grammar.expand(tmpl, seed, ctx);
+  if (grammar.missing() > 0 || text == nullptr) return false;
+  snprintf(out, len, "%s", text);
+  sentenceCase(out);
+  return true;
 }
 
 }  // namespace exploretext

@@ -302,7 +302,9 @@ struct FightResult {
   bool collapsed = false;      // v0.2.9: the loss took the last HP: carried back to the entrance
   Reward reward;
   bool guardianBeaten = false;
-  StepResult tile;  // after winning or slipping past a beast: the tile's content
+  bool campBroken = false;  // v0.3.2: the third bandit beaten at a bandit camp (stones and a Greater tonic added)
+  uint8_t campSect = 0;     // whose story the camp was
+  StepResult tile;          // after winning or slipping past a beast: the tile's content
 };
 
 FightResult fight(GameState& state, const Layout& layout, FightChoice choice);
@@ -440,7 +442,10 @@ inline uint16_t affordable(const GameState& state, const StockLine& line) {
   const uint16_t most = affordable(state, line.item, line.price);
   return line.left != 0 && line.left < most ? line.left : most;
 }
-bool sell(GameState& state, inventory::Item item);
+// v0.3.2: what an item sells for at a merchant in `region` (a blight raises herbs by half);
+// kRegionCount or more: no region.
+uint16_t sellPrice(const GameState& state, uint8_t region, inventory::Item item);
+bool sell(GameState& state, inventory::Item item, uint8_t region = 0xFF);
 
 }  // namespace explore
 }  // namespace cultivation

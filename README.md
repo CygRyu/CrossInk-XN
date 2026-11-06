@@ -27,6 +27,7 @@ Nothing happens while the book is closed, and nothing is lost either: no decay, 
 - **Daily omens and tasks**, scaled to how much you usually read. Readers without a clock get reading days instead of calendar days.
 - **Your rival:** a cultivator of your own age who trains every day, plus a ranking of twenty to climb in each realm.
 - **Nemeses:** enemies who beat you may come back, stronger and with habits of their own to discover.
+- **A living world:** five sects follow their own feuds, successions, tournaments and troubles while you read, and now and then one spills into your regions for a few hours: a sect war, a bandit camp to break, a temple fair, a beast tide, open ruins or a blight. You hear about it in rumors and in your Chronicle.
 - **Wounds that matter:** fight low on HP and you fight worse; lose with your last HP and you come to at the region's entrance, with nothing taken.
 - **The Chronicle:** your character's whole life, written as you go, readable as a book in the reader.
 - **Lives and rebirth:** each realm gives a lifespan. From Foundation Establishment you can reincarnate into a new world, carrying imprints, legacy perks and a small Qi bonus from your best realm; every past life's Chronicle is kept.
@@ -47,10 +48,10 @@ The game uses CrossInk's own reading stats, from this device only:
 
 |Device|File|
 |-|-|
-|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.1.bin`|
-|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.1.bin`|
-|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.1.bin`|
-|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.1.bin`|
+|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.2.bin`|
+|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.2.bin`|
+|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.2.bin`|
+|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.2.bin`|
 
 2. Flash it. If your reader already runs CrossInk, copy the file to the SD card and choose **Settings > System > SD Card Firmware Update**. Otherwise see the [command line instructions](./docs/installation.md#command-line).
 3. Set the date and time in the settings if your reader has a clock. Without a date (the original X4 has no clock), the daily systems, your rival and the ranking run on reading days: a new day after an hour of reading and a sleep.

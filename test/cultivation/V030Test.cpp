@@ -77,8 +77,8 @@ void addScroll(GameState& s, const scrolls::Scroll& sc) {
 // --- Save v7 ---------------------------------------------------------------------------------------
 
 TEST(V030Save, LineageRoundTripsAndOldSavesLoadEmpty) {
-  EXPECT_EQ(save::kSaveVersion, 7);
-  EXPECT_EQ(save::kPayloadSize, 1557u);
+  EXPECT_GE(save::kSaveVersion, 7);  // v0.3.2: 8
+  EXPECT_EQ(save::kPayloadSizeV7, 1557u);
   GameState s = character(3);
   s.lineage[lineage::kBestRealm] = 5;
   s.lineage[71] = 0xA5;

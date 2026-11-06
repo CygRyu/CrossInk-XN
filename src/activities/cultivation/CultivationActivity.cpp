@@ -466,6 +466,9 @@ void CultivationActivity::updateRumor() {
   const char* text = grammar_->expand(pattern, contentSeed(worldSeedOf(*state_), kKindRumor, when), ctx);
   snprintf(rumor_, sizeof(rumor_), "%s", text);
   packs_->closeFile();
+  // v0.3.2: one day in three, a live story of the living world.
+  worldRumorOfTheDay(when);
+  if (packs_) packs_->closeFile();
   // v0.2.8: one day in four the rumor is about a nemesis (and tells you one of its ways).
   if (day != StatsSnapshot::kNoDay) nemesisRumor(day);
   if (grammar_->missing() > 0) {
@@ -528,6 +531,13 @@ void CultivationActivity::startVisit() {
   rivals::setClockHour(currentLocalHour());
   rivalNews_ = rivals::update(*state_, now);
   rivals::roam(*state_);
+  // v0.3.2: the living world takes one step per reading hour (before the regions tick).
+  worldSteps_ = sects::advance(*state_);
+  worldSummary_ = -1;
+  if (worldSteps_.years > 0) {
+    LOG_INF("CULT", "World: %u years, %u events", static_cast<unsigned>(worldSteps_.years),
+            static_cast<unsigned>(worldSteps_.count + worldSteps_.dropped));
+  }
   // v0.1.10: herbs regrow and cleared regions reshape on reading time.
   upheavals_ = explore::tick(*state_);
   updateRumor();
@@ -546,6 +556,7 @@ void CultivationActivity::startVisit() {
   } else {
     appendUpheavalLines(upheavals_);  // straight into the Chronicle
     appendRivalLines(rivalNews_);
+    appendWorldChronicleLines();  // v0.3.2
   }
   // Books finished since the last visit become scrolls (Chronicle lines first,
   // like the life log). minted.bin and the pending list are only updated
@@ -573,6 +584,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   lifeLog_ = makeUniqueNoThrow<lifelog::LifeLog>();
   if (!lifeLog_) {
     LOG_ERR("CULT", "Out of memory for the life log (%u bytes)", static_cast<unsigned>(sizeof(lifelog::LifeLog)));
+    appendWorldChronicleLines();  // v0.3.2: the world's news still reaches the Chronicle
     return;
   }
   lifelog::build(*lifeLog_, change, visit_.monthsPassed, *state_, grammar_.get());
@@ -585,8 +597,13 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
     snprintf(line.text, sizeof(line.text), "%s",
              ageWarning_ == lineage::Age::Failing ? ctr(CULT_AGE_FAILING) : ctr(CULT_AGE_GREYING));
   }
+  // v0.3.2: last, one line of the world's news; the Chronicle gets all of it, in order, after the visit.
+  appendWorldSummaryLine();
   if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
+  if (worldSummary_ >= 0) --lifeLog_->count;
   chronicle::appendVisit(*lifeLog_);
+  if (worldSummary_ >= 0) ++lifeLog_->count;
+  appendWorldChronicleLines();
   if (packs_) packs_->closeFile();
 }
 

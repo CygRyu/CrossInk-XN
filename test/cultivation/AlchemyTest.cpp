@@ -58,7 +58,7 @@ void readFor(GameState& s, const uint32_t minutes) { s.progress.gameReadingSecon
 
 struct BuiltinPacks {
   std::string text = std::string(builtinPackText(), builtinPackSize());
-  std::vector<PackSection> storage = std::vector<PackSection>(384);
+  std::vector<PackSection> storage = std::vector<PackSection>(448);
   PackIndex index;
   MemoryPackReader reader;
   std::unique_ptr<Grammar> grammar;
