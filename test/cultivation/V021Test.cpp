@@ -139,8 +139,10 @@ void walkOn(GameState& s, const Layout& l) {
 
 // --- Encounter cap ----------------------------------------------------------------------
 
-TEST(Encounters, NeverTwoRandomFightsInARow) {
+// v0.3.1 (user): the cap is gone, so interruptions do come on consecutive steps.
+TEST(Encounters, FightsAndMeetingsMayComeTwiceInARow) {
   int fights = 0;
+  int twice = 0;
   for (uint32_t world = 1; world < 30; ++world) {
     GameState s = makeCharacter(9, world * 7919u);
     const Layout l = layoutOf(s, 0);
@@ -152,10 +154,10 @@ TEST(Encounters, NeverTwoRandomFightsInARow) {
       const uint8_t to = walkableNeighbour(l, position(s, l, 0), i);
       if (to == kNoTile) break;
       const StepResult r = step(s, l, 0, to);
-      // v0.2.2: a meeting counts too: never two interruptions in a row.
       const bool random = r.fight || r.meeting;
-      EXPECT_FALSE(last && random) << "world " << world << " step " << i;
+      if (last && random) ++twice;
       last = random;
+      if (r.meeting) meet(s, l, MeetChoice::WalkOn);
       if (r.fight) {
         fight(s, l, FightChoice::Fight);
         ++fights;
@@ -164,6 +166,7 @@ TEST(Encounters, NeverTwoRandomFightsInARow) {
     }
   }
   EXPECT_GT(fights, 100);
+  EXPECT_GT(twice, 5);
 }
 
 // --- Returning foes ------------------------------------------------------------------------
@@ -479,6 +482,7 @@ TEST(Loot, HardFightsSometimesPayWithAPrize) {
       s.progress.stamina = 12;
       s.progress.hp = 100;
       step(s, l, 2, walkableNeighbour(l, position(s, l, 2), i));
+      while (meetingRegion(s) >= 0) meet(s, l, MeetChoice::WalkOn);  // v0.3.1: meetings are more common
       const Fight f = pendingFight(s, l);
       if (f.kind == FightKind::None) continue;
       const bool hard = f.danger >= Danger::Hazardous;

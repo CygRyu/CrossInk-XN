@@ -21,8 +21,9 @@
 // Memory, all owned by this object (allocated by the activity in onEnter()):
 // 384 index records (4.6 KB, heap, because the count is only known at run
 // time and 4.6 KB is too much for a task stack), the file table (~0.9 KB) and
-// a 128-byte read buffer. A rebuild borrows two more buffers (0.5 KB) for its
-// duration and the checker (~0.6 KB); nothing else allocates.
+// a 128-byte read buffer. A rebuild borrows ~4.3 KB more for its duration
+// (a 256-byte line buffer, the findings, the first 20 report messages, 3.2 KB,
+// and the checker, ~0.7 KB; module README "Memory"); nothing else allocates.
 namespace cultivation {
 
 struct ScanFindings;  // problems a rescan found, for pack_report.txt

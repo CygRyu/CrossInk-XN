@@ -90,7 +90,7 @@ GameState worldFor(const uint8_t realm, const bool herbNext = false) {
 
 }  // namespace
 
-TEST(Meetings, AreRareReproducibleAndShareTheCap) {
+TEST(Meetings, AreRareAndReproducible) {
   GameState s = worldFor(9);
   s.progress.stage = 3;
   const Layout l = layoutOf(s, 0);
@@ -101,7 +101,6 @@ TEST(Meetings, AreRareReproducibleAndShareTheCap) {
   GameState copy = s;
   int meetings = 0;
   int steps = 0;
-  bool last = false;
   for (int i = 0; i < 4000; ++i) {
     s.progress.stamina = copy.progress.stamina = 12;
     s.progress.hp = copy.progress.hp = 100;
@@ -111,9 +110,6 @@ TEST(Meetings, AreRareReproducibleAndShareTheCap) {
     ASSERT_EQ(r1.meeting, r2.meeting);
     ASSERT_EQ(r1.fight, r2.fight);
     EXPECT_FALSE(r1.fight && r1.meeting);
-    const bool interrupted = r1.fight || r1.meeting;
-    EXPECT_FALSE(last && interrupted) << "step " << i;
-    last = interrupted;
     ++steps;
     if (r1.meeting) {
       ++meetings;
@@ -128,8 +124,9 @@ TEST(Meetings, AreRareReproducibleAndShareTheCap) {
     while (pendingFight(copy, l).kind != FightKind::None) fight(copy, l, FightChoice::Fight);
   }
   const double share = 100.0 * meetings / steps;
-  EXPECT_GT(share, 2.0);
-  EXPECT_LT(share, 6.0);
+  // v0.3.1: 6% of steps that bring no fight, never on a merchant tile.
+  EXPECT_GT(share, 3.5);
+  EXPECT_LT(share, 8.0);
 }
 
 TEST(Meetings, TemperamentsAndOffersFollowTheTable) {

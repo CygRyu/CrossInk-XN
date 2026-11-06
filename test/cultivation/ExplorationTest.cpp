@@ -468,7 +468,7 @@ TEST(Exploration, HerbsRegrowAfterThreeReadingHoursUniquesDoNot) {
   }
 }
 
-TEST(Exploration, UpheavalReshapesTwentyReadingHoursAfterClearing) {
+TEST(Exploration, UpheavalReshapesTenReadingHoursAfterClearing) {
   GameState s = makeCharacter(9);
   s.progress.stage = 3;
   const Layout l = layoutOf(s, 0);
@@ -479,7 +479,7 @@ TEST(Exploration, UpheavalReshapesTwentyReadingHoursAfterClearing) {
     }
   }
   ASSERT_TRUE(cleared(s, 0));
-  s.progress.gameReadingSeconds += 19 * 3600;
+  s.progress.gameReadingSeconds += 9 * 3600;
   EXPECT_EQ(tick(s), 0);
   s.progress.gameReadingSeconds += 3600;
   EXPECT_EQ(tick(s), 1);

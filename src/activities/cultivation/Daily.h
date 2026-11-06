@@ -122,6 +122,8 @@ uint16_t averagePagesX10(const GameState& state);
 // CrossInk's 730-day history goes): days with reading in a row, where one
 // missed day per calendar week (Monday to Sunday) is covered (the doc's
 // Stillness Charm). Today without reading yet does not break it.
+// v0.3.1: on reading days (Days.h) the streak counts reading days in a row:
+// one more at each rollover (user), never broken (each one had an hour of reading).
 uint16_t currentStreak(const GameState& state);
 uint16_t longestStreak(const GameState& state);  // since creation; feeds the Dao of Time
 struct Streaks {
@@ -138,6 +140,9 @@ uint16_t buyPermille(const GameState& state);  // 900 on a Generous road day
 int fightLevelBonus(const GameState& state);
 uint8_t slipBonus(const GameState& state);
 uint8_t heartDemonBonus(const GameState& state);
+
+// v0.3.1: moves the stored day ("today") by `delta`, for days::resolve() when the date comes back.
+void shiftDays(GameState& state, int32_t delta);
 uint16_t lightningPermille(const GameState& state);  // 900 on a Calm sky day
 uint8_t ruinBonus(const GameState& state);
 uint32_t consolidationPermille(const GameState& state);  // 1200 on a Quiet mind day

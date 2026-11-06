@@ -227,10 +227,23 @@ void update(GameState& s, const VisitGains& g, const StatsSample& now, const uin
   }
   flags(s) |= kLive;
 
+  if (now.readingDay) {
+    // v0.3.1: reading days in a row, one more for each new reading day (and the first one).
+    if (D != T || get16(s, kCurrent) == 0) put16(s, kCurrent, static_cast<uint32_t>(get16(s, kCurrent)) + 1u);
+    if (get16(s, kCurrent) > get16(s, kLongest)) put16(s, kLongest, get16(s, kCurrent));
+    return;
+  }
   const uint32_t from = s.character.creationDay != kNoDay ? s.character.creationDay : 0u;
   const Streaks st = computeStreaks(now, from);
   put16(s, kCurrent, st.current);
   if (st.longest > get16(s, kLongest)) put16(s, kLongest, st.longest);
+}
+
+void shiftDays(GameState& s, const int32_t delta) {
+  const uint16_t d = get16(s, kDay);
+  if (d == 0) return;
+  const int32_t v = static_cast<int32_t>(d) + delta;
+  put16(s, kDay, static_cast<uint32_t>(v < 1 ? 1 : v));
 }
 
 Task task(const GameState& s, const uint8_t slot) {

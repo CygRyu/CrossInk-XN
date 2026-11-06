@@ -69,9 +69,9 @@ namespace rivals {
 
 enum class Temper : uint8_t { Idle = 0, Steady, Driven, Erratic, LateBloomer, Count };
 
-constexpr uint16_t kHiatusDays = 7;     // unread days before the rival pauses (from the 8th)
-constexpr uint16_t kReactionDays = 14;  // two weeks
-constexpr uint8_t kRivalMeetPercent = 25;
+constexpr uint16_t kHiatusDays = 7;        // unread days before the rival pauses (from the 8th)
+constexpr uint16_t kReactionDays = 14;     // two weeks
+constexpr uint8_t kRivalMeetPercent = 40;  // v0.3.1 (user; 25 before)
 // Median reading hours per realm x 10 (balance_sim.py report, 30 min/day, session 11).
 constexpr uint16_t kRealmDeciHours[10] = {40, 122, 374, 518, 793, 1003, 1160, 1357, 1549, 1633};
 
@@ -127,6 +127,10 @@ bool canMeetIn(const GameState& state, uint8_t region);
 bool offersTrade(const GameState& state, uint8_t meeting);
 void markKnown(GameState& state);
 void markMet(GameState& state);
+// v0.3.1: moves every stored day (last credited, reaction, the ladder's bouts) by `delta`,
+// for days::resolve() when the date comes back after reading days.
+void shiftDays(GameState& state, int32_t delta);
+
 // You beat them (on the road or the ladder) on `today` (kNoDay without a date): record and reaction.
 void beaten(GameState& state, uint32_t today);
 void lostTo(GameState& state);

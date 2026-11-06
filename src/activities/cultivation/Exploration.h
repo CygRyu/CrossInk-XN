@@ -28,7 +28,7 @@
 // Charted = stepped on. Every walkable tile charted and the guardian beaten:
 // Cleared, with a one-time reward. Herbs, ores, quiet spots and lairs come
 // back 3 reading hours after the first one was used; ruins, caves and the
-// guardian are once per layout. 20 reading hours after clearing (or at once
+// guardian are once per layout. 10 reading hours after clearing (v0.3.1; 20 before) (or at once
 // with a Region Talisman) the region reshapes: new layout, guardian and
 // unique finds; name, theme and beasts stay.
 //
@@ -36,8 +36,8 @@
 //   0-3   encounter step counter u32
 //   4     region of the waiting fight (+1; 0 = none)
 //   5     waiting fight: 0 none, 1 beast, 2 lair, 3 guardian
-//   6     v0.2.1: bit 0x01 the last step brought a random fight (no two in a row)
-//         v0.2.2: ... or a meeting; 0x02 talked, 0x04 slip bought, 0x08 treasure bought,
+//   6     v0.2.1: bit 0x01 the last step brought a random fight or (v0.2.2) a meeting;
+//         spare since v0.3.1 (the cap is gone; step() clears it); 0x02 talked, 0x04 slip bought, 0x08 treasure bought,
 //         0x10 bought something, bits 5-7 the traveller's ingredient bought (0-5)
 //         (all about the waiting meeting)
 //   7     v0.2.1: the waiting random fight is returning foe N - 1 (0 = a new one)
@@ -58,8 +58,8 @@ constexpr uint8_t kRegionCount = 10;  // one per realm; nine open on the Mortal 
 constexpr uint8_t kGrid = 6;
 constexpr uint8_t kTiles = kGrid * kGrid;
 constexpr uint8_t kNoTile = 0xFF;
-constexpr uint32_t kRegrowUnits = 18;     // 3 reading hours, in 10-minute units
-constexpr uint32_t kUpheavalUnits = 120;  // 20 reading hours
+constexpr uint32_t kRegrowUnits = 18;    // 3 reading hours, in 10-minute units
+constexpr uint32_t kUpheavalUnits = 60;  // 10 reading hours (v0.3.1, user; 20 before)
 constexpr uint8_t kMerchantStockMax = 5;
 
 enum class Tile : uint8_t { Blocked = 0, Path, Herb, Ore, Ruin, Cave, Lair, Merchant, Quiet, Guardian, Count };
@@ -329,7 +329,7 @@ FightResult fight(GameState& state, const Layout& layout, FightChoice choice);
 // One meeting in three in that region is a remembered cultivator, 3 levels
 // stronger per earlier meeting (at most 6).
 constexpr uint8_t kMeetRing = 4;
-constexpr uint8_t kMeetPercent = 4;
+constexpr uint8_t kMeetPercent = 6;  // v0.3.1 (user; 4 before)
 constexpr uint8_t kMeetLevelStep = 3;
 constexpr uint8_t kTraderTile = 0xFE;        // Stock/buy "tile" of the waiting meeting's traveller
 constexpr uint8_t kTraderIngredientMax = 5;  // per meeting (agreed with the user)

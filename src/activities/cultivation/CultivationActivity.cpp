@@ -21,6 +21,7 @@
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "CultivatorSleepScreen.h"
+#include "Days.h"
 #include "GameText.h"
 #include "GameValues.h"
 #include "MappedInputManager.h"
@@ -42,6 +43,9 @@ namespace {
 // GlobalReadingStats::localResetRevision() only means something within one
 // boot, so the last value seen lives in RAM (8 bytes), not in the save.
 RevisionWatch s_revisionWatch;
+// v0.3.1: false until the first visit of this boot. A wake is a new boot (the
+// X3 and X4 restart from deep sleep), so the first visit after one has slept.
+bool s_visitedThisBoot = false;
 
 constexpr char kDamagedSavePath[] = "/.crosspoint/cultivation/save.damaged.bin";
 
@@ -433,12 +437,13 @@ void CultivationActivity::loadPacks() {
 
 // One rumor per day (DOC: "Rumor of the day"): seeded by the world and the
 // date, so it stays the same all day and differs between worlds. Without a
-// clock it changes with each reading hour instead.
+// clock it follows the reading day (v0.3.1), or before any, each reading hour.
 void CultivationActivity::updateRumor() {
   rumor_[0] = '\0';
   if (!grammar_ || !state_ || !state_->isCreated()) return;
   constexpr uint32_t kKindRumor = 50;
-  const uint32_t day = state_->snapshot.lastVisitDay;
+  uint32_t day = state_->snapshot.lastVisitDay;
+  if (day == StatsSnapshot::kNoDay && days::inUse(*state_) && daily::live(*state_)) day = daily::today(*state_);
   const uint32_t when = day != StatsSnapshot::kNoDay ? day : 0x80000000u + state_->progress.gameReadingSeconds / 3600u;
   GrammarContext ctx;
   ctx.plane = 0;  // the Mortal Plane until ascension exists
@@ -482,7 +487,7 @@ bool CultivationActivity::persist() {
 // fails, the snapshot on the card is unchanged too, so the same reading is
 // simply counted again next time: nothing is lost or doubled.
 void CultivationActivity::startVisit() {
-  const StatsSample now = readLocalStats();
+  StatsSample now = readLocalStats();
   const uint32_t lastVisitDay = state_->snapshot.lastVisitDay;  // v0.2.6: the daily systems need it
   const VisitGains gains = bridge::collect(state_->snapshot, now, s_revisionWatch);
   originGift_ = grantOriginGifts(*state_);  // only for characters made before origin gifts existed
@@ -507,6 +512,14 @@ void CultivationActivity::startVisit() {
   // Only the first time the bar fills in a realm: after a failed breakthrough,
   // refilling it is not news (found in the simulator).
   change.reachedBottleneck = !bottleneckBefore && atBottleneck(*state_) && state_->progress.failures == 0;
+  // v0.3.1: without a date, the reading day (after the allowance, which stays off without a date).
+  const days::Result dayResult = days::resolve(*state_, now, !s_visitedThisBoot);
+  s_visitedThisBoot = true;
+  if (dayResult.rolled || dayResult.switched) {
+    LOG_INF("CULT", "Day: %s %lu%s, shift %ld", dayResult.readingDays ? "reading day" : "calendar day",
+            static_cast<unsigned long>(now.today), dayResult.rolled ? " (new)" : "",
+            static_cast<long>(dayResult.shift));
+  }
   // v0.2.6: the day's omen and tasks, the streak, time of day for the Daos, then any Dao found.
   daily::update(*state_, gains, now, lastVisitDay);
   daos::addReading(*state_, gains, state_->snapshot);

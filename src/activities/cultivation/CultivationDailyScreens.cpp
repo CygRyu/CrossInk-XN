@@ -16,6 +16,7 @@
 #include "CultivationUi.h"
 #include "Daily.h"
 #include "Daos.h"
+#include "Days.h"
 #include "GameText.h"
 #include "LifeLog.h"
 #include "Simulation.h"
@@ -421,14 +422,17 @@ void CultivationActivity::renderDaily(const int x, int y, const int width, const
     }
   }
   dy += metrics.verticalSpacing;
-  if (daily::currentStreak(s) == 1) {
+  if (days::inUse(s)) {  // v0.3.1: reading days, no date
+    snprintf(line, sizeof(line), ctr(CULT_STREAK_READING_DAYS_FORMAT), static_cast<unsigned>(daily::currentStreak(s)),
+             static_cast<unsigned>(daily::longestStreak(s)));
+  } else if (daily::currentStreak(s) == 1) {
     snprintf(line, sizeof(line), ctr(CULT_STREAK_ONE_FORMAT), static_cast<unsigned>(daily::longestStreak(s)));
   } else {
     snprintf(line, sizeof(line), ctr(CULT_STREAK_FORMAT), static_cast<unsigned>(daily::currentStreak(s)),
              static_cast<unsigned>(daily::longestStreak(s)));
   }
   dy = drawWrapped(SMALL_FONT_ID, x, dy, width, line, 2);
-  drawWrapped(SMALL_FONT_ID, x, dy, width, ctr(CULT_TASK_NOTE), 2);
+  drawWrapped(SMALL_FONT_ID, x, dy, width, days::inUse(s) ? ctr(CULT_TASK_NOTE_READING_DAYS) : ctr(CULT_TASK_NOTE), 2);
 }
 
 // --- Daos -------------------------------------------------------------------------------------

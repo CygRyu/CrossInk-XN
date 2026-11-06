@@ -27,7 +27,12 @@ struct StatsSample {
   uint32_t historyAnchorDay = 0;
   std::array<uint8_t, kHistoryBytes> historyBits{};
 
-  // Whether CrossInk recorded reading on `day`.
+  // v0.3.1: `today` is a reading day (Days.h), not a calendar date: there was
+  // no date. Set by days::resolve(), never by readLocalStats().
+  bool readingDay = false;
+
+  // Whether CrossInk recorded reading on `day`. On reading days every day had
+  // reading (a reading day only ends after an hour of it).
   bool readOn(uint32_t day) const;
 };
 

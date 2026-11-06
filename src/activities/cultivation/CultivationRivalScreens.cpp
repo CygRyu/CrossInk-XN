@@ -15,6 +15,7 @@
 #include "CultivationActivity.h"
 #include "CultivationUi.h"
 #include "Daily.h"
+#include "Days.h"
 #include "ExploreText.h"
 #include "GameText.h"
 #include "LifeLog.h"
@@ -560,7 +561,8 @@ void CultivationActivity::renderRivals(const int x, int y, const int width, cons
                  static_cast<unsigned>(n));
         return t;
       });
-  drawWrapped(SMALL_FONT_ID, x, noteTop, width, ctr(CULT_RIVALS_NOTE), 3);
+  drawWrapped(SMALL_FONT_ID, x, noteTop, width,
+              days::inUse(*state_) ? ctr(CULT_RIVALS_NOTE_READING_DAYS) : ctr(CULT_RIVALS_NOTE), 3);
 }
 
 void CultivationActivity::renderRivalCard(const int x, int y, const int width, const int bottom) {

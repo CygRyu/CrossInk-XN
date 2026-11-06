@@ -156,7 +156,7 @@ constexpr uint8_t kMeetFlagSlip = 0x04;
 constexpr uint8_t kMeetFlagTreasure = 0x08;
 constexpr uint8_t kMeetFlagBought = 0x10;
 constexpr uint8_t kMeetBoughtShift = 5;  // bits 5-7: the traveller's ingredient bought (0-5)
-constexpr uint8_t kMeetFlags = 0xFE;     // everything about the waiting meeting (bit 0x01 is the step cap)
+constexpr uint8_t kMeetFlags = 0xFE;     // everything about the waiting meeting (bit 0x01 was the step cap)
 
 struct Cult {
   uint8_t region = 0;
@@ -857,7 +857,8 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
   setCounter(s, c + 1);
 
   const Tile t = l.tiles[to];
-  const bool afterRandomFight = (s.exploration[6] & 0x01) != 0;
+  // v0.3.1 (user): the v0.2.1 cap is gone, so fights and meetings may come on consecutive steps.
+  // Bit 0x01 is still cleared here, so a save from before v0.3.1 holds no stale cap.
   s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~0x01);
   if ((t == Tile::Lair || t == Tile::Guardian) && !used(s, region, to)) {
     setPending(s, region, t == Tile::Lair ? FightKind::Lair : FightKind::Guardian);
@@ -865,12 +866,11 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     return r;
   }
   // v0.2.8: a nemesis roaming this region finds you (6%, Ambusher 12%), unless resting.
-  if (!afterRandomFight) {
+  {
     const int nemi = rivals::ambush(s, region, contentSeed(worldSeedOf(s), kKindNemesisFind, c));
     if (nemi >= 0) {
       s.exploration[7] = static_cast<uint8_t>(kNemesisSlot | (nemi + 1));
       setPending(s, region, FightKind::Beast);
-      s.exploration[6] = static_cast<uint8_t>(s.exploration[6] | 0x01);
       rivals::Nemesis n;
       rivals::nemesis(s, static_cast<uint8_t>(nemi), n);
       if (rivals::hasTrait(n, rivals::Trait::Coward) && pendingFight(s, l).chance >= 60) {
@@ -888,28 +888,26 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     }
   }
   Rng encounter(contentSeed(worldSeedOf(s), kKindEncounter, c));
-  // v0.2.1 (user): never two random fights on consecutive steps.
-  if (encounter.below(100) < l.encounterPercent && !afterRandomFight) {
+  if (encounter.below(100) < l.encounterPercent) {
     // A foe that got away from you here comes back one time in three.
     const int waiting = waitingFoeIn(s, region);
     s.exploration[7] = waiting >= 0 && encounter.below(3) == 0 ? static_cast<uint8_t>(waiting + 1) : 0;
     setPending(s, region, FightKind::Beast);
-    s.exploration[6] = static_cast<uint8_t>(s.exploration[6] | 0x01);
     r.fight = true;
     return r;
   }
-  // v0.2.2: a cultivator on the road (shares the cap: never two interruptions in a row).
+  // v0.2.2: a cultivator on the road (v0.3.1: 6%, no cap).
   Rng roll(contentSeed(worldSeedOf(s), kKindMeetRoll, c));
-  if (!afterRandomFight && t != Tile::Merchant && roll.below(100) < kMeetPercent) {
+  if (t != Tile::Merchant && roll.below(100) < kMeetPercent) {
     const int waiting = waitingCultIn(s, region, roll.next());
     const bool again = waiting >= 0 && roll.below(3) == 0;  // one meeting in three is a remembered face
     s.exploration[7] = again ? static_cast<uint8_t>(waiting + 1) : 0;
-    // v0.2.8: one meeting in four is your rival, once their realm has opened this region.
+    // v0.2.8: a share of meetings (v0.3.1: 40%) is your rival, once their realm has opened this region.
     if (rivals::canMeetIn(s, region) && roll.below(100) < rivals::kRivalMeetPercent) {
       s.exploration[7] = kRivalSlot;
       rivals::markKnown(s);
     }
-    s.exploration[6] = static_cast<uint8_t>((s.exploration[6] & ~kMeetFlags) | 0x01);
+    s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
     setPending(s, region, FightKind::Meeting);
     r.meeting = true;
     return r;

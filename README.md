@@ -24,7 +24,7 @@ Nothing happens while the book is closed, and nothing is lost either: no decay, 
 - **Exploration:** a region opens with each realm, a 6×6 map under fog with herbs, ruins, caves, merchants, beasts, bandits and a guardian. Regions regrow and reshape over time.
 - **Alchemy:** gather ingredients, discover recipes and brew pills while you read.
 - **Meridians and Daos:** open acupoints for a faster Qi rate, and find Daos that grow from your reading habits.
-- **Daily omens and tasks**, scaled to how much you usually read.
+- **Daily omens and tasks**, scaled to how much you usually read. Readers without a clock get reading days instead of calendar days.
 - **Your rival:** a cultivator of your own age who trains every day, plus a ranking of twenty to climb in each realm.
 - **Nemeses:** enemies who beat you may come back, stronger and with habits of their own to discover.
 - **Wounds that matter:** fight low on HP and you fight worse; lose with your last HP and you come to at the region's entrance, with nothing taken.
@@ -47,13 +47,13 @@ The game uses CrossInk's own reading stats, from this device only:
 
 |Device|File|
 |-|-|
-|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.0.bin`|
-|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.0.bin`|
-|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.0.bin`|
-|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.0.bin`|
+|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.1.bin`|
+|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.1.bin`|
+|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.1.bin`|
+|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.1.bin`|
 
 2. Flash it. If your reader already runs CrossInk, copy the file to the SD card and choose **Settings > System > SD Card Firmware Update**. Otherwise see the [command line instructions](./docs/installation.md#command-line).
-3. Set the date and time in the settings. The daily systems, your rival and the ranking need them.
+3. Set the date and time in the settings if your reader has a clock. Without a date (the original X4 has no clock), the daily systems, your rival and the ranking run on reading days: a new day after an hour of reading and a sleep.
 4. Open **Cultivation** from the Home menu and create your character. Reading done before that moment does not count; everyone starts at zero.
 
 To see your cultivator whenever the reader sleeps, choose **Cultivator** under **Settings > Display > Sleep Screen**.
@@ -68,7 +68,7 @@ To go back to plain CrossInk, download its firmware for your device from the [Cr
 
 ## Status
 
-A personal project in active development. Only tested on a real **Xteink X3**; the other builds compile and should work, but have not been tried on a device. On readers whose clock drifts in sleep (the X4 family), date-based features may be less reliable.
+A personal project in active development. Only tested on a real **Xteink X3**; the other builds compile and should work, but have not been tried on a device. The original X4 has no clock, so it runs on reading days (see the in-game Guide, "Days and the clock"); this has only been tried in the simulator.
 
 ## Community
 

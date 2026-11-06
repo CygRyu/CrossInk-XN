@@ -7,6 +7,7 @@
 namespace cultivation {
 
 bool StatsSample::readOn(const uint32_t day) const {
+  if (readingDay) return true;
   if (day > historyAnchorDay) return false;
   const uint32_t delta = historyAnchorDay - day;
   if (delta >= kHistoryDays) return false;

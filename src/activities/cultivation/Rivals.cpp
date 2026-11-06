@@ -471,6 +471,16 @@ int rivalLevel(const GameState& s) {
   return 10 * r.realm + stageLevel(r.realm, r.stage) + 2 * r.realm;
 }
 
+void shiftDays(GameState& s, const int32_t delta) {
+  uint8_t* r = rv(s);
+  for (const uint8_t at : {kLastDay, kReactDay, kChallengeDay, kDefenceDay}) {
+    const uint16_t d = get16(r + at);
+    if (d == 0) continue;
+    const int32_t v = static_cast<int32_t>(d) + delta;
+    put16(r + at, static_cast<uint32_t>(v < 1 ? 1 : v));
+  }
+}
+
 bool canMeetIn(const GameState& s, const uint8_t region) {
   const Rival r = rival(s);
   return r.exists && r.realm >= explore::unlockRealm(region);
