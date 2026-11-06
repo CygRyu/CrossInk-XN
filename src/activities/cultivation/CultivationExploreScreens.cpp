@@ -452,8 +452,9 @@ void CultivationActivity::showStep(const explore::StepResult& r) {
     if (packs_) packs_->closeFile();
   }
   formatReward(r.reward, r.hpLost, r.hpHealed, v.numbers, sizeof(v.numbers));
-  noteMementos(r);                       // v0.3.0
-  if (r.nemesisFled >= 0 && grammar_) {  // v0.2.8: a Coward nemesis ran before the fight
+  worldInfluence(r.world, v.numbers, sizeof(v.numbers));  // v0.3.3: an inheritance taken
+  noteMementos(r);                                        // v0.3.0
+  if (r.nemesisFled >= 0 && grammar_) {                   // v0.2.8: a Coward nemesis ran before the fight
     char name[exploretext::kNameSize];
     if (exploretext::nemesisName(*state_, static_cast<uint8_t>(r.nemesisFled), *grammar_, name, sizeof(name))) {
       capitalized(name, v.text, sizeof(v.text));
@@ -604,6 +605,24 @@ void CultivationActivity::openFight() {
         const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_));
         exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.fightText,
                             sizeof(v.fightText));
+      }
+      // v0.3.3: a cultivator belongs to one of the world's sects (or to a demonic cult): say which.
+      if (f.enemy == explore::Enemy::Cultivator && f.nemesis < 0) {
+        const uint32_t who =
+            f.kind == explore::FightKind::Beast
+                ? explore::beastSeed(*state_)
+                : explore::enemySeed(*state_, v.region, f.kind == explore::FightKind::Lair ? f.tile : explore::kNoTile);
+        char sect[exploretext::kNameSize];
+        if (exploretext::personSectName(*state_, v.region, who, *grammar_, sect, sizeof(sect))) {
+          const sects::Condition c = sects::conditionIn(*state_, v.region);
+          char line[200];
+          snprintf(line, sizeof(line),
+                   c == sects::Condition::Demonic   ? ctr(CULT_FIGHT_CULT_FORMAT)
+                   : c == sects::Condition::SectWar ? ctr(CULT_FIGHT_SIDE_FORMAT)
+                                                    : ctr(CULT_FIGHT_SECT_FORMAT),
+                   sect);
+          appendSentence(v.fightText, sizeof(v.fightText), line);
+        }
       }
       if (packs_) packs_->closeFile();
     }
@@ -759,10 +778,8 @@ void CultivationActivity::answerFight() {
       appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_GUARDIAN_BEATEN));
       exploreChronicle("explore.line.guardian", v.region, v.beast, 2);
     }
-    if (res.campBroken) {  // v0.3.2
-      appendSentence(v.numbers, sizeof(v.numbers), ctr(CULT_CAMP_BROKEN));
-      worldChronicle("world.line.cond.camp.broken", v.region, res.campSect, -1, 15);
-    }
+    worldInfluence(res.world, v.numbers, sizeof(v.numbers));       // v0.3.2/v0.3.3: a camp, a tide, a war ...
+    worldInfluence(res.tile.world, v.numbers, sizeof(v.numbers));  // ... or the tile behind it (an inheritance)
     if (res.tile.clearedNow) {
       char reward[120] = {};
       formatReward(res.tile.clearReward, 0, 0, reward, sizeof(reward));
@@ -1011,6 +1028,8 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
     const size_t used = strlen(v.numbers);
     if (used + 1 < sizeof(v.numbers)) snprintf(v.numbers + used, sizeof(v.numbers) - used, ".");
   }
+  worldInfluence(r.world, v.numbers, sizeof(v.numbers));       // v0.3.3: a sect's people beaten
+  worldInfluence(r.tile.world, v.numbers, sizeof(v.numbers));  // v0.3.3: an inheritance behind them
   if (r.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(r.reward.recipe));
   if (r.tile.reward.recipe >= 0) alchemyChronicle("alchemy.line.slip", static_cast<uint8_t>(r.tile.reward.recipe));
   if (r.tile.clearedNow) {
@@ -1613,13 +1632,38 @@ void CultivationActivity::renderMap(const int x, int y, const int width, const i
   // v0.3.2: a region condition here, what it does and how long it lasts.
   const sects::Condition cond = sects::conditionIn(s, v.region);
   if (cond != sects::Condition::None) {
+    // v0.3.3: how far you are with ending it yourself, then the hours left.
+    char what[200] = {};
+    char progress[96] = {};
+    const uint8_t tally = sects::conditionTally(s);
+    switch (cond) {
+      case sects::Condition::SectWar:
+        snprintf(progress, sizeof(progress), ctr(CULT_COND_WAR_PROGRESS_FORMAT), static_cast<unsigned>(tally & 0x0F),
+                 static_cast<unsigned>(tally >> 4));
+        break;
+      case sects::Condition::BanditCamp:
+        snprintf(progress, sizeof(progress), ctr(CULT_COND_CAMP_PROGRESS_FORMAT), static_cast<unsigned>(tally));
+        break;
+      case sects::Condition::BeastTide:
+        snprintf(progress, sizeof(progress), ctr(CULT_COND_TIDE_PROGRESS_FORMAT), static_cast<unsigned>(tally));
+        break;
+      case sects::Condition::Demonic:
+        snprintf(progress, sizeof(progress), ctr(CULT_COND_DEMONIC_PROGRESS_FORMAT), static_cast<unsigned>(tally));
+        break;
+      case sects::Condition::Inheritance:
+        snprintf(progress, sizeof(progress), ctr(CULT_COND_INHERITANCE_PROGRESS_FORMAT), static_cast<unsigned>(tally));
+        break;
+      default:
+        break;
+    }
+    snprintf(what, sizeof(what), progress[0] != '\0' ? "%s %s" : "%s", conditionHere(cond), progress);
     const uint16_t left = sects::conditionYearsLeft(s);
     if (left <= 1) {
-      snprintf(line, sizeof(line), ctr(CULT_COND_HOUR_FORMAT), conditionHere(cond));
+      snprintf(line, sizeof(line), ctr(CULT_COND_HOUR_FORMAT), what);
     } else {
-      snprintf(line, sizeof(line), ctr(CULT_COND_HOURS_FORMAT), conditionHere(cond), static_cast<unsigned>(left));
+      snprintf(line, sizeof(line), ctr(CULT_COND_HOURS_FORMAT), what, static_cast<unsigned>(left));
     }
-    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   }
 
   int cell = width / explore::kGrid;

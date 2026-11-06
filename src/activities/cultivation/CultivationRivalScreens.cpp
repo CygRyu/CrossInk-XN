@@ -457,6 +457,7 @@ void CultivationActivity::ladderChoose() {
       rivalChronicle("ladder.line.fell", nullptr, name, what, 4);
     }
   }
+  worldInfluence(res.world, notice_, sizeof(notice_));  // v0.3.3: a seat holder's sect
   // Beating the rival on the ranking stings them as on the road.
   if (res.rival && res.won && grammar_ && v && rivals::rival(*state_).known) {
     const rivals::Rival r = rivals::rival(*state_);

@@ -10,6 +10,7 @@
 #include "GameValues.h"
 #include "Rivals.h"
 #include "Rng.h"
+#include "Sects.h"
 #include "Simulation.h"
 
 namespace cultivation {
@@ -176,6 +177,15 @@ bool flavor(const GameState& s, const char* listKey, const uint32_t seed, const 
 
 bool cultivatorName(const GameState& s, const uint8_t region, const uint32_t nameSeed, Grammar& grammar, char* out,
                     const size_t len) {
+  // v0.3.3: one of the world's five sects (in a war, one side; in a cult's region, a follower).
+  char sect[kNameSize];
+  if (personSectName(s, region, nameSeed, grammar, sect, sizeof(sect))) {
+    char who[kNameSize];
+    if (!expandName(s, "{cultivator.name}", region, nameSeed, grammar, who, sizeof(who))) return false;
+    snprintf(out, len, sects::personSect(s, region, nameSeed) == sects::kCult ? "%s, a follower of %s" : "%s of %s",
+             who, sect);
+    return true;
+  }
   return expandName(s, "{meet.who}", region, nameSeed, grammar, out, len);
 }
 
@@ -242,12 +252,23 @@ bool rivalName(const GameState& s, Grammar& grammar, char* name, const size_t na
   const uint32_t seed = r.seed != 0 ? r.seed : rivals::rivalSeed(s);
   const bool a = expandName(s, r.gender == Gender::Female ? "{rival.name.female}" : "{rival.name.male}", 0, seed,
                             grammar, name, nameLen);
-  const bool b = expandName(s, "the {sect.name}", 0, mix32(seed, 0x53454354u), grammar, sect, sectLen);
+  // v0.3.3: the rival belongs to one of the world's five sects (user).
+  const int8_t own = sects::personSect(s, sects::kNoRegion, seed);
+  const bool b = own >= 0 ? sectName(s, static_cast<uint8_t>(own), grammar, sect, sectLen)
+                          : expandName(s, "the {sect.name}", 0, mix32(seed, 0x53454354u), grammar, sect, sectLen);
   return a && b;
 }
 
 bool seatName(const GameState& s, const uint32_t seed, Grammar& grammar, char* out, const size_t len) {
   const uint8_t region = s.progress.realm >= 1 ? static_cast<uint8_t>(s.progress.realm - 1) : 0;
+  // v0.3.3: a seat holder belongs to one of the five sects (no war or cult on the ranking).
+  char sect[kNameSize];
+  if (personSectName(s, sects::kNoRegion, seed, grammar, sect, sizeof(sect))) {
+    char who[kNameSize];
+    if (!expandName(s, "{cultivator.name}", region, seed, grammar, who, sizeof(who))) return false;
+    snprintf(out, len, "%s of %s", who, sect);
+    return true;
+  }
   return expandName(s, "{meet.who}", region, seed, grammar, out, len);
 }
 
@@ -347,6 +368,20 @@ bool sectName(const GameState& s, const uint8_t index, Grammar& grammar, char* o
   return true;
 }
 
+bool cultName(const GameState& s, const uint8_t sect, Grammar& grammar, char* out, const size_t len) {
+  const sects::Sect k = sects::sect(s, sect);
+  return expandName(s, "{world.cult.name}", 0,
+                    contentSeed(worldSeedOf(s), kKindSectName, 0x1000u + k.seed + 256u * sect), grammar, out, len);
+}
+
+bool personSectName(const GameState& s, const uint8_t region, const uint32_t seed, Grammar& grammar, char* out,
+                    const size_t len) {
+  const int8_t who = sects::personSect(s, region, seed);
+  if (who == sects::kCult) return cultName(s, sects::conditionSect(s), grammar, out, len);
+  if (who < 0) return false;
+  return sectName(s, static_cast<uint8_t>(who), grammar, out, len);
+}
+
 namespace {
 struct WorldNames {
   char region[kNameSize];
@@ -358,6 +393,7 @@ bool worldNames(const GameState& s, const uint8_t region, const uint8_t sect, co
   n.region[0] = n.sect[0] = n.sect2[0] = '\0';
   if (!regionName(s, region, grammar, n.region, sizeof(n.region))) return false;
   if (!sectName(s, sect, grammar, n.sect, sizeof(n.sect))) return false;
+  if (sect2 == sects::kCult) return cultName(s, sect, grammar, n.sect2, sizeof(n.sect2));  // v0.3.3
   if (sect2 >= 0 && !sectName(s, static_cast<uint8_t>(sect2), grammar, n.sect2, sizeof(n.sect2))) return false;
   return true;
 }
@@ -369,7 +405,7 @@ bool worldLine(lifelog::Line& line, const GameState& s, const char* listKey, con
   if (!worldNames(s, region, sect, sect2, grammar, wn)) return false;
   Names names{wn.region, nullptr};
   names.sect = wn.sect;
-  names.sect2 = sect2 >= 0 ? wn.sect2 : nullptr;
+  names.sect2 = sect2 >= 0 || sect2 == sects::kCult ? wn.sect2 : nullptr;
   GrammarValues extra;
   extra.lookup = lookupNames;
   extra.user = &names;
@@ -385,7 +421,7 @@ bool worldRumor(const GameState& s, const char* listKey, const uint32_t seed, co
   if (!worldNames(s, region, sect, sect2, grammar, wn)) return false;
   Names names{wn.region, nullptr};
   names.sect = wn.sect;
-  names.sect2 = sect2 >= 0 ? wn.sect2 : nullptr;
+  names.sect2 = sect2 >= 0 || sect2 == sects::kCult ? wn.sect2 : nullptr;
   Chain chain{names, gameValues(s)};
   GrammarContext ctx;
   ctx.values.lookup = lookupChain;

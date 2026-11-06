@@ -76,6 +76,11 @@ bool nemesisKind(const GameState& state, uint8_t index, Grammar& grammar, char* 
 // the five always different; a line ({$sect}, {$sect2}, {$region.name}; sect2
 // -1 for none) capitalised; a rumor "{world.rumor.opening} {listKey}.".
 bool sectName(const GameState& state, uint8_t index, Grammar& grammar, char* out, size_t len);
+// v0.3.3: the demonic cult of sect `sect`'s story ("the Blood Lotus Cult"), and a
+// person's sect or cult by sects::personSect (false before the sects exist). In
+// worldLine and worldRumor, sect2 sects::kCult names the cult of `sect`'s story.
+bool cultName(const GameState& state, uint8_t sect, Grammar& grammar, char* out, size_t len);
+bool personSectName(const GameState& state, uint8_t region, uint32_t seed, Grammar& grammar, char* out, size_t len);
 bool worldLine(lifelog::Line& line, const GameState& state, const char* listKey, uint32_t seed, uint8_t region,
                uint8_t sect, int8_t sect2, Grammar& grammar);
 bool worldRumor(const GameState& state, const char* listKey, uint32_t seed, uint8_t region, uint8_t sect, int8_t sect2,

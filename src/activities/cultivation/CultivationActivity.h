@@ -366,7 +366,8 @@ class CultivationActivity final : public Activity {
   void appendWorldChronicleLines();
   bool worldEventLine(const cultivation::sects::Event& e, cultivation::lifelog::Line& line);
   bool worldRumorOfTheDay(uint32_t when);
-  void worldChronicle(const char* listKey, uint8_t region, uint8_t sect, int8_t sect2, uint32_t extra);
+  bool standingRumorOfTheDay(uint32_t when);                                               // v0.3.3
+  void worldInfluence(const cultivation::sects::Influence& w, char* numbers, size_t len);  // v0.3.3
   const char* conditionWord(cultivation::sects::Condition c) const;
   const char* conditionHere(cultivation::sects::Condition c) const;  // the word and what it does
   int rivalsReturn_ = 0;

@@ -4,6 +4,7 @@
 
 #include "Exploration.h"
 #include "GameState.h"
+#include "Sects.h"
 #include "StatsBridge.h"
 
 // v0.2.8 (milestone 9b plus session-11 idea 1; agreed with the user in
@@ -181,6 +182,7 @@ struct BoutResult {
   uint8_t rankBefore = 0;
   uint8_t rankAfter = 0;
   Rung who;
+  sects::Influence world;  // v0.3.3: a seat holder is one of the five sects' people
 };
 BoutResult challenge(GameState& state);
 BoutResult acceptDefence(GameState& state);

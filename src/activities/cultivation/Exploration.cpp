@@ -302,6 +302,18 @@ inventory::Item treasure(Rng& rng) {
   return rng.below(2) == 0 ? inventory::Item::ThunderTalisman : inventory::Item::CalmIncense;
 }
 
+// v0.3.3: what ending a condition yourself pays (a camp, a tide, an inheritance).
+void worldReward(GameState& s, const sects::Influence& w, const uint8_t region, Reward& r, Rng& rng) {
+  if (w.stones > 0) {
+    r.stones += w.stones;
+    s.progress.stones += w.stones;
+  }
+  if (w.tonic) give(s, r, inventory::Item::TonicGreater, 1);
+  if (w.herbs > 0) give(s, r, inventory::herbFor(region), w.herbs);
+  if (w.ores > 0) give(s, r, inventory::oreFor(region), w.ores);
+  if (w.treasure) give(s, r, treasure(rng), 1);
+}
+
 void checkClear(GameState& s, const Layout& l, const uint8_t region, StepResult& r) {
   uint8_t* b = regionBytes(s, region);
   if ((b[11] & kFlagCleared) != 0 || (b[11] & kFlagGuardian) == 0) return;
@@ -364,6 +376,8 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
           p.stones += r.reward.stones;
         }
         r.outcome = TileOutcome::RuinWon;
+        r.world = sects::searchWon(s, region);  // v0.3.3: an inheritance, yours before the sects get it
+        worldReward(s, r.world, region, r.reward, rng);
         mementoChance(s, r.reward, codex::Source::Ruin,
                       0x10000u | (static_cast<uint32_t>(region) << 8) |
                           (static_cast<uint32_t>(reshapeCount(s, region)) << 6) | tile);
@@ -387,6 +401,8 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
         give(s, r.reward, inventory::herbFor(region), 1);
       }
       r.outcome = TileOutcome::CaveFound;
+      r.world = sects::searchWon(s, region);  // v0.3.3: an inheritance in a cave counts too
+      worldReward(s, r.world, region, r.reward, rng);
       mementoChance(s, r.reward, codex::Source::Cave,
                     0x20000u | (static_cast<uint32_t>(region) << 8) |
                         (static_cast<uint32_t>(reshapeCount(s, region)) << 6) | tile);
@@ -945,6 +961,9 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   FightResult res;
   const Fight f = pendingFight(s, l);
   if (f.kind == FightKind::None) return res;
+  // v0.3.3: names the cultivator's sect (the same seed the fight screen used).
+  const uint32_t personSeed =
+      f.kind == FightKind::Beast ? beastSeed(s) : enemySeed(s, f.region, f.kind == FightKind::Lair ? f.tile : kNoTile);
   if ((choice == FightChoice::Slip && !f.canSlip) ||
       (choice == FightChoice::Pay && (f.payCost == 0 || s.progress.stones < f.payCost)) ||
       (choice == FightChoice::Incense && !f.canIncense)) {
@@ -1074,16 +1093,16 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
         break;
       }
     }
-    // v0.3.2: the third bandit beaten at a bandit camp breaks it.
-    if (f.enemy == Enemy::Bandit) {
-      const sects::CampResult camp = sects::banditWon(s, f.region);
-      if (camp.broken) {
-        res.campBroken = true;
-        res.campSect = camp.sect;
-        res.reward.stones += camp.stones;
-        p.stones += camp.stones;
-        give(s, res.reward, inventory::Item::TonicGreater, 1);
+    // v0.3.2/v0.3.3: what the win does to the living world.
+    if (nemi < 0) {
+      if (f.enemy == Enemy::Bandit) {
+        res.world = sects::banditBeaten(s, f.region);
+      } else if (f.enemy == Enemy::Beast) {
+        res.world = sects::beastBeaten(s, f.region);
+      } else if (f.enemy == Enemy::Cultivator) {
+        res.world = sects::cultivatorBeaten(s, f.region, sects::personSect(s, f.region, personSeed));
       }
+      worldReward(s, res.world, f.region, res.reward, rng);
     }
     // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
     if (f.enemy == Enemy::Cultivator && alchemy::slipRecipe(s) >= 0 &&
@@ -1378,6 +1397,8 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
     finishMeeting(s, l, m, res.won ? MeetOutcome::Won : MeetOutcome::Lost, true, res);
     return res;
   }
+  // v0.3.3: beating a sect's people on the road counts for (or against) the sects.
+  if (res.won) res.world = sects::cultivatorBeaten(s, m.region, sects::personSect(s, m.region, m.nameSeed));
   if (m.offer == Offer::Spar) {
     if (res.won) {
       res.reward.stones = halve(rng.range(5, 10) * (m.region + 1u), half);  // like a beast, no herbs

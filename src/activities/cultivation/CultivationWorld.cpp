@@ -28,9 +28,17 @@ namespace {
 constexpr uint32_t kKindWorldText = 134;  // contentSeed kind: the living world's lines and rumors
 
 const char* const kStoryKeys[static_cast<int>(sects::Story::Count)] = {
-    "", "feud", "succession", "bandits", "tournament", "fair", "tide", "ruins", "blight"};
-const char* const kConditionKeys[static_cast<int>(sects::Condition::Count)] = {"",     "war",  "camp",  "tournament",
-                                                                               "fair", "tide", "ruins", "blight"};
+    "",      "feud",   "succession",  "bandits", "tournament", "fair", "tide",
+    "ruins", "blight", "inheritance", "demonic", "alliance",   "gate"};
+const char* const kConditionKeys[static_cast<int>(sects::Condition::Count)] = {
+    "", "war", "camp", "tournament", "fair", "tide", "ruins", "blight", "inheritance", "demonic"};
+
+// The second sect a line names: a feud's or an alliance's other sect; for a
+// demonic cultivator, the cult (exploretext names it from the story's sect).
+int8_t secondOf(const sects::Event& e) {
+  if (e.story == sects::Story::Demonic || e.condition == sects::Condition::Demonic) return sects::kCult;
+  return e.other;
+}
 
 const char* storyKey(const sects::Story s) {
   const int i = static_cast<int>(s);
@@ -73,6 +81,24 @@ bool CultivationActivity::worldEventLine(const sects::Event& e, lifelog::Line& l
   if (!grammar_) return false;
   char key[48];
   switch (e.kind) {
+    case sects::EventKind::WarDecided:
+      snprintf(key, sizeof(key), "world.line.cond.war.decided");
+      return exploretext::worldLine(line, *state_, key, eventSeed(*state_, e), e.region, e.sect, e.other, *grammar_);
+    case sects::EventKind::CultBroken:
+      snprintf(key, sizeof(key), "world.line.cond.demonic.broken");
+      break;
+    case sects::EventKind::CampBroken:
+      snprintf(key, sizeof(key), "world.line.cond.camp.broken");
+      break;
+    case sects::EventKind::TideBroken:
+      snprintf(key, sizeof(key), "world.line.cond.tide.broken");
+      break;
+    case sects::EventKind::YouTookInheritance:
+      snprintf(key, sizeof(key), "world.line.cond.inheritance.won");
+      break;
+    case sects::EventKind::Dented:
+      snprintf(key, sizeof(key), "world.line.dent");
+      break;
     case sects::EventKind::Started:
     case sects::EventKind::Ended: {
       const char* k = storyKey(e.story);
@@ -89,7 +115,56 @@ bool CultivationActivity::worldEventLine(const sects::Event& e, lifelog::Line& l
       break;
     }
   }
-  return exploretext::worldLine(line, *state_, key, eventSeed(*state_, e), e.region, e.sect, e.other, *grammar_);
+  return exploretext::worldLine(line, *state_, key, eventSeed(*state_, e), e.region, e.sect, secondOf(e), *grammar_);
+}
+
+// v0.3.3: what a win did to the living world: a sentence for the result
+// screen and the Chronicle lines (the decision first, then the story's end).
+void CultivationActivity::worldInfluence(const sects::Influence& w, char* numbers, const size_t len) {
+  if (w.count == 0) return;
+  for (uint8_t i = 0; i < w.count; ++i) {
+    const sects::Event& e = w.events[i];
+    char sentence[160] = {};
+    char name[exploretext::kNameSize] = {};
+    switch (e.kind) {
+      case sects::EventKind::WarDecided:
+        if (grammar_ && exploretext::sectName(*state_, e.sect, *grammar_, name, sizeof(name))) {
+          snprintf(sentence, sizeof(sentence), ctr(CULT_WORLD_WAR_DECIDED_FORMAT), name);
+        }
+        break;
+      case sects::EventKind::CultBroken:
+        snprintf(sentence, sizeof(sentence), "%s", ctr(CULT_WORLD_CULT_BROKEN));
+        break;
+      case sects::EventKind::CampBroken:
+        snprintf(sentence, sizeof(sentence), "%s", ctr(CULT_CAMP_BROKEN));
+        break;
+      case sects::EventKind::TideBroken:
+        snprintf(sentence, sizeof(sentence), "%s", ctr(CULT_WORLD_TIDE_BROKEN));
+        break;
+      case sects::EventKind::YouTookInheritance:
+        snprintf(sentence, sizeof(sentence), "%s", ctr(CULT_WORLD_INHERITANCE_WON));
+        break;
+      case sects::EventKind::Dented:
+        if (grammar_ && exploretext::sectName(*state_, e.sect, *grammar_, name, sizeof(name))) {
+          snprintf(sentence, sizeof(sentence), ctr(CULT_WORLD_DENTED_FORMAT), name);
+        }
+        break;
+      default:
+        break;
+    }
+    if (sentence[0] >= 'a' && sentence[0] <= 'z') sentence[0] = static_cast<char>(sentence[0] - 'a' + 'A');
+    if (sentence[0] != '\0' && numbers != nullptr) {
+      const size_t used = strlen(numbers);
+      if (used + 2 < len) snprintf(numbers + used, len - used, used > 0 ? " %s" : "%s", sentence);
+    }
+    lifelog::Line line;
+    if (worldEventLine(e, line)) {
+      if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
+      chronicle::appendLines(&line, 1);
+      chronicleExists_ = chronicle::exists();
+    }
+  }
+  if (packs_) packs_->closeFile();
 }
 
 // The one line the Return summary gets (user: at most one). It is the log's
@@ -130,21 +205,6 @@ void CultivationActivity::appendWorldChronicleLines() {
   if (packs_) packs_->closeFile();
 }
 
-// One line straight into the Chronicle (the bandit camp you broke).
-void CultivationActivity::worldChronicle(const char* listKey, const uint8_t region, const uint8_t sect,
-                                         const int8_t sect2, const uint32_t extra) {
-  if (!grammar_) return;
-  lifelog::Line line;
-  const uint32_t seed =
-      contentSeed(worldSeedOf(*state_), kKindWorldText, mix32(state_->progress.gameReadingSeconds, extra));
-  if (exploretext::worldLine(line, *state_, listKey, seed, region, sect, sect2, *grammar_)) {
-    if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
-    chronicle::appendLines(&line, 1);
-    chronicleExists_ = chronicle::exists();
-  }
-  if (packs_) packs_->closeFile();
-}
-
 // One day in three, the rumor of the day follows a live story (the region's
 // condition first). False when there is none or the dice say no.
 bool CultivationActivity::worldRumorOfTheDay(const uint32_t when) {
@@ -159,7 +219,27 @@ bool CultivationActivity::worldRumorOfTheDay(const uint32_t when) {
   snprintf(key, sizeof(key), "world.rumor.%s.%s", story, k.stage == 0 ? "early" : "late");
   char line[sizeof(rumor_)];
   if (!exploretext::worldRumor(*state_, key, contentSeed(worldSeedOf(*state_), kKindWorldText, mix32(when, 1u)),
-                               k.region, static_cast<uint8_t>(index), k.other, *grammar_, line, sizeof(line))) {
+                               k.region, static_cast<uint8_t>(index),
+                               k.story == sects::Story::Demonic ? sects::kCult : k.other, *grammar_, line,
+                               sizeof(line))) {
+    return false;
+  }
+  snprintf(rumor_, sizeof(rumor_), "%s", line);
+  return true;
+}
+
+// v0.3.3: one day in five, what a sect that thinks well or badly of you says
+// (standing 3 or more either way). False when there is none or the dice say no.
+bool CultivationActivity::standingRumorOfTheDay(const uint32_t when) {
+  if (!grammar_ || !state_) return false;
+  if (Rng(contentSeed(worldSeedOf(*state_), kKindWorldText, mix32(when, 0x594F5521u))).below(5) != 0) return false;
+  const int index = sects::standingRumorSect(*state_, when);
+  if (index < 0) return false;
+  const sects::Sect k = sects::sect(*state_, static_cast<uint8_t>(index));
+  char line[sizeof(rumor_)];
+  if (!exploretext::worldRumor(*state_, k.standing > 0 ? "world.rumor.you.good" : "world.rumor.you.bad",
+                               contentSeed(worldSeedOf(*state_), kKindWorldText, mix32(when, 2u)), k.home,
+                               static_cast<uint8_t>(index), -1, *grammar_, line, sizeof(line))) {
     return false;
   }
   snprintf(rumor_, sizeof(rumor_), "%s", line);
@@ -182,6 +262,10 @@ const char* CultivationActivity::conditionWord(const sects::Condition c) const {
       return ctr(CULT_COND_RUINS);
     case sects::Condition::Blight:
       return ctr(CULT_COND_BLIGHT);
+    case sects::Condition::Inheritance:
+      return ctr(CULT_COND_INHERITANCE);
+    case sects::Condition::Demonic:
+      return ctr(CULT_COND_DEMONIC);
     default:
       return nullptr;
   }
@@ -203,6 +287,10 @@ const char* CultivationActivity::conditionHere(const sects::Condition c) const {
       return ctr(CULT_COND_RUINS_HERE);
     case sects::Condition::Blight:
       return ctr(CULT_COND_BLIGHT_HERE);
+    case sects::Condition::Inheritance:
+      return ctr(CULT_COND_INHERITANCE_HERE);
+    case sects::Condition::Demonic:
+      return ctr(CULT_COND_DEMONIC_HERE);
     default:
       return nullptr;
   }

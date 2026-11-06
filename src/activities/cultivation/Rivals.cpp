@@ -649,6 +649,10 @@ BoutResult play(GameState& s, const Bout& b, const bool defence) {
     daily::note(s, daily::Task::WinFight);
     if (!defence) r[kRank] = b.rank;  // the bout swaps ranks
     if (res.rival) beaten(s, today);
+    if (!res.rival && !b.who.player && b.who.seat > 0) {  // v0.3.3: the seat holder's sect
+      res.world =
+          sects::cultivatorBeaten(s, sects::kNoRegion, sects::personSect(s, sects::kNoRegion, seatSeed(s, b.who.seat)));
+    }
   } else {
     res.hpLost = b.hpCost < s.progress.hp ? b.hpCost : s.progress.hp;
     s.progress.hp = static_cast<uint16_t>(s.progress.hp - res.hpLost);

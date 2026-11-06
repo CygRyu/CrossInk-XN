@@ -29,7 +29,8 @@ GameState world(const uint32_t seed, const uint8_t realm) {
 
 }  // namespace
 
-TEST(V032Pacing, AConditionAboutEveryTwentyReadingHours) {
+// v0.3.3 (user): a condition about every 12 reading hours (v0.3.2: 15-25, tuned to 20).
+TEST(V032Pacing, AConditionAboutEveryTwelveReadingHours) {
   for (uint8_t realm : {1, 3, 6}) {
     uint32_t began = 0;
     uint32_t hours = 0;
@@ -50,12 +51,11 @@ TEST(V032Pacing, AConditionAboutEveryTwentyReadingHours) {
     const double every = static_cast<double>(hours) / began;
     printf("realm %u: a condition every %.1f reading hours, on %.0f%% of hours\n", realm, every,
            100.0 * onHours / hours);
-    // User: a condition about every 15-25 reading hours (Claude tuned to 20 at realm 3).
-    EXPECT_GT(every, 15.0) << +realm;
-    EXPECT_LT(every, 25.0) << +realm;
+    EXPECT_GT(every, 9.5) << +realm;
+    EXPECT_LT(every, 14.5) << +realm;
     if (realm == 3) {
-      EXPECT_GT(every, 18.0);
-      EXPECT_LT(every, 22.0);
+      EXPECT_GT(every, 11.0);
+      EXPECT_LT(every, 13.0);
     }
   }
 }
@@ -194,7 +194,12 @@ TEST(V032Conditions, OnlyInOpenedRegionsOneAtATimeForFourHours) {
         EXPECT_EQ(e.condition, sects::conditionOf(e.story));
       }
       if (e.kind == sects::EventKind::ConditionEnded) {
-        EXPECT_EQ(h - beganAt, sects::kConditionYears);
+        // v0.3.3: an inheritance ends sooner when the sects get there first.
+        if (e.condition == sects::Condition::Inheritance) {
+          EXPECT_LE(h - beganAt, sects::kConditionYears);
+        } else {
+          EXPECT_EQ(h - beganAt, sects::kConditionYears);
+        }
       }
     }
     if (sects::condition(s) != sects::Condition::None) {
@@ -221,14 +226,16 @@ TEST(V032Conditions, ACampCallsBanditsAndBreaksOnTheThirdWin) {
   GameState s = world(12, 3);
   setCondition(s, sects::Condition::BanditCamp, 2);
   EXPECT_EQ(sects::favouredEnemy(s, 2), static_cast<uint8_t>(explore::Enemy::Bandit));
-  EXPECT_FALSE(sects::banditWon(s, 1).broken);  // another region
-  EXPECT_FALSE(sects::banditWon(s, 2).broken);
-  EXPECT_FALSE(sects::banditWon(s, 2).broken);
-  const sects::CampResult r = sects::banditWon(s, 2);
-  EXPECT_TRUE(r.broken);
+  EXPECT_EQ(sects::banditBeaten(s, 1).count, 0);  // another region
+  EXPECT_EQ(sects::banditBeaten(s, 2).count, 0);
+  EXPECT_EQ(sects::banditBeaten(s, 2).count, 0);
+  const sects::Influence r = sects::banditBeaten(s, 2);
+  ASSERT_GE(r.count, 1);
+  EXPECT_EQ(r.events[0].kind, sects::EventKind::CampBroken);
   EXPECT_EQ(r.stones, 150u);
+  EXPECT_TRUE(r.tonic);
   EXPECT_EQ(sects::condition(s), sects::Condition::None);
-  EXPECT_FALSE(sects::banditWon(s, 2).broken);
+  EXPECT_EQ(sects::banditBeaten(s, 2).count, 0);
 }
 
 TEST(V032Conditions, RandomFightsLeanTowardTheFavouredEnemy) {
@@ -467,8 +474,9 @@ bool sentencesCapitalised(const std::string& s) {
   }
   return true;
 }
-const char* const kStories[] = {"feud", "succession", "bandits", "tournament", "fair", "tide", "ruins", "blight"};
-const char* const kConds[] = {"war", "camp", "tournament", "fair", "tide", "ruins", "blight"};
+const char* const kStories[] = {"feud",  "succession", "bandits",     "tournament", "fair",     "tide",
+                                "ruins", "blight",     "inheritance", "demonic",    "alliance", "gate"};
+const char* const kConds[] = {"war", "camp", "tournament", "fair", "tide", "ruins", "blight", "inheritance", "demonic"};
 }  // namespace
 
 TEST(V032Text, FiveDifferentSectNames) {
@@ -507,11 +515,16 @@ TEST(V032Text, EveryWorldLineAndRumorExpands) {
       for (const char* end : {"start", "end"}) keys.push_back(std::string("world.line.cond.") + c + "." + end);
     }
     keys.emplace_back("world.line.cond.camp.broken");
+    for (const char* k : {"world.line.cond.inheritance.won", "world.line.cond.demonic.broken",
+                          "world.line.cond.war.decided", "world.line.cond.tide.broken", "world.line.dent"}) {
+      keys.emplace_back(k);
+    }
     for (const std::string& key : keys) {
       lifelog::Line line;
+      const bool cult = key.find("demonic") != std::string::npos;
       ASSERT_TRUE(exploretext::worldLine(line, s, key.c_str(), seed * 7919u, static_cast<uint8_t>(seed % 3),
-                                         static_cast<uint8_t>(seed % 5), static_cast<int8_t>((seed + 2) % 5),
-                                         *pack.grammar))
+                                         static_cast<uint8_t>(seed % 5),
+                                         cult ? sects::kCult : static_cast<int8_t>((seed + 2) % 5), *pack.grammar))
           << key;
       const std::string t = line.text;
       EXPECT_TRUE(cleanText(t)) << key << ": " << t;
@@ -522,13 +535,19 @@ TEST(V032Text, EveryWorldLineAndRumorExpands) {
       seen.insert(t);
       ++lines;
     }
+    std::vector<std::string> rumorKeys;
     for (const char* k : kStories) {
-      for (const char* stage : {"early", "late"}) {
-        const std::string key = std::string("world.rumor.") + k + "." + stage;
+      for (const char* stage : {"early", "late"}) rumorKeys.push_back(std::string("world.rumor.") + k + "." + stage);
+    }
+    rumorKeys.emplace_back("world.rumor.you.good");
+    rumorKeys.emplace_back("world.rumor.you.bad");
+    for (const std::string& key : rumorKeys) {
+      {
         char out[256];
-        ASSERT_TRUE(exploretext::worldRumor(s, key.c_str(), seed * 104729u, static_cast<uint8_t>(seed % 3),
-                                            static_cast<uint8_t>(seed % 5), static_cast<int8_t>((seed + 1) % 5),
-                                            *pack.grammar, out, sizeof(out)))
+        const bool cult = key.find("demonic") != std::string::npos;
+        ASSERT_TRUE(exploretext::worldRumor(
+            s, key.c_str(), seed * 104729u, static_cast<uint8_t>(seed % 3), static_cast<uint8_t>(seed % 5),
+            cult ? sects::kCult : static_cast<int8_t>((seed + 1) % 5), *pack.grammar, out, sizeof(out)))
             << key;
         const std::string t = out;
         EXPECT_TRUE(cleanText(t)) << t;
@@ -576,12 +595,13 @@ TEST(V032Conditions, WinningTheThirdBanditFightBreaksTheCamp) {
       const uint32_t stones = s.progress.stones;
       const uint16_t tonics = inventory::count(s, inventory::Item::TonicGreater);
       const explore::FightResult res = explore::fight(s, l, explore::FightChoice::Fight);
+      const bool broken = res.world.count > 0 && res.world.events[0].kind == sects::EventKind::CampBroken;
       if (!res.won || f.enemy != explore::Enemy::Bandit) {
-        EXPECT_FALSE(res.campBroken);
+        EXPECT_FALSE(broken);
         continue;
       }
-      EXPECT_TRUE(res.campBroken);
-      EXPECT_EQ(res.campSect, 0);
+      EXPECT_TRUE(broken);
+      EXPECT_EQ(res.world.events[0].sect, 0);
       EXPECT_EQ(sects::condition(s), sects::Condition::None);
       EXPECT_GE(s.progress.stones - stones, 150u);
       EXPECT_EQ(inventory::count(s, inventory::Item::TonicGreater), tonics + 1);

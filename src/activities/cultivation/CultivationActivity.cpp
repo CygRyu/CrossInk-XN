@@ -466,8 +466,9 @@ void CultivationActivity::updateRumor() {
   const char* text = grammar_->expand(pattern, contentSeed(worldSeedOf(*state_), kKindRumor, when), ctx);
   snprintf(rumor_, sizeof(rumor_), "%s", text);
   packs_->closeFile();
-  // v0.3.2: one day in three, a live story of the living world.
+  // v0.3.2: one day in three, a live story of the living world; v0.3.3: one day in five, what a sect says of you.
   worldRumorOfTheDay(when);
+  standingRumorOfTheDay(when);
   if (packs_) packs_->closeFile();
   // v0.2.8: one day in four the rumor is about a nemesis (and tells you one of its ways).
   if (day != StatsSnapshot::kNoDay) nemesisRumor(day);

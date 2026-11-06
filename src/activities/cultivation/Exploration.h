@@ -4,6 +4,7 @@
 
 #include "GameState.h"
 #include "Inventory.h"
+#include "Sects.h"
 
 // Exploration (v0.1.10, agreed with the user; DOC: Exploration and world
 // generation). Pure rules: no I/O, no UI, no clock.
@@ -265,6 +266,7 @@ struct StepResult {
   bool clearedNow = false;  // the region was just cleared: clearReward holds its reward
   Reward clearReward;
   int8_t nemesisFled = -1;  // v0.2.8: a Coward nemesis found you and ran (no fight)
+  sects::Influence world;   // v0.3.3: a ruin or cave won at an inheritance (its reward is in `reward`)
 };
 
 enum class StepError : uint8_t { None, NotAdjacent, Blocked, NoStamina, NoHp, FightWaiting };
@@ -302,9 +304,10 @@ struct FightResult {
   bool collapsed = false;      // v0.2.9: the loss took the last HP: carried back to the entrance
   Reward reward;
   bool guardianBeaten = false;
-  bool campBroken = false;  // v0.3.2: the third bandit beaten at a bandit camp (stones and a Greater tonic added)
-  uint8_t campSect = 0;     // whose story the camp was
-  StepResult tile;          // after winning or slipping past a beast: the tile's content
+  // v0.3.2/v0.3.3: what the win did to the living world (a camp or a tide ended, a war decided,
+  // a sect dented); its stones and items are already in `reward`.
+  sects::Influence world;
+  StepResult tile;  // after winning or slipping past a beast: the tile's content
 };
 
 FightResult fight(GameState& state, const Layout& layout, FightChoice choice);
@@ -387,7 +390,8 @@ struct MeetResult {
   Enemy hintEnemy = Enemy::Beast;
   Danger hintDanger = Danger::Dangerous;
   uint32_t talkPaid = 0;
-  uint32_t talkCost = 0;  // what a greedy one asked when you were short
+  uint32_t talkCost = 0;   // what a greedy one asked when you were short
+  sects::Influence world;  // v0.3.3: a spar or challenge won against a sect's people
   // v0.2.8
   int8_t nemesisRevealed = -1;  // the talk named a nemesis's trait
   uint8_t revealedTrait = 0;    // rivals::Trait

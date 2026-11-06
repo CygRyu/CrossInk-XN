@@ -2066,6 +2066,162 @@ The herb fields of {$region.name} are grey with blight. Herbs there are scarce a
 [world.line.cond.blight.end]
 The blight in {$region.name} has run its course; the herbs are coming back.
 New shoots in {$region.name}: the blight is over.
+
+# --- v0.3.3: The Living World, part 2 -------------------------------------------------------
+# A demonic cult's name, for {$sect2} in the demonic lists ("the Blood Lotus Cult").
+[world.cult.name]
+the Blood Lotus Cult
+the Nine Coffins Gate
+the Corpse-Lamp Society
+the Hungry Moon Sect
+the Red Silk Hall
+the Bone Flute Society
+
+[world.rumor.inheritance.early]
+an old master's cave was found in {$region.name}, and {$sect} has sent its fastest disciples
+a shepherd in {$region.name} found a jade slip with a dead master's seal, and {$sect} bought it off him
+{$sect} says the inheritance in {$region.name} is theirs by right, and is racing everyone to it
+
+[world.rumor.inheritance.late]
+three sects are racing for the inheritance in {$region.name}, and {$sect} is in front
+the roads to {$region.name} are full of people pretending not to be looking for an inheritance
+{$sect} has lost two disciples to the traps around the inheritance in {$region.name}
+
+[world.rumor.demonic.early]
+children have gone missing in {$region.name}, and {$sect} says {$sect2} is back
+someone in {$region.name} drew a red lotus on the shrine door, and {$sect} has doubled its watch
+{$sect} has found a village in {$region.name} with every lamp burning and nobody home
+
+[world.rumor.demonic.late]
+{$sect2} holds the old fort in {$region.name}, and {$sect} has sworn to burn it
+the followers of {$sect2} walk {$region.name} by daylight now; {$sect} hunts them by night
+{$sect} pays a tael for every follower of {$sect2} brought in, and has paid out a great many
+
+[world.rumor.alliance.early]
+the young master of {$sect} has been seen walking by the river with a daughter of {$sect2}
+{$sect} has sent betrothal gifts to {$sect2}: twelve carts and a very nervous matchmaker
+the elders of {$sect} and {$sect2} have been drinking together, which nobody can remember happening before
+
+[world.rumor.alliance.late]
+{$sect} and {$sect2} are arguing about the wedding feast, and the guest list now runs to four pages
+the wedding between {$sect} and {$sect2} has been put off twice, once for an omen and once for a duel
+{$sect} wants the wedding in spring and {$sect2} in autumn, so the bride has gone into seclusion
+
+[world.rumor.gate.early]
+{$sect} is selling its old halls and buying land in {$region.name}
+the geomancers of {$sect} say the Qi in {$region.name} is better, and the sect is packing
+{$sect} has been seen surveying {$region.name}, and the farmers there are counting their fields
+
+[world.rumor.gate.late]
+half of {$sect} is already in {$region.name}, and the other half is carrying the scripture pavilion on its back
+{$sect} has raised its new gate in {$region.name}, but the old one still has more disciples
+the porters of {place.town} have never been so rich: {$sect} is moving to {$region.name}
+
+[world.rumor.you.good]
+{$sect} speaks well of you, and its disciples bow when your name comes up
+an elder of {$sect} raised a cup to you, which he does not do for many
+{$sect} would open its gate to you if you ever knocked
+
+[world.rumor.you.bad]
+{$sect} does not like your name, and its disciples spit when they hear it
+{$sect} has told its outer disciples to keep away from you, or to bring friends
+an elder of {$sect} has your description written on a slip and pinned above his desk
+
+[world.line.inheritance.start]
+Word comes that an old master's inheritance has turned up in {$region.name}, and {$sect} is racing for it.
+You hear that {$sect} has found the trail of a dead master's inheritance in {$region.name}.
+A jade slip with an old seal surfaces in {$region.name}; {$sect} sends its best disciples after the inheritance.
+
+[world.line.inheritance.good]
+{$sect} has carried off the old master's inheritance from {$region.name}. Its elders are insufferable about it.
+The inheritance in {$region.name} is {$sect}'s now; the sect's next generation will grow up on it.
+{$sect} won the race for the inheritance in {$region.name}, and two other sects are not speaking to it.
+
+[world.line.inheritance.bad]
+{$sect} lost the race for the inheritance in {$region.name}, and is looking for someone to blame.
+The inheritance in {$region.name} slipped through the fingers of {$sect}.
+{$sect} reached the old master's cave in {$region.name} to find it already empty.
+
+[world.line.demonic.start]
+Word comes that {$sect2} has risen in {$region.name}, and {$sect} has sworn to put it down.
+You hear that a demonic cultivator of {$sect2} haunts {$region.name}; {$sect} has taken up the hunt.
+Villages in {$region.name} are emptying. {$sect} names {$sect2}, and sharpens its swords.
+
+[world.line.demonic.good]
+{$sect} has driven {$sect2} out of {$region.name}, and burned what they left behind.
+{$sect2} is broken in {$region.name}; {$sect} has hung its banner on the old fort.
+The demonic cultivator of {$sect2} is dead, and {$sect} has the head to prove it.
+
+[world.line.demonic.bad]
+{$sect} could not dislodge {$sect2} from {$region.name}, and has gone home to lick its wounds.
+{$sect2} still holds {$region.name}; {$sect} lost three elders trying to change that.
+{$sect} declared victory over {$sect2} in {$region.name}. The cult has not been told.
+
+[world.line.alliance.start]
+{$sect} and {$sect2} are talking of a marriage between the sects.
+You hear that {$sect} has sent betrothal gifts to {$sect2}.
+Word comes that {$sect} and {$sect2} mean to seal an alliance with a wedding.
+
+[world.line.alliance.good]
+{$sect} and {$sect2} are bound by marriage now; the feast went on for nine days.
+The wedding between {$sect} and {$sect2} has gone ahead, and the two sects stand together.
+{$sect} and {$sect2} are allies now. Their enemies have noticed.
+
+[world.line.alliance.bad]
+The marriage between {$sect} and {$sect2} fell through over the size of the dowry.
+{$sect} and {$sect2} called off their alliance after the groom ran off with a flute player.
+The betrothal between {$sect} and {$sect2} is broken, and both sides say it was the other's fault.
+
+[world.line.gate.start]
+Word comes that {$sect} means to move its gate to {$region.name}.
+{$sect} is packing up its halls; its new home is to be in {$region.name}.
+You hear that {$sect} has bought land in {$region.name} for a new gate.
+
+[world.line.gate.good]
+{$sect} has raised its new gate in {$region.name}.
+The move is done: {$sect} now keeps its halls in {$region.name}.
+{$sect} has settled in {$region.name}, and the old gate stands empty.
+
+[world.line.gate.bad]
+{$sect} gave up its move to {$region.name} halfway, and lost a hall and a treasury in the trying.
+The new gate of {$sect} in {$region.name} fell down twice; the sect has gone back to its old one.
+{$sect} never reached {$region.name}. The geomancers have been dismissed.
+
+[world.line.cond.inheritance.start]
+An old master's inheritance lies open in {$region.name}, and the sects are on their way. Whoever finds it first keeps it.
+The race for the inheritance in {$region.name} is on. {$sect} is close; so is everyone else.
+
+[world.line.cond.inheritance.end]
+{$sect} has taken the inheritance in {$region.name}. The race is over.
+The sects reached the inheritance in {$region.name} before you did; {$sect} carried it off.
+
+[world.line.cond.inheritance.won]
+You found the old master's inheritance in {$region.name} before the sects did. {$sect} arrived to an empty cave.
+The inheritance in {$region.name} is yours. {$sect} will not forgive you for it soon.
+
+[world.line.cond.demonic.start]
+{$sect2} has taken {$region.name}; its followers roam the roads, and {$sect} is fighting them.
+A demonic cult, {$sect2}, holds {$region.name}. {$sect} asks every cultivator for help.
+
+[world.line.cond.demonic.end]
+{$sect2} has slipped out of {$region.name}, for now.
+The followers of {$sect2} have gone to ground, and it is quiet again in {$region.name}.
+
+[world.line.cond.demonic.broken]
+You drove {$sect2} out of {$region.name}. {$sect} sends its thanks.
+The followers of {$sect2} are scattered, and it was your doing. {$sect} has heard.
+
+[world.line.cond.war.decided]
+You decided the war in {$region.name}: {$sect} has won it, and {$sect2} will remember who helped.
+The war in {$region.name} is over, and your sword was the reason. {$sect} wins; {$sect2} does not forget.
+
+[world.line.cond.tide.broken]
+You broke the beast tide in {$region.name}. {$sect} holds its valleys again, and thanks you.
+The beasts of {$region.name} are back in their valleys, and it was your doing. {$sect} has heard.
+
+[world.line.dent]
+Word spreads that you have beaten three disciples of {$sect}. The sect is a little weaker, and does not like you more.
+{$sect} has lost face: three of its disciples were beaten by you. Its elders are not pleased.
 )PACK";
 
 }  // namespace
