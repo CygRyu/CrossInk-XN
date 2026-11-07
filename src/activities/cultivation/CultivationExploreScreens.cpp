@@ -12,6 +12,7 @@
 #include <string>
 
 #include "Agenda.h"
+#include "Cast.h"
 #include "Chronicle.h"
 #include "Codex.h"
 #include "CultivationActivity.h"
@@ -824,6 +825,29 @@ void CultivationActivity::openMeeting() {
         exploretext::personFlavor(*state_, list, seed, v.regionNames[v.region], v.beast, sect, *grammar_, v.fightText,
                                   sizeof(v.fightText));
       }
+      if (packs_) packs_->closeFile();
+    } else if (grammar_ && m.cast >= 0) {
+      // v0.3.5: one of the cast: their own name and sect, and they remember how you parted.
+      cast::Person p;
+      cast::person(*state_, static_cast<uint8_t>(m.cast), p);
+      char name[exploretext::kNameSize] = {};
+      char sect[exploretext::kNameSize] = {};
+      cast::name(*state_, static_cast<uint8_t>(m.cast), name, sizeof(name));
+      if (p.sect >= 0) {
+        exploretext::sectName(*state_, static_cast<uint8_t>(p.sect), *grammar_, sect, sizeof(sect));
+        snprintf(v.beast, sizeof(v.beast), ctr(CULT_CAST_OF_FORMAT), name, sect);
+      } else {
+        snprintf(v.beast, sizeof(v.beast), "%s", name);
+      }
+      const char* list = p.meets == 0                          ? "cast.meet.first"
+                         : cast::bitter(p)                     ? "cast.meet.bitter"
+                         : cast::friendly(p)                   ? "cast.meet.friendly"
+                         : p.parting == cast::Parting::YouWon  ? "cast.meet.won"
+                         : p.parting == cast::Parting::YouLost ? "cast.meet.lost"
+                                                               : "cast.meet.again";
+      const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 2u);
+      exploretext::personFlavor(*state_, list, seed, v.regionNames[v.region], name, ui::realmName(p.realm), *grammar_,
+                                v.fightText, sizeof(v.fightText));
       if (packs_) packs_->closeFile();
     } else if (grammar_) {
       if (exploretext::cultivatorName(*state_, m.region, m.nameSeed, *grammar_, v.beast, sizeof(v.beast))) {

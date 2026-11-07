@@ -100,6 +100,7 @@ class CultivationActivity final : public Activity {
     RivalCard,       // the rival: who, how far, what people say
     Ladder,          // the realm's ranking: challenges, then the 20 rows
     Nemeses,         // up to three, with what is known of each
+    People,          // v0.3.5: the cast you have met
     Guide,           // v0.2.9 (CultivationGuideScreens.cpp): the topics
     GuidePage,       // one topic, a page at a time
     Lineage,         // v0.3.0 (CultivationLineageScreens.cpp): lives, the Qi bonus, imprints; reincarnate or abandon
@@ -281,6 +282,7 @@ class CultivationActivity final : public Activity {
   void renderRivalCard(int x, int y, int width, int bottom);
   void renderLadder(int x, int y, int width, int bottom);
   void renderNemeses(int x, int y, int width, int bottom);
+  void renderPeople(int x, int y, int width, int bottom);  // v0.3.5
   // v0.2.9: the Guide (CultivationGuideScreens.cpp). No heap: topics and pages are flash strings.
   void openGuide();
   void closeGuide();
@@ -362,6 +364,13 @@ class CultivationActivity final : public Activity {
   // v0.3.4: the rival's agenda this visit (Agenda.h), stepped with the world. One event goes into the
   // Return summary (agendaSummary_, -1 none), every other one straight into the Chronicle.
   cultivation::agenda::Steps agendaSteps_;
+  // v0.3.5: the cast's year events of this visit; one newsworthy one in the summary (castSummary_).
+  cultivation::cast::Steps castSteps_;
+  int8_t castSummary_ = -1;
+  void appendCastLines(bool summary);
+  bool castEventLine(const cultivation::cast::Event& e, cultivation::lifelog::Line& line);
+  bool castRumorOfTheDay(uint32_t when);
+  bool castPersonName(uint8_t i, char* out, size_t len);
   int8_t agendaSummary_ = -1;
   void appendAgendaLines(bool summary);  // true: the summary's one line; false: the rest, to the Chronicle
   bool agendaEventLine(const cultivation::agenda::Event& e, cultivation::lifelog::Line& line);
@@ -392,6 +401,11 @@ class CultivationActivity final : public Activity {
     char nemeses[cultivation::rivals::kNemesisMax][cultivation::exploretext::kNameSize] = {};
     char kinds[cultivation::rivals::kNemesisMax][cultivation::exploretext::kNameSize] = {};
     char regions[cultivation::explore::kRegionCount][48] = {};
+    // v0.3.5: the cast's names (all twelve, for their links) and the five sects' names (~0.9 KB).
+    char people[cultivation::cast::kPeople][48] = {};
+    char sects[cultivation::sects::kSects][64] = {};
+    uint8_t peopleOrder[cultivation::cast::kPeople] = {};  // met ones: the living first
+    uint8_t peopleCount = 0;
     int menuSelected = 0;
   };
   std::unique_ptr<RivalsView> rivals_;

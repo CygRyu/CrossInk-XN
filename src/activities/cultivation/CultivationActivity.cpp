@@ -469,6 +469,7 @@ void CultivationActivity::updateRumor() {
   // v0.3.2: one day in three, a live story of the living world; v0.3.3: one day in five, what a sect says of you.
   worldRumorOfTheDay(when);
   standingRumorOfTheDay(when);
+  castRumorOfTheDay(when);    // v0.3.5: one day in four, someone of the cast
   agendaRumorOfTheDay(when);  // v0.3.4: one day in four, the rival's goal
   if (packs_) packs_->closeFile();
   // v0.2.8: one day in four the rumor is about a nemesis (and tells you one of its ways).
@@ -535,7 +536,8 @@ void CultivationActivity::startVisit() {
   rivals::roam(*state_);
   // v0.3.2: the living world takes one step per reading hour (before the regions tick);
   // v0.3.4: the rival's agenda steps with it, after each year.
-  worldSteps_ = agenda::advanceWorld(*state_, agendaSteps_);
+  worldSteps_ = agenda::advanceWorld(*state_, agendaSteps_, castSteps_);  // v0.3.5: and the cast
+  castSummary_ = -1;
   worldSummary_ = -1;
   agendaSummary_ = -1;
   if (agendaSteps_.count > 0) {
@@ -564,6 +566,7 @@ void CultivationActivity::startVisit() {
     appendUpheavalLines(upheavals_);  // straight into the Chronicle
     appendRivalLines(rivalNews_);
     appendAgendaLines(false);     // v0.3.4: no summary, so all of it into the Chronicle
+    appendCastLines(false);       // v0.3.5
     appendWorldChronicleLines();  // v0.3.2
   }
   // Books finished since the last visit become scrolls (Chronicle lines first,
@@ -593,6 +596,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   if (!lifeLog_) {
     LOG_ERR("CULT", "Out of memory for the life log (%u bytes)", static_cast<unsigned>(sizeof(lifelog::LifeLog)));
     appendAgendaLines(false);     // v0.3.4
+    appendCastLines(false);       // v0.3.5
     appendWorldChronicleLines();  // v0.3.2: the world's news still reaches the Chronicle
     return;
   }
@@ -600,6 +604,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   appendUpheavalLines(upheavals_);  // Spatial Upheaval: after the visit's own lines
   appendRivalLines(rivalNews_);     // v0.2.8: then the rival's news
   appendAgendaLines(true);          // v0.3.4: one line of their agenda; the rest after the visit's lines
+  appendCastLines(true);            // v0.3.5: one line of the cast; the rest after the visit's lines
   if (ageWarning_ != lineage::Age::Fine && lifeLog_->count < lifelog::kMaxLines) {  // v0.3.0
     lifelog::Line& line = lifeLog_->lines[lifeLog_->count++];
     line.kind = lifelog::LineKind::Event;
@@ -614,6 +619,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   chronicle::appendVisit(*lifeLog_);
   if (worldSummary_ >= 0) ++lifeLog_->count;
   appendAgendaLines(false);  // v0.3.4: the agenda's other events (the summary's own line went in with the visit)
+  appendCastLines(false);    // v0.3.5: the cast's
   appendWorldChronicleLines();
   if (packs_) packs_->closeFile();
 }
@@ -1489,6 +1495,7 @@ void CultivationActivity::render(RenderLock&&) {
   if (screen_ == Screen::Rivals || screen_ == Screen::Nemeses) {
     title = screen_ == Screen::Rivals ? ctr(CULT_RIVALS_TITLE) : ctr(CULT_RIVALS_ROW_NEMESES);
   }
+  if (screen_ == Screen::People) title = ctr(CULT_RIVALS_ROW_PEOPLE);  // v0.3.5
   if (screen_ == Screen::RivalCard) title = ctr(CULT_RIVALS_ROW_RIVAL);
   if (screen_ == Screen::Ladder) {
     snprintf(ladderTitle, sizeof(ladderTitle), ctr(CULT_RIVALS_ROW_LADDER_FORMAT),
@@ -1707,6 +1714,10 @@ void CultivationActivity::render(RenderLock&&) {
       break;
     case Screen::Nemeses:
       renderNemeses(x, top, width, bottom);
+      rivalLabels(confirmLabel);
+      break;
+    case Screen::People:  // v0.3.5
+      renderPeople(x, top, width, bottom);
       rivalLabels(confirmLabel);
       break;
     case Screen::Guide:  // v0.2.9

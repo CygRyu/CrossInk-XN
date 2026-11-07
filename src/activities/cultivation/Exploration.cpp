@@ -4,6 +4,7 @@
 
 #include "Agenda.h"
 #include "Alchemy.h"
+#include "Cast.h"
 #include "Codex.h"
 #include "Daily.h"
 #include "Daos.h"
@@ -945,6 +946,9 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     const int waiting = waitingCultIn(s, region, roll.next());
     const bool again = waiting >= 0 && roll.below(3) == 0;  // one meeting in three is a remembered face
     s.exploration[7] = again ? static_cast<uint8_t>(waiting + 1) : 0;
+    // v0.3.5: one meeting in three in a region where one of the cast lives is that person.
+    const int person = cast::meetingIn(s, region, roll.next());
+    if (person >= 0) s.exploration[7] = static_cast<uint8_t>(cast::kSlotBase + person);
     // v0.2.8: a share of meetings (v0.3.1: 40%) is your rival, once their realm has opened this region.
     // v0.3.4: never while they are in closed-door cultivation; 80% in their tournament's region.
     if (rivals::canMeetIn(s, region) && roll.below(100) < agenda::meetPercent(s, region) && !agenda::unseen(s)) {
@@ -1245,6 +1249,40 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
     (void)l;
     return m;
   }
+  cast::Person who;
+  if (slot >= cast::kSlotBase && slot < cast::kSlotBase + cast::kPeople &&
+      cast::person(s, static_cast<uint8_t>(slot - cast::kSlotBase), who) && who.alive) {
+    // v0.3.5: one of the cast, at their own level (never scaled to you); they remember how you parted.
+    m.cast = static_cast<int8_t>(slot - cast::kSlotBase);
+    m.nameSeed = who.seed;
+    m.meets = who.meets;
+    m.temperament = who.temper;
+    m.friendly = cast::friendly(who);
+    m.level = cast::level(who);
+    const int whole = playerLevel(s, true) - m.level;
+    m.dares = whole <= 3 || cast::bitter(who);  // a bitter one challenges you whatever the odds
+    m.wound = woundOf(s);
+    const int d = whole - woundLevels(m.wound);
+    m.danger = dangerFor(d);
+    m.chance = winChance(d);
+    const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(m.danger));
+    m.damage = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), fightDamagePermille(s)));
+    Rng o(mix32(m.nameSeed, 0x4F464652u + m.meets));
+    if (cast::bitter(who)) {
+      m.offer = Offer::Challenge;
+    } else if (m.friendly) {
+      m.offer = o.below(2) == 0 ? Offer::Trade : Offer::Spar;
+    } else if (m.temperament == Temperament::Proud) {
+      m.offer = m.dares ? Offer::Challenge : Offer::Spar;
+    } else if (m.temperament == Temperament::Cautious) {
+      m.offer = o.below(100) < 70 ? Offer::Trade : Offer::Spar;
+    } else {
+      m.offer = m.dares ? Offer::Challenge : Offer::Trade;
+    }
+    m.talked = (s.exploration[6] & kMeetFlagTalked) != 0;
+    m.traded = (s.exploration[6] & kMeetFlagBought) != 0;
+    return m;
+  }
   Cult cult;
   if (slot >= 1 && slot <= kMeetRing && readCult(s, static_cast<uint8_t>(slot - 1), cult) && cult.region == region) {
     m.ring = slot - 1;
@@ -1314,6 +1352,15 @@ void finishMeeting(GameState& s, const Layout& l, const Meeting& m, const MeetOu
   setCounter(s, counter(s) + 1);
   setPending(s, m.region, FightKind::None);
   s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
+  if (m.cast >= 0) {  // v0.3.5: one of the cast remembers you in their own bytes
+    cast::met(s, static_cast<uint8_t>(m.cast), outcome, m.offer == Offer::Challenge);
+    res.done = true;
+    res.outcome = outcome;
+    res.cast = m.cast;
+    if (tileToo) resolveTile(s, l, m.region, res.tile);
+    checkClear(s, l, m.region, res.tile);
+    return;
+  }
   if (m.rival) {  // v0.2.8: the rival is remembered in their own block
     rivals::markMet(s);
     res.done = true;
@@ -1361,8 +1408,10 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
     const bool hint = guardianHint(s, l, m.region, kind, danger);
     uint32_t cost = 0;
     bool tells = hint;
-    if (m.temperament == Temperament::Cautious && !m.rival) tells = hint && m.ring >= 0;  // only to a face they know
-    if (m.temperament == Temperament::Greedy && hint) cost = 10u * (m.region + 1u);
+    if (m.temperament == Temperament::Cautious && !m.rival) {
+      tells = hint && (m.ring >= 0 || (m.cast >= 0 && m.meets > 0));  // only to a face they know
+    }
+    if (m.temperament == Temperament::Greedy && hint && !m.friendly) cost = 10u * (m.region + 1u);  // v0.3.5
     if (tells && cost > p.stones) {
       res.talk = TalkResult::TooPoor;
       res.talkCost = cost;
@@ -1446,7 +1495,10 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   }
   // v0.3.3: beating a sect's people on the road counts for (or against) the sects.
   if (res.won) {
-    const int8_t who = sects::personSect(s, m.region, m.nameSeed);
+    cast::Person cp;  // v0.3.5: one of the cast fights for their own sect (or none)
+    const int8_t who = m.cast >= 0 && cast::person(s, static_cast<uint8_t>(m.cast), cp)
+                           ? cp.sect
+                           : sects::personSect(s, m.region, m.nameSeed);
     res.world = sects::cultivatorBeaten(s, m.region, who);
     agenda::sawWin(s, m.region, who, res.world);  // v0.3.4: the rival's side in a war, their sect
   }
@@ -1484,7 +1536,7 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
   res.thrownTo = res.collapsed ? carryToEntrance(s, l, m.region) : throwBack(s, l, m.region, rng);
   // v0.2.8: a road cultivator who beats you in a Dangerous or harder challenge may become your nemesis.
-  if (m.danger >= Danger::Dangerous && rng.below(100) < rivals::kBirthPercent) {
+  if (m.cast < 0 && m.danger >= Danger::Dangerous && rng.below(100) < rivals::kBirthPercent) {  // v0.3.5: not the cast
     res.nemesisBorn = static_cast<int8_t>(rivals::bear(s, Enemy::Cultivator, m.region, m.level, m.nameSeed, c));
   }
   finishMeeting(s, l, m, MeetOutcome::Lost, false, res);
@@ -1532,7 +1584,8 @@ Stock traderStock(const GameState& s, const Layout& l, const uint8_t region) {
   const Meeting m = pendingMeeting(s, l);
   if (!m.active || m.region != region) return st;
   const bool greedy = m.temperament == Temperament::Greedy;
-  const uint32_t discount = m.last == MeetOutcome::Traded ? 90u : 100u;
+  // v0.3.5: a friend among the cast takes 10% off as well.
+  const uint32_t discount = m.last == MeetOutcome::Traded || m.friendly ? 100u - cast::kFriendDiscountPercent : 100u;
   Rng rng(contentSeed(worldSeedOf(s), kKindMeetStock, mix32(m.nameSeed, m.meets)));
   uint8_t next = unlockedCount(s);
   if (next >= kRegionCount) next = kRegionCount - 1;

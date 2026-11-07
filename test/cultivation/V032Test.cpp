@@ -398,8 +398,8 @@ TEST(V032Sects, RumorFollowsALiveStoryOrTheCondition) {
 }
 
 TEST(V032Save, LivingRoundTripsAndOldSavesLoadEmpty) {
-  EXPECT_EQ(save::kSaveVersion, 8);
-  EXPECT_EQ(save::kPayloadSize, 1621u);
+  EXPECT_GE(save::kSaveVersion, 8);  // v0.3.5: 9
+  EXPECT_EQ(save::kPayloadSizeV8, 1621u);
   GameState s = world(17, 2);
   sects::advance(s);
   s.living[63] = 0xA5;

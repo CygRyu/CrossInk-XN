@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "Cast.h"
 #include "GameState.h"
 #include "Rivals.h"
 #include "Sects.h"
@@ -135,7 +136,8 @@ struct Steps {
 
 // The living world and the agenda together: sects::advance with the agenda's
 // step after each world year. Call instead of sects::advance once per visit.
-sects::Steps advanceWorld(GameState& s, Steps& agendaOut);
+// v0.3.5: the cast's year comes between the sects' and the agenda's.
+sects::Steps advanceWorld(GameState& s, Steps& agendaOut, cast::Steps& castOut);
 // One year of the agenda (after the sects' step of that year). For the tests.
 void stepYear(GameState& s, uint16_t year, Steps& out);
 

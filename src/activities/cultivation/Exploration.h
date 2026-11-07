@@ -44,7 +44,7 @@
 //   7     v0.2.1: the waiting random fight is returning foe N - 1 (0 = a new one)
 //         v0.2.2: the waiting meeting is cultivator N - 1 of the ring in memory[32-47]
 //         v0.2.8: 0x11-0x13 the waiting random fight is nemesis N - 0x11 (Rivals.h);
-//         0x20 the waiting meeting is your rival; v0.3.4: 0x21 their duel
+//         0x20 the waiting meeting is your rival; v0.3.4: 0x21 their duel; v0.3.5: 0x30 + i cast member i
 //   8 + 19 x region:
 //     0-4   charted tiles (36 bits)     5-9   used-up tiles (36 bits)
 //     10    reshape counter             11    flags (cleared, guardian beaten)
@@ -367,6 +367,8 @@ struct Meeting {
   bool firstRival = false;  // ... met on the road for the first time
   bool duel = false;        // v0.3.4: their formal duel (stakes in stones, a loss costs HP)
   uint32_t stakes = 0;
+  int8_t cast = -1;           // v0.3.5: one of the cast (Cast.h), else -1
+  bool friendly = false;      // ... who thinks well of you: 10% off, a free Talk
   Wound wound = Wound::None;  // v0.2.9: already in level difference, chance and damage
 };
 
@@ -403,6 +405,7 @@ struct MeetResult {
   bool duel = false;  // v0.3.4: the duel was fought (stones won in reward, paid in duelPaid)
   uint32_t duelPaid = 0;
   bool duelRefused = false;  // walked on: the rival tells everyone
+  int8_t cast = -1;          // v0.3.5: the meeting was one of the cast
 };
 
 // Offer: play the spar or the challenge (a trade is the shop: stockFor / buy

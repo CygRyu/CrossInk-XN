@@ -100,7 +100,7 @@ const char* opinionWord(const int8_t v) {
 }
 
 // Menu rows of the Rivals screen.
-enum MenuRow : int { kRowRival = 0, kRowLadder, kRowNemeses, kMenuRows };
+enum MenuRow : int { kRowRival = 0, kRowLadder, kRowNemeses, kRowPeople, kMenuRows };  // People: v0.3.5
 
 }  // namespace
 
@@ -392,6 +392,17 @@ void CultivationActivity::loadRivalNames() {
   for (uint8_t region = 0; region < open; ++region) {
     exploretext::regionName(s, region, *grammar_, v.regions[region], sizeof(v.regions[region]));
   }
+  // v0.3.5: the cast. Names for all twelve (their links name each other), the living met ones first.
+  for (uint8_t k = 0; k < sects::kSects; ++k) exploretext::sectName(s, k, *grammar_, v.sects[k], sizeof(v.sects[k]));
+  v.peopleCount = 0;
+  for (int pass = 0; pass < 2; ++pass) {
+    for (uint8_t i = 0; i < cast::kPeople; ++i) {
+      cast::Person p;
+      if (!cast::person(s, i, p)) continue;
+      if (pass == 0) cast::name(s, i, v.people[i], sizeof(v.people[i]));
+      if (p.met && p.alive == (pass == 0)) v.peopleOrder[v.peopleCount++] = i;
+    }
+  }
   if (packs_) packs_->closeFile();
 }
 
@@ -516,7 +527,7 @@ void CultivationActivity::ladderChoose() {
 
 bool CultivationActivity::handleRivals(const bool back, const bool confirm, const bool up, const bool down) {
   if (screen_ != Screen::Rivals && screen_ != Screen::RivalCard && screen_ != Screen::Ladder &&
-      screen_ != Screen::Nemeses) {
+      screen_ != Screen::Nemeses && screen_ != Screen::People) {
     return false;
   }
   if (!rivals_) {
@@ -531,7 +542,10 @@ bool CultivationActivity::handleRivals(const bool back, const bool confirm, cons
       RenderLock lock(*this);
       v.menuSelected = selected_;
       notice_[0] = '\0';
-      screen_ = selected_ == kRowRival ? Screen::RivalCard : selected_ == kRowLadder ? Screen::Ladder : Screen::Nemeses;
+      screen_ = selected_ == kRowRival    ? Screen::RivalCard
+                : selected_ == kRowLadder ? Screen::Ladder
+                : selected_ == kRowPeople ? Screen::People
+                                          : Screen::Nemeses;
       selected_ = 0;
       requestUpdate();
     } else if (up || down) {
@@ -558,6 +572,8 @@ bool CultivationActivity::handleRivals(const bool back, const bool confirm, cons
     }
   } else if (screen_ == Screen::Nemeses && (up || down)) {
     handleList(rivals::nemesisCount(*state_), up, down);
+  } else if (screen_ == Screen::People && (up || down) && v.peopleCount > 0) {
+    handleList(v.peopleCount, up, down);
   }
   return true;
 }
@@ -572,6 +588,7 @@ void CultivationActivity::renderRivals(const int x, int y, const int width, cons
       [this](const int i) -> std::string {
         char t[64];
         if (i == kRowRival) return ctr(CULT_RIVALS_ROW_RIVAL);
+        if (i == kRowPeople) return ctr(CULT_RIVALS_ROW_PEOPLE);
         if (i == kRowLadder) {
           snprintf(t, sizeof(t), ctr(CULT_RIVALS_ROW_LADDER_FORMAT), ui::realmName(state_->progress.realm));
           return t;
@@ -581,6 +598,11 @@ void CultivationActivity::renderRivals(const int x, int y, const int width, cons
       [this](const int i) -> std::string {
         const GameState& s = *state_;
         char t[96];
+        if (i == kRowPeople) {  // v0.3.5
+          if (!rivals_ || rivals_->peopleCount == 0) return ctr(CULT_PEOPLE_NONE_SUB);
+          snprintf(t, sizeof(t), ctr(CULT_PEOPLE_COUNT_FORMAT), static_cast<unsigned>(rivals_->peopleCount));
+          return t;
+        }
         if (i == kRowRival) {
           const rivals::Rival r = rivals::rival(s);
           if (!r.known || !rivals_) return ctr(CULT_RIVALS_UNMET);
@@ -1113,6 +1135,246 @@ void CultivationActivity::agendaNowLine(char* out, const size_t len) {
       snprintf(out, len, "%s", ctr(CULT_AGENDA_NOW_NONE));
       break;
   }
+}
+
+// --- The cast (v0.3.5) ---------------------------------------------------------------------------
+
+void CultivationActivity::renderPeople(const int x, int y, const int width, const int bottom) {
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  const GameState& s = *state_;
+  if (!rivals_ || rivals_->peopleCount == 0) {
+    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_PEOPLE_NONE), 6);
+    return;
+  }
+  const RivalsView& v = *rivals_;
+  const int rowHeight = metrics.listWithSubtitleRowHeight;
+  const int shown = v.peopleCount < 5 ? v.peopleCount : 5;
+  const int listHeight = rowHeight * shown;
+  GUI.drawList(
+      renderer, Rect{0, y, renderer.getScreenWidth(), listHeight}, v.peopleCount, selected_,
+      [this](const int i) -> std::string {
+        char t[64];
+        snprintf(t, sizeof(t), "%s", rivals_->people[rivals_->peopleOrder[i]]);
+        capitalize(t);
+        return t;
+      },
+      [this](const int i) -> std::string {
+        cast::Person p;
+        if (!cast::person(*state_, rivals_->peopleOrder[i], p)) return "";
+        char t[96];
+        if (!p.alive) {
+          snprintf(t, sizeof(t),
+                   p.cause == cast::Cause::War ? ctr(CULT_PEOPLE_DIED_WAR_FORMAT) : ctr(CULT_PEOPLE_DIED_OLD_FORMAT),
+                   static_cast<unsigned>(p.age), ui::realmName(p.realm));
+          return t;
+        }
+        char stage[32];
+        ui::stageNameOf(p.realm, p.stage, stage, sizeof(stage));
+        snprintf(t, sizeof(t), ctr(CULT_PEOPLE_SUB_FORMAT), ui::realmName(p.realm), stage,
+                 static_cast<unsigned>(p.age));
+        return t;
+      },
+      nullptr,
+      [this](const int i) -> std::string {
+        cast::Person p;
+        if (!cast::person(*state_, rivals_->peopleOrder[i], p) || !p.alive || p.opinion == 0) return "";
+        return opinionWord(p.opinion);  // the long "neither warm nor cold" would squeeze the row
+      });
+  y += listHeight + metrics.verticalSpacing;
+
+  const int sel = selected_ < v.peopleCount ? selected_ : 0;
+  cast::Person p;
+  if (!cast::person(s, v.peopleOrder[sel], p)) return;
+  char line[224];
+  if (p.sect >= 0) {
+    snprintf(line, sizeof(line), ctr(CULT_RIVAL_RANK_FORMAT), rankName(static_cast<agenda::Rank>(p.rank)),
+             v.sects[p.sect]);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
+  } else if (p.alive) {
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_PEOPLE_NO_SECT), 2);
+  }
+  if (p.link != cast::Link::None && y < bottom) {
+    char other[64];
+    if (p.linkTo < cast::kPeople) {
+      cast::Person o;
+      const bool dead = cast::person(s, p.linkTo, o) && !o.alive;
+      snprintf(other, sizeof(other), dead ? ctr(CULT_PEOPLE_LATE_FORMAT) : "%s", v.people[p.linkTo]);
+    } else if (p.linkTo == cast::kLinkRival) {
+      snprintf(other, sizeof(other), ctr(CULT_PEOPLE_YOUR_RIVAL_FORMAT), v.rival);
+    } else {
+      snprintf(other, sizeof(other), "%s", ctr(CULT_PEOPLE_YOU));
+    }
+    const GameStr formats[] = {GameStr::CULT_PEOPLE_MASTER_FORMAT,   GameStr::CULT_PEOPLE_MASTER_FORMAT,
+                               GameStr::CULT_PEOPLE_DISCIPLE_FORMAT, GameStr::CULT_PEOPLE_SIBLING_FORMAT,
+                               GameStr::CULT_PEOPLE_SPOUSE_FORMAT,   GameStr::CULT_PEOPLE_ENEMY_FORMAT};
+    snprintf(line, sizeof(line), gameText(formats[static_cast<uint8_t>(p.link)]), other);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
+  }
+  if (p.alive && y < bottom) {
+    const bool known = p.region < explore::unlockedCount(s);
+    if (known) {
+      snprintf(line, sizeof(line), ctr(CULT_PEOPLE_FOUND_FORMAT), v.regions[p.region]);
+    } else {
+      snprintf(line, sizeof(line), "%s", ctr(CULT_PEOPLE_FAR));
+    }
+    if (p.secluded) snprintf(line, sizeof(line), "%s", ctr(CULT_PEOPLE_SECLUDED));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
+  }
+  if (!p.alive) {  // the dead: who they were tied to is enough; the Chronicle has the rest
+    if (y < bottom) drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_PEOPLE_REMEMBERED), 2);
+    return;
+  }
+  if (y < bottom) {
+    const GameStr tempers[] = {GameStr::CULT_PEOPLE_PROUD, GameStr::CULT_PEOPLE_CAUTIOUS, GameStr::CULT_PEOPLE_GREEDY};
+    const GameStr ambitions[] = {GameStr::CULT_PEOPLE_WANTS_POWER, GameStr::CULT_PEOPLE_WANTS_STANDING,
+                                 GameStr::CULT_PEOPLE_WANTS_WEALTH, GameStr::CULT_PEOPLE_WANTS_FAMILY};
+    snprintf(line, sizeof(line), "%s %s", gameText(tempers[static_cast<uint8_t>(p.temper) % 3]),
+             gameText(ambitions[static_cast<uint8_t>(p.ambition) % 4]));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2);
+  }
+  if (p.alive && y < bottom) {
+    const GameStr partings[] = {GameStr::CULT_PEOPLE_PARTED_NONE, GameStr::CULT_PEOPLE_PARTED_WON,
+                                GameStr::CULT_PEOPLE_PARTED_LOST, GameStr::CULT_PEOPLE_PARTED_FRIENDLY};
+    snprintf(line, sizeof(line), ctr(CULT_PEOPLE_OPINION_FORMAT), opinionWord(p.opinion), static_cast<int>(p.opinion),
+             gameText(partings[static_cast<uint8_t>(p.parting) % 4]));
+    drawWrapped(UI_10_FONT_ID, x, y, width, line, 3);
+  }
+}
+
+bool CultivationActivity::castPersonName(const uint8_t i, char* out, const size_t len) {
+  if (!grammar_ || !state_ || len == 0) return false;
+  out[0] = '\0';
+  if (i == cast::kLinkRival) {
+    char sect[64];
+    if (!exploretext::rivalName(*state_, *grammar_, out, len, sect, sizeof(sect))) return false;
+    if (!rivals::rival(*state_).known) snprintf(out, len, ctr(CULT_RIVAL_UNMET_NAME_FORMAT), sect);
+    return true;
+  }
+  cast::Person p;
+  if (!cast::person(*state_, i, p)) return false;
+  cast::name(*state_, i, out, len);
+  return out[0] != '\0';
+}
+
+bool CultivationActivity::castEventLine(const cast::Event& e, lifelog::Line& line) {
+  if (!grammar_ || !state_) return false;
+  static const char* const kKeys[] = {
+      "cast.line.arrived", "cast.line.breakthrough", "cast.line.failed",     "cast.line.seclusion", "cast.line.joined",
+      "cast.line.left",    "cast.line.rose",         "cast.line.apprentice", "cast.line.married",   "cast.line.sworn",
+      "cast.line.feud",    "cast.line.fellout",      "cast.line.died.old",   "cast.line.died.war"};
+  static_assert(sizeof(kKeys) / sizeof(kKeys[0]) == static_cast<size_t>(cast::EventKind::Count), "cast lines");
+  const auto k = static_cast<uint8_t>(e.kind);
+  if (k >= static_cast<uint8_t>(cast::EventKind::Count)) return false;
+  const char* key = kKeys[k];
+  if (e.kind == cast::EventKind::Arrived && e.other != cast::kLinkNone) key = "cast.line.arrived.disciple";
+  char name[exploretext::kNameSize];
+  if (!castPersonName(e.who, name, sizeof(name))) return false;
+  char region[48] = {};
+  exploretext::regionName(*state_, e.region < explore::kRegionCount ? e.region : 0, *grammar_, region, sizeof(region));
+  char what[exploretext::kNameSize] = {};
+  char sect[exploretext::kNameSize] = {};
+  if (e.sect >= 0) exploretext::sectName(*state_, static_cast<uint8_t>(e.sect), *grammar_, sect, sizeof(sect));
+  switch (e.kind) {
+    case cast::EventKind::Breakthrough:
+    case cast::EventKind::Failed:
+      snprintf(what, sizeof(what), "%s", ui::realmName(e.realm));
+      break;
+    case cast::EventKind::JoinedSect:
+    case cast::EventKind::LeftSect:
+    case cast::EventKind::DiedWar:
+      snprintf(what, sizeof(what), "%s", sect);
+      break;
+    case cast::EventKind::Rose:
+      snprintf(what, sizeof(what), ctr(CULT_RIVAL_RANK_FORMAT), rankWithArticle(static_cast<agenda::Rank>(e.rank)),
+               sect);
+      break;
+    case cast::EventKind::DiedOld:
+      snprintf(what, sizeof(what), ctr(CULT_CAST_AGE_FORMAT), static_cast<unsigned>(e.age));
+      break;
+    default:
+      if (e.other != cast::kLinkNone) castPersonName(e.other, what, sizeof(what));
+      break;
+  }
+  const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindRivalText, mix32(e.year, 0x43535400u + e.who * 32u + k));
+  return exploretext::personLine(line, *state_, key, seed, region, name, what, *grammar_);
+}
+
+// summary: the Return summary's one line (a death first, then a bond, a rank or a breakthrough, the
+// latest); otherwise every other newsworthy event of the visit, in order, into the Chronicle.
+void CultivationActivity::appendCastLines(const bool summary) {
+  if (!grammar_ || !state_ || castSteps_.count == 0) return;
+  if (summary) {
+    castSummary_ = -1;
+    if (!lifeLog_ || lifeLog_->count >= lifelog::kMaxLines) return;
+    auto priority = [](const cast::Event& e) -> int {
+      switch (e.kind) {
+        case cast::EventKind::DiedOld:
+        case cast::EventKind::DiedWar:
+          return 3;
+        case cast::EventKind::Seclusion:
+        case cast::EventKind::Failed:
+        case cast::EventKind::JoinedSect:
+        case cast::EventKind::LeftSect:
+          return 1;
+        default:
+          return 2;
+      }
+    };
+    int best = -1;
+    for (uint8_t i = 0; i < castSteps_.count; ++i) {
+      if (!cast::newsworthy(*state_, castSteps_.events[i])) continue;
+      if (best < 0 || priority(castSteps_.events[i]) >= priority(castSteps_.events[best])) best = i;
+    }
+    lifelog::Line line;
+    if (best >= 0 && castEventLine(castSteps_.events[best], line)) {
+      lifeLog_->lines[lifeLog_->count++] = line;
+      castSummary_ = static_cast<int8_t>(best);
+    }
+  } else {
+    bool opened = chronicle::exists();
+    for (uint8_t i = 0; i < castSteps_.count; ++i) {
+      if (i == castSummary_ || !cast::newsworthy(*state_, castSteps_.events[i])) continue;
+      lifelog::Line line;
+      if (!castEventLine(castSteps_.events[i], line)) continue;
+      if (!opened) {
+        chronicle::writeOpening(*state_, grammar_.get());
+        opened = true;
+      }
+      chronicle::appendLines(&line, 1);
+    }
+    chronicleExists_ = chronicle::exists();
+  }
+  if (packs_) packs_->closeFile();
+}
+
+// One day in four, the rumor of the day is about someone of the cast (by name once you have met).
+bool CultivationActivity::castRumorOfTheDay(const uint32_t when) {
+  if (!grammar_ || !state_ || !cast::founded(*state_)) return false;
+  Rng rng(contentSeed(worldSeedOf(*state_), kKindRivalText, mix32(when, 0x43415354u)));
+  if (rng.below(4) != 0) return false;
+  const auto i = static_cast<uint8_t>(rng.below(cast::kPeople));
+  cast::Person p;
+  if (!cast::person(*state_, i, p) || !p.alive) return false;
+  char name[exploretext::kNameSize];
+  if (p.met) {
+    if (!castPersonName(i, name, sizeof(name))) return false;
+  } else if (p.sect >= 0) {
+    char sect[exploretext::kNameSize];
+    exploretext::sectName(*state_, static_cast<uint8_t>(p.sect), *grammar_, sect, sizeof(sect));
+    snprintf(name, sizeof(name), ctr(CULT_CAST_UNMET_SECT_FORMAT), sect);
+  } else {
+    snprintf(name, sizeof(name), "%s", ctr(CULT_CAST_UNMET_NONE));
+  }
+  char region[48] = {};
+  exploretext::regionName(*state_, p.region, *grammar_, region, sizeof(region));
+  char line[sizeof(rumor_)];
+  if (!exploretext::personFlavor(*state_, p.met ? "cast.rumor.met" : "cast.rumor.unmet", rng.next(), region, name,
+                                 ui::realmName(p.realm), *grammar_, line, sizeof(line))) {
+    return false;
+  }
+  capitalize(line);
+  snprintf(rumor_, sizeof(rumor_), "%s.", line);
+  return true;
 }
 
 // One day in four the rumor of the day names a nemesis's trait (and you know it from then on).

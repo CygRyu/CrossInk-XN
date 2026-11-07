@@ -58,7 +58,8 @@ GameState world(const uint32_t seed, const uint8_t realm = 3) {
 agenda::Steps read(GameState& s, const uint32_t hours) {
   s.progress.gameReadingSeconds += hours * 3600u;
   agenda::Steps out;
-  agenda::advanceWorld(s, out);
+  cast::Steps people;
+  agenda::advanceWorld(s, out, people);
   return out;
 }
 

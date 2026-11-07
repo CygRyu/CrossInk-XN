@@ -56,6 +56,7 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/Daos.cpp
   ${CULTIVATION_SRC}/Rivals.cpp
   ${CULTIVATION_SRC}/Agenda.cpp
+  ${CULTIVATION_SRC}/Cast.cpp
   ${CULTIVATION_SRC}/Lineage.cpp
   ${CULTIVATION_SRC}/Codex.cpp
 )
@@ -85,6 +86,7 @@ add_executable(CultivationCoreTest
   V032Test.cpp
   V033Test.cpp
   V034Test.cpp
+  V035Test.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp

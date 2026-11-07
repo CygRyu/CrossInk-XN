@@ -391,8 +391,15 @@ void stepWith(GameState& s, const uint16_t year, sects::Steps& world, Steps& out
   if (g != Goal::None) begin(s, g, year, rng, out);
 }
 
+struct HookOut {
+  Steps* agenda;
+  cast::Steps* cast;
+};
+
 void hook(GameState& s, const uint16_t year, sects::Steps& world, void* ctx) {
-  stepWith(s, year, world, *static_cast<Steps*>(ctx));
+  auto* out = static_cast<HookOut*>(ctx);
+  cast::stepYear(s, year, *out->cast);  // v0.3.5
+  stepWith(s, year, world, *out->agenda);
 }
 
 }  // namespace
@@ -432,9 +439,11 @@ uint16_t hoursLeft(const GameState& s) {
   return st.until > now ? static_cast<uint16_t>(st.until - now) : 0;
 }
 
-sects::Steps advanceWorld(GameState& s, Steps& agendaOut) {
+sects::Steps advanceWorld(GameState& s, Steps& agendaOut, cast::Steps& castOut) {
   agendaOut = Steps{};
-  return sects::advance(s, &hook, &agendaOut);
+  castOut = cast::Steps{};
+  HookOut out{&agendaOut, &castOut};
+  return sects::advance(s, &hook, &out);
 }
 
 void stepYear(GameState& s, const uint16_t year, Steps& out) {

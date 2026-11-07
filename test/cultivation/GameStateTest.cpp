@@ -100,15 +100,15 @@ class GameStateTest : public testing::Test {
   void SetUp() override { Storage.reset(); }
 };
 
-TEST_F(GameStateTest, FileIsAboutOnePointSixKilobytes) {
+TEST_F(GameStateTest, FileIsAboutOnePointEightKilobytes) {
   ASSERT_TRUE(save::store(sampleState(1)));
   const auto* bytes = Storage.bytesOf(kPath);
   ASSERT_NE(bytes, nullptr);
   EXPECT_EQ(bytes->size(), save::kFileSize);
   // v2: + 4 bytes techniqueMeta; v3: + 200 bytes exploration; v4: + 192 bytes bag; v5: + 48 bytes memory;
-  // v6: + 96 bytes rivals; v7: + 72 bytes lineage; v8: + 64 bytes living (v0.3.2)
-  EXPECT_EQ(save::kFileSize, 1631u);
-  EXPECT_LT(save::kFileSize, 1700u);  // over the doc's 1 KB since v0.1.10 (told to the user)
+  // v6: + 96 bytes rivals; v7: + 72 bytes lineage; v8: + 64 bytes living (v0.3.2); v9: + 160 bytes cast (v0.3.5)
+  EXPECT_EQ(save::kFileSize, 1791u);
+  EXPECT_LT(save::kFileSize, 1900u);  // over the doc's 1 KB since v0.1.10 (told to the user)
 }
 
 TEST_F(GameStateTest, RoundTrip) {

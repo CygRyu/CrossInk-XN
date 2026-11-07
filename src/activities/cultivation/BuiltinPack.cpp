@@ -1506,6 +1506,111 @@ After the loss {$beast.name} disappears into seclusion without telling anyone; s
 {$beast.name.cap} takes the loss calmly. "Next year," your rival says, "it will go the other way."
 {$beast.name.cap} writes down every move of the bout in a notebook and walks off reading it.
 
+# v0.3.5: the cast. {$beast.name} is the person ("Old Bai"); {$region.name}
+# where they are; {$what}: a realm (breakthrough, failed, meetings), a sect
+# (joined, left, died.war), a rank of a sect ("an inner disciple of the Azure
+# Cloud Sect"), another person's name (apprentice, married, sworn, feud,
+# fellout, arrived.disciple; may be "your rival Qiu Mingyuan"), or "the age of
+# 212" (died.old). No time words: a reading hour is a year. No Spirit Stones.
+
+[cast.line.arrived]
+A young cultivator calling themselves {$beast.name} has started out on the roads of {$region.name}.
+{$beast.name.cap}, barely grown, has taken up cultivation in {$region.name}.
+
+[cast.line.arrived.disciple]
+{$what.cap} has taken on a new disciple, a youngster named {$beast.name}.
+{$beast.name.cap} has knelt to {$what} and been accepted as a disciple.
+
+[cast.line.breakthrough]
+{$beast.name.cap} has broken through to {$what}.
+Word comes that {$beast.name} reached {$what} after a long night in a cold cave.
+
+[cast.line.failed]
+{$beast.name.cap} tried for {$what} and failed, and coughed blood for a month after.
+{$beast.name.cap}'s attempt at {$what} went wrong; they will try again when the wounds close.
+
+[cast.line.seclusion]
+{$beast.name.cap} has gone into seclusion and sends away all visitors.
+{$beast.name.cap} has shut themselves away to cultivate and will not be seen for a while.
+
+[cast.line.joined]
+{$beast.name.cap} has been taken in by {$what}.
+{$beast.name.cap} passed the entrance trials of {$what} and wears its robes now.
+
+[cast.line.left]
+{$beast.name.cap} has left {$what} after a quarrel over a cave allotment.
+{$beast.name.cap} walked out of {$what} with a bundle and no farewells.
+
+[cast.line.rose]
+{$beast.name.cap} has been made {$what}.
+They say {$beast.name} is {$what} now, and walks a little taller for it.
+
+[cast.line.apprentice]
+{$beast.name.cap} has taken {$what} as a disciple.
+{$what.cap} has knelt to {$beast.name} and been accepted as a disciple.
+
+[cast.line.married]
+{$beast.name.cap} and {$what} have married; the feast went on for three days.
+{$beast.name.cap} has married {$what}, quietly, with two witnesses and a jar of wine.
+
+[cast.line.sworn]
+{$beast.name.cap} and {$what} have sworn brotherhood under a peach tree.
+{$beast.name.cap} and {$what} cut their palms and swore to stand by each other.
+
+[cast.line.feud]
+{$beast.name.cap} has sworn to bring down {$what}, over an insult nobody else remembers.
+Bad blood between {$beast.name} and {$what}: there was a fight in a teahouse, and it is not over.
+
+[cast.line.fellout]
+{$beast.name.cap} and {$what} have fallen out and no longer speak.
+Whatever bound {$beast.name} to {$what} is broken; they pass each other on the road like strangers.
+
+[cast.line.died.old]
+{$beast.name.cap} has died at {$what}, their years run out at last.
+{$beast.name.cap} sat down in the sun one morning and did not get up again. They had reached {$what}.
+
+[cast.line.died.war]
+{$beast.name.cap} fell in {$region.name}, fighting for {$what}.
+{$beast.name.cap} was killed in the war in {$region.name}; {$what} buried them with honours.
+
+# The rumor of the day about one of the cast: a whole sentence without the full
+# stop. .met: by name; .unmet: "a cultivator of the Azure Cloud Sect" or "a
+# wandering cultivator". {$what} is their realm.
+
+[cast.rumor.met]
+{world.rumor.opening} {$beast.name} has been seen on the roads of {$region.name} again
+{world.rumor.opening} {$beast.name} is close to the end of {$what} and pushing hard
+
+[cast.rumor.unmet]
+{world.rumor.opening} {$beast.name} at {$what} has been asking about you in {$region.name}
+{world.rumor.opening} {$beast.name} in {$region.name} has not lost a bout all season
+
+# Meeting one of the cast ({$what}: their realm).
+
+[cast.meet.first]
+A cultivator at {$what} falls into step beside you and gives their name: {$beast.name}.
+{$beast.name.cap}, at {$what}, stops you at a ford in {$region.name} and asks where you are headed.
+
+[cast.meet.again]
+{$beast.name.cap} is on the road again, at {$what} now, and nods as if it were yesterday.
+You know that walk: {$beast.name}, at {$what}, coming the other way.
+
+[cast.meet.won]
+{$beast.name.cap} sees you and touches the old bruise on their jaw. "You. I have trained since then."
+{$beast.name.cap}, at {$what} now, has not forgotten the last bout and says so.
+
+[cast.meet.lost]
+{$beast.name.cap} grins when they see you. "Back for another lesson?"
+{$beast.name.cap} remembers beating you and is in a generous mood about it.
+
+[cast.meet.friendly]
+{$beast.name.cap} waves from the roadside and makes room on the bench. "Sit. Tell me the news."
+{$beast.name.cap} greets you like an old friend and shares the last of their tea.
+
+[cast.meet.bitter]
+{$beast.name.cap} blocks the road. "I have been hoping to run into you."
+{$beast.name.cap} sees you coming and draws a blade before you have said a word.
+
 # v0.3.4: the rival's agenda. {$beast.name} is the rival (before you meet them,
 # "a young disciple of" their sect, so no line says "your rival"), {$region.name}
 # where the goal is, {$what}: the tournament's or the inheritance's sect, the
