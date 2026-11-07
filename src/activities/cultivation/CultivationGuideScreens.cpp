@@ -69,8 +69,8 @@ constexpr GuideTopic kTopics[] = {
      GuideGate::Crafts},
     {GameStr::CULT_GUIDE_T7,
      GameStr::CULT_GUIDE_T7_SUB,
-     {GameStr::CULT_GUIDE_T7_P1, GameStr::CULT_GUIDE_T7_P2, GameStr::CULT_GUIDE_T7_P2},
-     2,
+     {GameStr::CULT_GUIDE_T7_P1, GameStr::CULT_GUIDE_T7_P2, GameStr::CULT_GUIDE_T7_P3},  // v0.3.4: the agenda
+     3,
      GuideGate::Rivals},
     {GameStr::CULT_GUIDE_T8,
      GameStr::CULT_GUIDE_T8_SUB,

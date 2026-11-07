@@ -351,7 +351,7 @@ bool allied(const GameState& s, const uint8_t a, const uint8_t b) {
   return bit >= 0 && (get16(s.living.data() + kAlliances) & (1u << bit)) != 0;
 }
 
-Steps advance(GameState& s) {
+Steps advance(GameState& s, const YearHook hook, void* ctx) {
   Steps out;
   const uint16_t now = yearsRead(s);
   if (!founded(s)) {
@@ -368,10 +368,24 @@ Steps advance(GameState& s) {
   if (now - done > kMaxStepsPerVisit) done = static_cast<uint16_t>(now - kMaxStepsPerVisit);
   for (uint16_t y = static_cast<uint16_t>(done + 1u); y <= now && y != 0; ++y) {
     stepYear(s, y, out);
+    if (hook != nullptr) hook(s, y, out, ctx);
     ++out.years;
   }
   put16(s.living.data() + kStepped, now);
   return out;
+}
+
+bool takenByRival(GameState& s, const uint16_t year, Steps& out) {
+  if (condition(s) != Condition::Inheritance) return false;
+  const uint8_t owner = conditionSect(s);
+  if (static_cast<Story>(sectBytes(s, owner)[3]) == Story::Inheritance) {
+    Event end = eventOf(s, EventKind::Ended, owner, year);
+    end.good = false;  // "reached the old master's cave to find it already empty"
+    push(out, end);
+    finishStory(s, owner, false);
+  }
+  endCondition(s);
+  return true;
 }
 
 Condition condition(const GameState& s, uint8_t* region) {
@@ -392,6 +406,10 @@ uint16_t conditionYearsLeft(const GameState& s) {
   const uint16_t end = get16(s.living.data() + kCondEnd);
   const uint16_t now = yearsRead(s);
   return end > now ? static_cast<uint16_t>(end - now) : 0;
+}
+
+uint16_t conditionEndYear(const GameState& s) {
+  return condition(s) == Condition::None ? 0 : get16(s.living.data() + kCondEnd);
 }
 
 uint8_t conditionSect(const GameState& s) { return s.living[kCondSect] < kSects ? s.living[kCondSect] : 0; }

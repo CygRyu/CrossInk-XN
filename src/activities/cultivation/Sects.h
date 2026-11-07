@@ -151,13 +151,20 @@ struct Steps {
 
 // Founds the sects on the first call of a life (no history before it), then
 // takes one step per reading hour since the last call. Call once per visit,
-// after the reading is absorbed.
-Steps advance(GameState& state);
+// after the reading is absorbed. v0.3.4: `hook` runs after each year's step
+// (the rival's agenda, Agenda.h), with that year and the events so far.
+using YearHook = void (*)(GameState& state, uint16_t year, Steps& out, void* ctx);
+Steps advance(GameState& state, YearHook hook = nullptr, void* ctx = nullptr);
+// v0.3.4: the rival took the inheritance before the sects: the condition ends
+// and the story's sect loses its race (an Ended event, bad). False when no
+// inheritance is on.
+bool takenByRival(GameState& state, uint16_t year, Steps& out);
 
 // The condition now (None when none). `region` is set when one is on.
 Condition condition(const GameState& state, uint8_t* region = nullptr);
 Condition conditionIn(const GameState& state, uint8_t region);
 uint16_t conditionYearsLeft(const GameState& state);  // 0 when none
+uint16_t conditionEndYear(const GameState& state);    // v0.3.4: the reading hour it ends (0 when none)
 uint8_t conditionSect(const GameState& state);
 int8_t conditionOther(const GameState& state);   // a sect war's other sect, -1 for none
 uint8_t conditionTally(const GameState& state);  // byte 7 (see the layout)

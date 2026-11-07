@@ -898,7 +898,7 @@ TEST(RivalText, EveryNewListFitsTheScreenAndTheChronicle) {
 
 TEST(RivalText, TheBuiltInPackStillFitsTheDeviceIndex) {
   Pack pack;
-  // PackStore::kMaxSections is 448 since v0.3.2 (384 before): leave room for the player's own SD packs.
-  EXPECT_LT(pack.index.count, 416u);  // v0.3.3: 401; at least 32 left for SD packs
-  EXPECT_EQ(PackStore::kMaxSections, 448u);
+  // PackStore::kMaxSections is 512 since v0.3.4 (448, 384 before): leave room for the player's own SD packs.
+  EXPECT_LT(pack.index.count, 480u);  // v0.3.4: 436; at least 32 left for SD packs
+  EXPECT_EQ(PackStore::kMaxSections, 512u);
 }

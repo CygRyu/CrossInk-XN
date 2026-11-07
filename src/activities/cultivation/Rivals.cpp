@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Agenda.h"
 #include "Daily.h"
 #include "Exploration.h"
 #include "Lineage.h"
@@ -488,6 +489,11 @@ bool canMeetIn(const GameState& s, const uint8_t region) {
 }
 
 bool offersTrade(const GameState& s, const uint8_t meeting) {
+  // v0.3.4: a bitter rival never trades; a friendly one trades one meeting in two (Idle always).
+  if (agenda::bitter(s)) return false;
+  if (agenda::friendly(s) && temperOf(s) != Temper::Idle) {
+    return Rng(mix32(rivalSeed(s), 0x54524144u + meeting)).below(2) == 0;
+  }
   switch (temperOf(s)) {
     case Temper::Idle:
       return true;
@@ -512,6 +518,40 @@ void beaten(GameState& s, const uint32_t today) {
 }
 
 void lostTo(GameState& s) { rv(s)[kLosses] = inc(rv(s)[kLosses]); }
+
+void setTalent(GameState& s, const uint8_t talentPercent) {
+  rv(s)[kTalent] = talentPercent < 80 ? 80 : talentPercent > 125 ? 125 : talentPercent;
+}
+
+uint32_t stageStart(const uint8_t realm, const uint8_t stage, const uint8_t talentPercent) {
+  // The same sums as positionFor(): stage k of a realm begins after the shares of stages 0..k-1.
+  uint64_t start = 0;
+  for (uint8_t r = 0; r < realm && r < kMortalRealmCount; ++r) {
+    start += static_cast<uint64_t>(kRealmDeciHours[r]) * 60u * talentPercent / 100u;
+  }
+  if (realm >= kMortalRealmCount) return start > 0xFFFFFFFFu ? 0xFFFFFFFFu : static_cast<uint32_t>(start);
+  const uint64_t need = static_cast<uint64_t>(kRealmDeciHours[realm]) * 60u * talentPercent / 100u;
+  const uint8_t n = stagesOf(realm);
+  uint32_t total = 0;
+  for (uint8_t k = 0; k < n; ++k) total += 100u + 12u * k;
+  for (uint8_t k = 0; k < stage && k < n; ++k) start += need * (100u + 12u * k) / total;
+  return start > 0xFFFFFFFFu ? 0xFFFFFFFFu : static_cast<uint32_t>(start);
+}
+
+bool stepAhead(GameState& s) {
+  const Rival r = rival(s);
+  if (!r.exists) return false;
+  uint8_t realm = r.realm;
+  uint8_t stage = static_cast<uint8_t>(r.stage + 1);
+  if (stage >= stagesOf(realm)) {
+    if (realm + 1 >= kMortalRealmCount) return false;
+    ++realm;
+    stage = 0;
+  }
+  const uint32_t at = stageStart(realm, stage, r.talentPercent);
+  if (at > r.deciMinutes) put32(rv(s) + kMinutes, at);
+  return true;
+}
 
 // --- The ladder ------------------------------------------------------------------------------
 
@@ -650,8 +690,9 @@ BoutResult play(GameState& s, const Bout& b, const bool defence) {
     if (!defence) r[kRank] = b.rank;  // the bout swaps ranks
     if (res.rival) beaten(s, today);
     if (!res.rival && !b.who.player && b.who.seat > 0) {  // v0.3.3: the seat holder's sect
-      res.world =
-          sects::cultivatorBeaten(s, sects::kNoRegion, sects::personSect(s, sects::kNoRegion, seatSeed(s, b.who.seat)));
+      const int8_t who = sects::personSect(s, sects::kNoRegion, seatSeed(s, b.who.seat));
+      res.world = sects::cultivatorBeaten(s, sects::kNoRegion, who);
+      agenda::sawWin(s, sects::kNoRegion, who, res.world);  // v0.3.4
     }
   } else {
     res.hpLost = b.hpCost < s.progress.hp ? b.hpCost : s.progress.hp;
@@ -659,6 +700,7 @@ BoutResult play(GameState& s, const Bout& b, const bool defence) {
     if (defence) r[kRank] = b.rank;
     if (res.rival) lostTo(s);
   }
+  if (res.rival) agenda::boutWithRival(s, res.won);  // v0.3.4: their opinion of you
   res.rankAfter = playerRank(s);
   if (res.rankAfter != 0 && (r[kBestRank] == 0 || res.rankAfter < r[kBestRank])) r[kBestRank] = res.rankAfter;
   return res;
@@ -911,6 +953,14 @@ void itFled(GameState& s, const uint8_t index) {
   uint8_t* b = nem(s, index);
   b[kNFled] = inc(b[kNFled]);
   rest(s, index);
+}
+
+void scarredByRival(GameState& s, const uint8_t index, const uint32_t atSeconds) {
+  Nemesis n;
+  if (!nemesis(s, index, n)) return;
+  setEpithet(s, index, EpithetKind::Scar);
+  const uint32_t units = atSeconds / 600u + 1u + (hasTrait(n, Trait::QuickToHeal) ? kRestUnits / 2 : kRestUnits);
+  put16(nem(s, index) + kNRest, units);
 }
 
 int revealOne(GameState& s, Trait& trait, const uint32_t seed) {

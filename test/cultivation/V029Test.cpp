@@ -376,5 +376,5 @@ TEST(SacredStep, StoredInTheSaveAsIs) {
 
 TEST(V029Pack, StillFitsTheDeviceIndex) {
   Pack pack;
-  EXPECT_LT(pack.index.count, 416u);  // the index holds 448 since v0.3.2; v0.3.3 uses 401
+  EXPECT_LT(pack.index.count, 480u);  // the index holds 512 since v0.3.4; v0.3.4 uses 436
 }

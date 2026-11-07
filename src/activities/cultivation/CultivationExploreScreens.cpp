@@ -11,6 +11,7 @@
 #include <cstring>
 #include <string>
 
+#include "Agenda.h"
 #include "Chronicle.h"
 #include "Codex.h"
 #include "CultivationActivity.h"
@@ -812,9 +813,13 @@ void CultivationActivity::openMeeting() {
     if (grammar_ && m.rival) {  // v0.2.8: your rival
       char sect[64];
       if (exploretext::rivalName(*state_, *grammar_, v.beast, sizeof(v.beast), sect, sizeof(sect))) {
-        const char* list = m.offer == explore::Offer::Trade ? "rival.meet.trade"
-                           : m.firstRival                   ? "rival.meet.first"
-                                                            : "rival.meet.again";
+        // v0.3.4: a duel letter, then the tone of their opinion of you.
+        const char* list = m.duel                             ? "rival.meet.duel"
+                           : m.offer == explore::Offer::Trade ? "rival.meet.trade"
+                           : m.firstRival                     ? "rival.meet.first"
+                           : agenda::bitter(*state_)          ? "rival.meet.bitter"
+                           : agenda::friendly(*state_)        ? "rival.meet.friendly"
+                                                              : "rival.meet.again";
         const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 2u);
         exploretext::personFlavor(*state_, list, seed, v.regionNames[v.region], v.beast, sect, *grammar_, v.fightText,
                                   sizeof(v.fightText));
@@ -847,8 +852,8 @@ uint8_t CultivationActivity::meetRowList(MeetRow* out) const {
   if (!m.active) return 0;
   out[n++] = MeetRow::Offer;
   if (!m.talked) out[n++] = MeetRow::Talk;
-  if (m.offer == explore::Offer::Challenge && inventory::tonicFor(*state_, 1) != inventory::Item::None &&
-      state_->progress.hp < state_->progress.hpMax) {
+  if ((m.offer == explore::Offer::Challenge || m.offer == explore::Offer::Duel) &&
+      inventory::tonicFor(*state_, 1) != inventory::Item::None && state_->progress.hp < state_->progress.hpMax) {
     out[n++] = MeetRow::Tonic;
   }
   out[n++] = MeetRow::WalkOn;
@@ -999,6 +1004,7 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
     const char* list = spar ? (r.won ? "explore.meet.sparwon" : "explore.meet.sparlost")
                             : (r.won ? "explore.won.cultivator" : "explore.lost");
     if (m.rival) list = r.won ? "rival.sparwon" : "rival.sparlost";  // v0.2.8
+    if (m.duel) list = r.won ? "rival.duelwon" : "rival.duellost";   // v0.3.4
     const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindFightText, explore::stepCounter(*state_) | 5u);
     exploretext::flavor(*state_, list, seed, v.regionNames[v.region], v.beast, *grammar_, v.text, sizeof(v.text));
     if (packs_) packs_->closeFile();
@@ -1016,10 +1022,16 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
                static_cast<unsigned>(r.roll), static_cast<unsigned>(m.chance));
     }
   } else {
-    snprintf(line, sizeof(line), "%s", ctr(CULT_WALKED_ON));
+    snprintf(line, sizeof(line), "%s", r.duelRefused ? ctr(CULT_DUEL_REFUSED) : ctr(CULT_WALKED_ON));
   }
   char parts[160] = {};
   formatReward(r.reward, r.hpLost, 0, parts, sizeof(parts));
+  if (r.duelPaid > 0) {  // v0.3.4: the stakes of a lost duel
+    char paid[64];
+    snprintf(paid, sizeof(paid), ctr(CULT_DUEL_PAID_FORMAT), static_cast<unsigned long>(r.duelPaid));
+    const size_t used = strlen(parts);
+    snprintf(parts + used, sizeof(parts) - used, "%s%s", used > 0 ? ", " : "", paid);
+  }
   formatReward(r.tile.reward, r.tile.hpLost, r.tile.hpHealed, parts, sizeof(parts));
   noteMementos(r.tile);  // v0.3.0
   snprintf(v.numbers, sizeof(v.numbers), "%s", line);
@@ -1051,6 +1063,12 @@ void CultivationActivity::showMeetingResult(const explore::Meeting& m, const exp
                            : r.outcome == explore::MeetOutcome::Traded ? "rival.line.trade"
                            : r.outcome == explore::MeetOutcome::Talked ? "rival.line.talk"
                                                                        : nullptr;
+      if (m.duel) {  // v0.3.4: the duel's own lines
+        result = r.duelRefused ? "rival.line.duel.refused"
+                 : r.won       ? "rival.line.duel.won"
+                 : r.fought    ? "rival.line.duel.lost"
+                               : result;
+      }
       if (result != nullptr) rivalChronicle(result, v.regionNames[v.region], name, sect, 21);
       if (r.won) {  // what the defeat does to them, on the map and in the Chronicle
         static const char* const kReact[static_cast<int>(rivals::Temper::Count)] = {
@@ -1564,6 +1582,7 @@ void CultivationActivity::renderRegions(const int x, int y, const int width, con
           // v0.3.2: a region condition comes first ("Sect war · Dangerous · ...").
           char withWord[64];
           const char* word = conditionWord(sects::conditionIn(*state_, region));
+          if (agenda::duelWaitingIn(*state_, region)) word = ctr(CULT_REGION_DUEL);  // v0.3.4: your rival waits
           if (word != nullptr) {
             snprintf(withWord, sizeof(withWord), ctr(CULT_REGION_COND_FORMAT), word, danger);
             danger = withWord;
@@ -1663,6 +1682,11 @@ void CultivationActivity::renderMap(const int x, int y, const int width, const i
     } else {
       snprintf(line, sizeof(line), ctr(CULT_COND_HOURS_FORMAT), what, static_cast<unsigned>(left));
     }
+    y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
+  }
+  if (agenda::duelWaitingIn(s, v.region)) {  // v0.3.4: the rival's challenge letter
+    snprintf(line, sizeof(line), ctr(CULT_DUEL_MAP_FORMAT), static_cast<unsigned>(agenda::hoursLeft(s)),
+             static_cast<unsigned long>(agenda::duelStakes(s)));
     y = drawWrapped(SMALL_FONT_ID, x, y, width, line, 3) + metrics.verticalSpacing;
   }
 
@@ -1963,7 +1987,7 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
   }
   if (v.fightText[0] != '\0') y = drawWrapped(UI_10_FONT_ID, x, y, width, v.fightText, 6) + metrics.verticalSpacing;
 
-  if (m.offer == explore::Offer::Challenge) {  // a real fight: show the HP at stake
+  if (m.offer == explore::Offer::Challenge || m.offer == explore::Offer::Duel) {  // a real fight: the HP at stake
     snprintf(line, sizeof(line), ctr(CULT_HP_FORMAT), static_cast<unsigned>(p.hp), static_cast<unsigned>(p.hpMax));
     renderer.drawText(UI_10_FONT_ID, x, y, line);
     y += renderer.getLineHeight(UI_10_FONT_ID) + 2;
@@ -2000,6 +2024,7 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
           case MeetRow::Offer:
             return mm.offer == explore::Offer::Spar    ? ctr(CULT_SPAR_ROW)
                    : mm.offer == explore::Offer::Trade ? ctr(CULT_TRADE)
+                   : mm.offer == explore::Offer::Duel  ? ctr(CULT_DUEL_ROW)
                                                        : ctr(CULT_CHALLENGE_ROW);
           case MeetRow::Talk:
             return ctr(CULT_TALK_ROW);
@@ -2026,6 +2051,9 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
               snprintf(sub, sizeof(sub), ctr(CULT_SPAR_SUB_FORMAT), static_cast<unsigned>(mm.chance));
             } else if (mm.offer == explore::Offer::Trade) {
               snprintf(sub, sizeof(sub), "%s", ctr(CULT_TRADE_SUB));
+            } else if (mm.offer == explore::Offer::Duel) {  // v0.3.4
+              snprintf(sub, sizeof(sub), ctr(CULT_DUEL_SUB_FORMAT), static_cast<unsigned>(mm.chance),
+                       static_cast<unsigned long>(mm.stakes), static_cast<unsigned>(mm.damage));
             } else {
               snprintf(sub, sizeof(sub), ctr(CULT_FIGHT_SUB_CULT_FORMAT), static_cast<unsigned>(mm.chance),
                        static_cast<unsigned>(mm.damage));
@@ -2042,7 +2070,7 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
             break;
           }
           case MeetRow::WalkOn:
-            snprintf(sub, sizeof(sub), "%s", ctr(CULT_WALK_ON_SUB));
+            snprintf(sub, sizeof(sub), "%s", mm.duel ? ctr(CULT_DUEL_REFUSE_SUB) : ctr(CULT_WALK_ON_SUB));
             break;
         }
         return sub;

@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Agenda.h"
 #include "Alchemy.h"
 #include "Codex.h"
 #include "Daily.h"
@@ -377,6 +378,7 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
         }
         r.outcome = TileOutcome::RuinWon;
         r.world = sects::searchWon(s, region);  // v0.3.3: an inheritance, yours before the sects get it
+        agenda::sawSearch(s, r.world);          // v0.3.4: the rival racing for it is bitter
         worldReward(s, r.world, region, r.reward, rng);
         mementoChance(s, r.reward, codex::Source::Ruin,
                       0x10000u | (static_cast<uint32_t>(region) << 8) |
@@ -402,6 +404,7 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
       }
       r.outcome = TileOutcome::CaveFound;
       r.world = sects::searchWon(s, region);  // v0.3.3: an inheritance in a cave counts too
+      agenda::sawSearch(s, r.world);
       worldReward(s, r.world, region, r.reward, rng);
       mementoChance(s, r.reward, codex::Source::Cave,
                     0x20000u | (static_cast<uint32_t>(region) << 8) |
@@ -891,6 +894,14 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     r.fight = true;
     return r;
   }
+  // v0.3.4: your rival's challenge letter: they wait for you on this region's road.
+  if (agenda::duelWaitingIn(s, region)) {
+    s.exploration[7] = kDuelSlot;
+    s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
+    setPending(s, region, FightKind::Meeting);
+    r.meeting = true;
+    return r;
+  }
   // v0.2.8: a nemesis roaming this region finds you (6%, Ambusher 12%), unless resting.
   {
     const int nemi = rivals::ambush(s, region, contentSeed(worldSeedOf(s), kKindNemesisFind, c));
@@ -935,7 +946,8 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     const bool again = waiting >= 0 && roll.below(3) == 0;  // one meeting in three is a remembered face
     s.exploration[7] = again ? static_cast<uint8_t>(waiting + 1) : 0;
     // v0.2.8: a share of meetings (v0.3.1: 40%) is your rival, once their realm has opened this region.
-    if (rivals::canMeetIn(s, region) && roll.below(100) < rivals::kRivalMeetPercent) {
+    // v0.3.4: never while they are in closed-door cultivation; 80% in their tournament's region.
+    if (rivals::canMeetIn(s, region) && roll.below(100) < agenda::meetPercent(s, region) && !agenda::unseen(s)) {
       s.exploration[7] = kRivalSlot;
       rivals::markKnown(s);
     }
@@ -1095,13 +1107,16 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     }
     // v0.3.2/v0.3.3: what the win does to the living world.
     if (nemi < 0) {
+      int8_t who = -1;
       if (f.enemy == Enemy::Bandit) {
         res.world = sects::banditBeaten(s, f.region);
       } else if (f.enemy == Enemy::Beast) {
         res.world = sects::beastBeaten(s, f.region);
       } else if (f.enemy == Enemy::Cultivator) {
-        res.world = sects::cultivatorBeaten(s, f.region, sects::personSect(s, f.region, personSeed));
+        who = sects::personSect(s, f.region, personSeed);
+        res.world = sects::cultivatorBeaten(s, f.region, who);
       }
+      agenda::sawWin(s, f.region, who, res.world);  // v0.3.4: the rival's side, their sect
       worldReward(s, res.world, f.region, res.reward, rng);
     }
     // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
@@ -1203,7 +1218,7 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   m.region = static_cast<uint8_t>(region);
   const uint8_t slot = s.exploration[7];
   const rivals::Rival rv = rivals::rival(s);
-  if (slot == kRivalSlot && rv.exists) {  // v0.2.8: your rival, at their own level, never scaled to you
+  if ((slot == kRivalSlot || slot == kDuelSlot) && rv.exists) {  // v0.2.8: your rival, at their own level
     m.rival = true;
     m.firstRival = !rv.metBefore;
     m.nameSeed = rv.seed;
@@ -1216,7 +1231,15 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
     m.danger = dangerFor(d);
     m.chance = winChance(d);
     m.dares = false;
-    m.damage = 0;  // a spar: no HP lost
+    m.damage = 0;             // a spar: no HP lost
+    if (slot == kDuelSlot) {  // v0.3.4: a formal duel: stones at stake, HP lost as in a challenge
+      m.duel = true;
+      m.offer = Offer::Duel;
+      m.dares = true;
+      const uint32_t raw = ceilPercent(meridians::damageHpBase(s), lossPercent(m.danger));
+      m.damage = static_cast<uint16_t>(meridians::scaleUp(ceilPercent(raw, 100u - bodyCut(s)), fightDamagePermille(s)));
+      m.stakes = agenda::duelStakes(s);
+    }
     m.talked = (s.exploration[6] & kMeetFlagTalked) != 0;
     m.traded = (s.exploration[6] & kMeetFlagBought) != 0;
     (void)l;
@@ -1369,6 +1392,10 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   }
 
   if (choice == MeetChoice::WalkOn) {
+    if (m.duel) {  // v0.3.4: refusing the duel; the rival lets everyone know
+      agenda::settleDuel(s, false, false);
+      res.duelRefused = true;
+    }
     const MeetOutcome outcome = m.traded ? MeetOutcome::Traded : m.talked ? MeetOutcome::Talked : MeetOutcome::Passed;
     finishMeeting(s, l, m, outcome, true, res);
     return res;
@@ -1386,7 +1413,27 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   res.won = res.roll < m.chance;
   if (res.won) daily::note(s, daily::Task::WinFight);  // v0.2.6
   const bool half = trivialYield(s, m.region);
-  if (m.rival) {  // v0.2.8: a spar with your rival: twice a beast's stones, no HP either way
+  if (m.duel) {  // v0.3.4: the formal duel: the winner takes the stakes; a loss hurts as a challenge does
+    agenda::boutWithRival(s, res.won);
+    const agenda::DuelResult d = agenda::settleDuel(s, true, res.won);
+    res.duel = true;
+    if (res.won) {
+      res.reward.stones = d.stones;
+      rivals::beaten(s, daily::live(s) ? daily::today(s) : StatsSnapshot::kNoDay);
+      finishMeeting(s, l, m, MeetOutcome::Won, true, res);
+      return res;
+    }
+    res.duelPaid = d.stones;
+    rivals::lostTo(s);
+    res.collapsed = m.damage >= p.hp;
+    res.hpLost = m.damage < p.hp ? m.damage : p.hp;
+    p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
+    res.thrownTo = res.collapsed ? carryToEntrance(s, l, m.region) : throwBack(s, l, m.region, rng);
+    finishMeeting(s, l, m, MeetOutcome::Lost, false, res);
+    return res;
+  }
+  if (m.rival) {                        // v0.2.8: a spar with your rival: twice a beast's stones, no HP either way
+    agenda::boutWithRival(s, res.won);  // v0.3.4: their opinion of you
     if (res.won) {
       res.reward.stones = 2u * rng.range(5, 10) * (m.region + 1u);
       p.stones += res.reward.stones;
@@ -1398,7 +1445,11 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
     return res;
   }
   // v0.3.3: beating a sect's people on the road counts for (or against) the sects.
-  if (res.won) res.world = sects::cultivatorBeaten(s, m.region, sects::personSect(s, m.region, m.nameSeed));
+  if (res.won) {
+    const int8_t who = sects::personSect(s, m.region, m.nameSeed);
+    res.world = sects::cultivatorBeaten(s, m.region, who);
+    agenda::sawWin(s, m.region, who, res.world);  // v0.3.4: the rival's side in a war, their sect
+  }
   if (m.offer == Offer::Spar) {
     if (res.won) {
       res.reward.stones = halve(rng.range(5, 10) * (m.region + 1u), half);  // like a beast, no herbs

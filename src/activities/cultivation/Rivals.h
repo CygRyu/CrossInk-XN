@@ -136,6 +136,14 @@ void shiftDays(GameState& state, int32_t delta);
 void beaten(GameState& state, uint32_t today);
 void lostTo(GameState& state);
 
+// v0.3.4 (the agenda, Agenda.h): an inheritance makes their talent faster (stored 80-125);
+// closed-door cultivation puts them at the start of their next stage (the next realm's
+// first after their last). Returns false when there is no next stage.
+void setTalent(GameState& state, uint8_t talentPercent);
+bool stepAhead(GameState& state);
+// The virtual reading at which (realm, stage) begins, for that talent.
+uint32_t stageStart(uint8_t realm, uint8_t stage, uint8_t talentPercent);
+
 // --- The ladder ------------------------------------------------------------------------------
 
 constexpr uint8_t kLadderSize = 20;
@@ -288,6 +296,9 @@ Aftermath youWon(GameState& state, uint8_t index, uint32_t seed);
 Aftermath youLost(GameState& state, uint8_t index, int playerLevelNow, uint32_t seed);
 Aftermath youEscaped(GameState& state, uint8_t index, bool paid, uint32_t seed);
 void itFled(GameState& state, uint8_t index);
+// v0.3.4: your rival beat it on a hunt: a scar (the epithet), then it rests. No trait (traits are about you).
+// `atSeconds`: the reading time of the world step it happened in (the rest counts from there).
+void scarredByRival(GameState& state, uint8_t index, uint32_t atSeconds);
 // Reveals one hidden trait (the one hunting you first). Returns the nemesis
 // index (and the trait) or -1 when nothing is hidden.
 int revealOne(GameState& state, Trait& trait, uint32_t seed);

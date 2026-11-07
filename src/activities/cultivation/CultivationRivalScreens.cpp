@@ -58,6 +58,47 @@ static const char* const kSayLists[static_cast<int>(rivals::Temper::Count)] = {
 static const char* const kReactLists[static_cast<int>(rivals::Temper::Count)] = {
     "rival.react.idle", "rival.react.steady", "rival.react.driven", "rival.react.erratic", "rival.react.late"};
 
+// v0.3.4: the agenda's goals in the pack's keys ("rival.goal.<key>.start", "rival.rumor.<key>").
+const char* const kGoalKeys[agenda::index(agenda::Goal::Count)] = {"",     "tournament", "inheritance", "war",
+                                                                   "rise", "duel",       "closed",      "hunt"};
+const char* goalKey(const agenda::Goal g) {
+  const uint8_t i = agenda::index(g);
+  return i > 0 && i < agenda::index(agenda::Goal::Count) ? kGoalKeys[i] : nullptr;
+}
+const char* rankName(const agenda::Rank r) {  // on the card: "Inner disciple of ..."
+  switch (r) {
+    case agenda::Rank::Inner:
+      return ctr(CULT_RANK_INNER);
+    case agenda::Rank::Core:
+      return ctr(CULT_RANK_CORE);
+    case agenda::Rank::Elder:
+      return ctr(CULT_RANK_ELDER);
+    default:
+      return ctr(CULT_RANK_OUTER);
+  }
+}
+const char* rankWithArticle(const agenda::Rank r) {  // in lines: "made an inner disciple"
+  switch (r) {
+    case agenda::Rank::Inner:
+      return ctr(CULT_RANK_INNER_A);
+    case agenda::Rank::Core:
+      return ctr(CULT_RANK_CORE_A);
+    case agenda::Rank::Elder:
+      return ctr(CULT_RANK_ELDER_A);
+    default:
+      return ctr(CULT_RANK_OUTER_A);
+  }
+}
+const char* opinionWord(const int8_t v) {
+  return v <= -4   ? ctr(CULT_OPINION_ENEMY)
+         : v <= -2 ? ctr(CULT_OPINION_BITTER)
+         : v == -1 ? ctr(CULT_OPINION_WARY)
+         : v == 0  ? ctr(CULT_OPINION_EVEN)
+         : v == 1  ? ctr(CULT_OPINION_WARM)
+         : v <= 3  ? ctr(CULT_OPINION_FRIENDLY)
+                   : ctr(CULT_OPINION_FRIEND);
+}
+
 // Menu rows of the Rivals screen.
 enum MenuRow : int { kRowRival = 0, kRowLadder, kRowNemeses, kMenuRows };
 
@@ -320,6 +361,7 @@ void CultivationActivity::loadRivalNames() {
                               contentSeed(worldSeedOf(s), kKindRivalText, day), nullptr, v.rival, v.sect, *grammar_,
                               v.say, sizeof(v.say));
   }
+  agendaNowLine(v.now, sizeof(v.now));  // v0.3.4
   if (rivals::ladderOpen(s)) {
     // Twenty people need twenty names: a seat whose name (before "of the ...")
     // is taken by a seat above tries the next seed. Stable: the same every time.
@@ -582,7 +624,8 @@ void CultivationActivity::renderRivalCard(const int x, int y, const int width, c
     renderer.drawText(UI_12_FONT_ID, x, y, h.c_str(), true, EpdFontFamily::BOLD);
     y += renderer.getLineHeight(UI_12_FONT_ID);
   }
-  snprintf(line, sizeof(line), ctr(CULT_RIVAL_OF_FORMAT), v.sect);
+  // v0.3.4: their place in the sect (outer disciple to elder).
+  snprintf(line, sizeof(line), ctr(CULT_RIVAL_RANK_FORMAT), rankName(agenda::state(s).rank), v.sect);
   y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
 
   // Where they are, against you.
@@ -604,6 +647,12 @@ void CultivationActivity::renderRivalCard(const int x, int y, const int width, c
   y += metrics.verticalSpacing;
   if (!daily::live(s)) y = drawWrapped(SMALL_FONT_ID, x, y, width, ctr(CULT_RIVAL_NO_DATE), 2) + 4;
   if (r.hiatus) y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_RIVAL_SECLUSION), 2) + 4;
+  if (v.now[0] != '\0') y = drawWrapped(UI_10_FONT_ID, x, y, width, v.now, 3) + 4;  // v0.3.4: the agenda
+  {
+    const int8_t o = agenda::opinion(s);
+    snprintf(line, sizeof(line), ctr(CULT_RIVAL_OPINION_FORMAT), opinionWord(o), static_cast<int>(o));
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 2) + metrics.verticalSpacing;
+  }
   if (v.say[0] != '\0') {
     snprintf(line, sizeof(line), ctr(CULT_RIVAL_SAY_FORMAT), v.say);
     y = drawWrapped(UI_10_FONT_ID, x, y, width, line, 5) + metrics.verticalSpacing;
@@ -869,6 +918,201 @@ void CultivationActivity::appendRivalLines(const rivals::News& news) {
     }
   }
   if (packs_) packs_->closeFile();
+}
+
+// --- The rival's agenda (v0.3.4) ----------------------------------------------------------------
+
+bool CultivationActivity::agendaRivalName(char* name, const size_t nameLen, char* sect, const size_t sectLen) {
+  if (!grammar_ || !state_) return false;
+  if (!exploretext::rivalName(*state_, *grammar_, name, nameLen, sect, sectLen)) return false;
+  // Unmet, you hear of them only as a young disciple of their sect (agreed).
+  if (!rivals::rival(*state_).known) snprintf(name, nameLen, ctr(CULT_RIVAL_UNMET_NAME_FORMAT), sect);
+  return true;
+}
+
+bool CultivationActivity::agendaEventLine(const agenda::Event& e, lifelog::Line& line) {
+  if (!grammar_) return false;
+  const char* goal = goalKey(e.goal);
+  if (goal == nullptr) return false;
+  char key[48];
+  switch (e.kind) {
+    case agenda::EventKind::Started:
+      snprintf(key, sizeof(key), "rival.goal.%s.start", goal);
+      break;
+    case agenda::EventKind::Won:
+      snprintf(key, sizeof(key), "rival.goal.%s.won", goal);
+      break;
+    case agenda::EventKind::Lost:
+      snprintf(key, sizeof(key), e.byYou ? "rival.goal.%s.yours" : "rival.goal.%s.lost", goal);
+      break;
+    case agenda::EventKind::Promoted:
+      snprintf(key, sizeof(key), "rival.goal.rise.promoted");
+      break;
+    case agenda::EventKind::Served:
+      snprintf(key, sizeof(key), "rival.goal.rise.served");
+      break;
+    case agenda::EventKind::CameOut:
+      snprintf(key, sizeof(key), "rival.goal.closed.end");
+      break;
+    case agenda::EventKind::DuelIgnored:
+      snprintf(key, sizeof(key), "rival.goal.duel.ignored");
+      break;
+    default:
+      return false;
+  }
+  char name[96];
+  char sect[64];
+  if (!agendaRivalName(name, sizeof(name), sect, sizeof(sect))) return false;
+  char region[48] = {};
+  exploretext::regionName(*state_, e.region < explore::kRegionCount ? e.region : 0, *grammar_, region, sizeof(region));
+  char what[96] = {};
+  switch (e.goal) {
+    case agenda::Goal::Tournament:
+    case agenda::Goal::Inheritance:
+    case agenda::Goal::War:
+      if (e.sect >= 0) exploretext::sectName(*state_, static_cast<uint8_t>(e.sect), *grammar_, what, sizeof(what));
+      break;
+    case agenda::Goal::Hunt:
+      exploretext::nemesisName(*state_, e.nemesis, *grammar_, what, sizeof(what));
+      break;
+    case agenda::Goal::Rise:
+      snprintf(what, sizeof(what), "%s", rankWithArticle(e.rank));
+      break;
+    case agenda::Goal::ClosedDoor: {
+      const rivals::Rival r = rivals::rival(*state_);
+      char stage[32];
+      ui::stageNameOf(r.realm, r.stage, stage, sizeof(stage));
+      snprintf(what, sizeof(what), ctr(CULT_REALM_STAGE_FORMAT), ui::realmName(r.realm), stage);
+      break;
+    }
+    default:
+      break;
+  }
+  const uint32_t seed = contentSeed(
+      worldSeedOf(*state_), kKindRivalText,
+      mix32(e.year, 0x41474500u + (static_cast<uint32_t>(e.kind) << 4) + static_cast<uint32_t>(agenda::index(e.goal))));
+  return exploretext::personLine(line, *state_, key, seed, region, name, what, *grammar_);
+}
+
+// summary: the Return summary's one line (an actionable duel letter first, then an ending, the
+// latest); otherwise every other event of the visit, in order, into the Chronicle.
+void CultivationActivity::appendAgendaLines(const bool summary) {
+  if (!grammar_ || !state_ || agendaSteps_.count == 0) return;
+  if (summary) {
+    agendaSummary_ = -1;
+    if (!lifeLog_ || lifeLog_->count >= lifelog::kMaxLines) return;
+    auto priority = [](const agenda::Event& e) -> int {
+      if (e.kind == agenda::EventKind::Started) return e.goal == agenda::Goal::Duel ? 3 : 1;
+      return e.kind == agenda::EventKind::Served ? 1 : 2;
+    };
+    int best = -1;
+    for (uint8_t i = 0; i < agendaSteps_.count; ++i) {
+      if (best < 0 || priority(agendaSteps_.events[i]) >= priority(agendaSteps_.events[best])) best = i;
+    }
+    lifelog::Line line;
+    if (best >= 0 && agendaEventLine(agendaSteps_.events[best], line)) {
+      lifeLog_->lines[lifeLog_->count++] = line;
+      agendaSummary_ = static_cast<int8_t>(best);
+    }
+  } else {
+    bool opened = chronicle::exists();
+    for (uint8_t i = 0; i < agendaSteps_.count; ++i) {
+      if (i == agendaSummary_) continue;
+      lifelog::Line line;
+      if (!agendaEventLine(agendaSteps_.events[i], line)) continue;
+      if (!opened) {
+        chronicle::writeOpening(*state_, grammar_.get());
+        opened = true;
+      }
+      chronicle::appendLines(&line, 1);
+    }
+    chronicleExists_ = chronicle::exists();
+  }
+  if (packs_) packs_->closeFile();
+}
+
+// One day in four while a goal is under way, the rumor of the day is about it.
+bool CultivationActivity::agendaRumorOfTheDay(const uint32_t when) {
+  if (!grammar_ || !state_) return false;
+  const agenda::State st = agenda::state(*state_);
+  const char* goal = goalKey(st.goal);
+  if (goal == nullptr) return false;
+  if (Rng(contentSeed(worldSeedOf(*state_), kKindRivalText, mix32(when, 0x41474E44u))).below(4) != 0) return false;
+  char name[96];
+  char sect[64];
+  if (!agendaRivalName(name, sizeof(name), sect, sizeof(sect))) return false;
+  char region[48] = {};
+  exploretext::regionName(*state_, st.region < explore::kRegionCount ? st.region : 0, *grammar_, region,
+                          sizeof(region));
+  char what[96] = {};
+  if (st.goal == agenda::Goal::Hunt) {
+    exploretext::nemesisName(*state_, st.nemesis, *grammar_, what, sizeof(what));
+  } else if (st.nemesis < sects::kSects && (st.goal == agenda::Goal::Tournament ||
+                                            st.goal == agenda::Goal::Inheritance || st.goal == agenda::Goal::War)) {
+    exploretext::sectName(*state_, st.nemesis, *grammar_, what, sizeof(what));
+  } else {
+    snprintf(what, sizeof(what), "%s", sect);
+  }
+  char key[40];
+  snprintf(key, sizeof(key), "rival.rumor.%s", goal);
+  char line[sizeof(rumor_)];
+  if (!exploretext::personFlavor(*state_, key, contentSeed(worldSeedOf(*state_), kKindRivalText, mix32(when, 7u)),
+                                 region, name, what, *grammar_, line, sizeof(line))) {
+    return false;
+  }
+  capitalize(line);
+  snprintf(rumor_, sizeof(rumor_), "%s.", line);
+  return true;
+}
+
+// The rival card's "Now:" line. Reads the packs (names): call while loading, never while drawing.
+void CultivationActivity::agendaNowLine(char* out, const size_t len) {
+  if (len == 0) return;
+  out[0] = '\0';
+  if (!grammar_ || !state_) return;
+  const GameState& s = *state_;
+  const agenda::State st = agenda::state(s);
+  char region[48] = {};
+  exploretext::regionName(s, st.region < explore::kRegionCount ? st.region : 0, *grammar_, region, sizeof(region));
+  char other[64] = {};
+  if (st.nemesis < sects::kSects) exploretext::sectName(s, st.nemesis, *grammar_, other, sizeof(other));
+  const unsigned hours = agenda::hoursLeft(s);
+  switch (st.goal) {
+    case agenda::Goal::Tournament:
+      snprintf(out, len, ctr(CULT_AGENDA_NOW_TOURNAMENT_FORMAT), other, region);
+      break;
+    case agenda::Goal::Inheritance:
+      snprintf(out, len, ctr(CULT_AGENDA_NOW_INHERITANCE_FORMAT), region);
+      break;
+    case agenda::Goal::War:
+      snprintf(out, len, ctr(CULT_AGENDA_NOW_WAR_FORMAT), other, region);
+      break;
+    case agenda::Goal::Rise: {
+      const uint8_t next = static_cast<uint8_t>(agenda::index(st.rank) + 1);
+      if (next < agenda::index(agenda::Rank::Count)) {
+        snprintf(out, len, ctr(CULT_AGENDA_NOW_RISE_FORMAT), rankWithArticle(static_cast<agenda::Rank>(next)));
+      } else {
+        snprintf(out, len, "%s", ctr(CULT_AGENDA_NOW_SERVE));
+      }
+      break;
+    }
+    case agenda::Goal::Duel:
+      snprintf(out, len, ctr(CULT_AGENDA_NOW_DUEL_FORMAT), region, hours,
+               static_cast<unsigned long>(agenda::duelStakes(s)));
+      break;
+    case agenda::Goal::ClosedDoor:
+      snprintf(out, len, ctr(CULT_AGENDA_NOW_CLOSED_FORMAT), hours);
+      break;
+    case agenda::Goal::Hunt: {
+      char name[exploretext::kNameSize] = {};
+      exploretext::nemesisName(s, st.nemesis, *grammar_, name, sizeof(name));
+      snprintf(out, len, ctr(CULT_AGENDA_NOW_HUNT_FORMAT), name);
+      break;
+    }
+    default:
+      snprintf(out, len, "%s", ctr(CULT_AGENDA_NOW_NONE));
+      break;
+  }
 }
 
 // One day in four the rumor of the day names a nemesis's trait (and you know it from then on).

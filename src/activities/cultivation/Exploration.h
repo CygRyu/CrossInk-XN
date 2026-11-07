@@ -44,7 +44,7 @@
 //   7     v0.2.1: the waiting random fight is returning foe N - 1 (0 = a new one)
 //         v0.2.2: the waiting meeting is cultivator N - 1 of the ring in memory[32-47]
 //         v0.2.8: 0x11-0x13 the waiting random fight is nemesis N - 0x11 (Rivals.h);
-//         0x20 the waiting meeting is your rival
+//         0x20 the waiting meeting is your rival; v0.3.4: 0x21 their duel
 //   8 + 19 x region:
 //     0-4   charted tiles (36 bits)     5-9   used-up tiles (36 bits)
 //     10    reshape counter             11    flags (cleared, guardian beaten)
@@ -160,6 +160,7 @@ enum class Danger : uint8_t { Trivial = 0, Weak, Dangerous, Hazardous, Extreme, 
 // v0.2.8: exploration[7] values for a nemesis fight and a meeting with the rival.
 constexpr uint8_t kNemesisSlot = 0x10;  // | (nemesis index + 1)
 constexpr uint8_t kRivalSlot = 0x20;
+constexpr uint8_t kDuelSlot = 0x21;  // v0.3.4: the waiting meeting is your rival's duel (Agenda.h)
 // The nemesis of the waiting fight, or -1.
 int pendingNemesis(const GameState& state);
 
@@ -340,7 +341,7 @@ constexpr uint8_t kTraderTile = 0xFE;        // Stock/buy "tile" of the waiting 
 constexpr uint8_t kTraderIngredientMax = 5;  // per meeting (agreed with the user)
 
 enum class Temperament : uint8_t { Proud = 0, Cautious, Greedy };
-enum class Offer : uint8_t { Spar = 0, Trade, Challenge };
+enum class Offer : uint8_t { Spar = 0, Trade, Challenge, Duel };  // Duel: v0.3.4, your rival's letter
 enum class MeetOutcome : uint8_t { None = 0, Won, Lost, Traded, Talked, Passed };
 
 struct Meeting {
@@ -360,10 +361,12 @@ struct Meeting {
   uint8_t chance = 0;   // percent to win a spar or a challenge
   uint16_t damage = 0;  // HP lost when a challenge is lost
   bool talked = false;
-  bool traded = false;        // bought something
-  uint8_t levelsAdded = 0;    // 3 x earlier meetings (at most 6)
-  bool rival = false;         // v0.2.8: your rival (Rivals.h): a spar never costs HP
-  bool firstRival = false;    // ... met on the road for the first time
+  bool traded = false;      // bought something
+  uint8_t levelsAdded = 0;  // 3 x earlier meetings (at most 6)
+  bool rival = false;       // v0.2.8: your rival (Rivals.h): a spar never costs HP
+  bool firstRival = false;  // ... met on the road for the first time
+  bool duel = false;        // v0.3.4: their formal duel (stakes in stones, a loss costs HP)
+  uint32_t stakes = 0;
   Wound wound = Wound::None;  // v0.2.9: already in level difference, chance and damage
 };
 
@@ -397,6 +400,9 @@ struct MeetResult {
   uint8_t revealedTrait = 0;    // rivals::Trait
   int8_t nemesisBorn = -1;      // a lost challenge made the cultivator your nemesis
   bool rival = false;
+  bool duel = false;  // v0.3.4: the duel was fought (stones won in reward, paid in duelPaid)
+  uint32_t duelPaid = 0;
+  bool duelRefused = false;  // walked on: the rival tells everyone
 };
 
 // Offer: play the spar or the challenge (a trade is the shop: stockFor / buy

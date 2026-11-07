@@ -25,7 +25,7 @@ Nothing happens while the book is closed, and nothing is lost either: no decay, 
 - **Alchemy:** gather ingredients, discover recipes and brew pills while you read.
 - **Meridians and Daos:** open acupoints for a faster Qi rate, and find Daos that grow from your reading habits.
 - **Daily omens and tasks**, scaled to how much you usually read. Readers without a clock get reading days instead of calendar days.
-- **Your rival:** a cultivator of your own age who trains every day, plus a ranking of twenty to climb in each realm.
+- **Your rival:** a cultivator of your own age who trains every day and has plans of their own: tournaments, an old master's inheritance, their sect's wars, a better place in their sect, closed-door cultivation, hunting your nemeses. They remember how you treat them: a friendly rival trades with you, a bitter one sends a challenge letter and waits for you on the road with Spirit Stones at stake. Plus a ranking of twenty to climb in each realm.
 - **Nemeses:** enemies who beat you may come back, stronger and with habits of their own to discover.
 - **A living world:** five sects follow their own feuds, successions, tournaments and troubles while you read, and now and then one spills into your regions for a few hours: a sect war, a demonic cult, a bandit camp, a temple fair, a beast tide, an inheritance, open ruins or a blight. The cultivators you meet belong to those sects: beat enough of one side to decide a war, drive off a demonic cult, break a camp or race the sects to an old master's inheritance, and each sect remembers what you did. You hear about it in rumors and in your Chronicle.
 - **Wounds that matter:** fight low on HP and you fight worse; lose with your last HP and you come to at the region's entrance, with nothing taken.
@@ -48,10 +48,10 @@ The game uses CrossInk's own reading stats, from this device only:
 
 |Device|File|
 |-|-|
-|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.3.bin`|
-|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.3.bin`|
-|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.3.bin`|
-|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.3.bin`|
+|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.4.bin`|
+|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.4.bin`|
+|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.4.bin`|
+|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.4.bin`|
 
 2. Flash it. If your reader already runs CrossInk, copy the file to the SD card and choose **Settings > System > SD Card Firmware Update**. Otherwise see the [command line instructions](./docs/installation.md#command-line).
 3. Set the date and time in the settings if your reader has a clock. Without a date (the original X4 has no clock), the daily systems, your rival and the ranking run on reading days: a new day after an hour of reading and a sleep.

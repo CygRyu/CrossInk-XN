@@ -1506,6 +1506,155 @@ After the loss {$beast.name} disappears into seclusion without telling anyone; s
 {$beast.name.cap} takes the loss calmly. "Next year," your rival says, "it will go the other way."
 {$beast.name.cap} writes down every move of the bout in a notebook and walks off reading it.
 
+# v0.3.4: the rival's agenda. {$beast.name} is the rival (before you meet them,
+# "a young disciple of" their sect, so no line says "your rival"), {$region.name}
+# where the goal is, {$what}: the tournament's or the inheritance's sect, the
+# enemy sect in a war, the nemesis hunted, the new rank ("an inner disciple"),
+# the realm and stage after closed doors. No time words: a reading hour is a year.
+
+[rival.goal.tournament.start]
+{$beast.name.cap} has put a name down for the tournament of {$what} in {$region.name} and paid the entry fee in advance.
+Word comes that {$beast.name} is in {$region.name} for the tournament of {$what}, and has already broken a training post in the yard.
+
+[rival.goal.tournament.won]
+{$beast.name.cap} won the tournament of {$what} in {$region.name} and came home with a jade token and a cut over one eye.
+The last bout in {$region.name} went to {$beast.name}. {$what.cap} handed over the prize and has been sour since.
+
+[rival.goal.tournament.lost]
+{$beast.name.cap} went out of the tournament in {$region.name} in the third round, to a swordsman nobody had heard of.
+At the tournament of {$what} {$beast.name} slipped on a wet board, lost, and took it badly.
+
+[rival.goal.inheritance.start]
+{$beast.name.cap} has gone to {$region.name} after the old master's inheritance, with a map bought from a drunk.
+They say {$beast.name} is digging in {$region.name} ahead of {$what}, and sleeping in the ruins.
+
+[rival.goal.inheritance.won]
+{$beast.name.cap} reached the old master's cave in {$region.name} before {$what} and carried off the inheritance.
+The inheritance in {$region.name} went to {$beast.name}, a bundle under each arm. {$what.cap} arrived a day late.
+
+[rival.goal.inheritance.lost]
+{$beast.name.cap} reached the cave in {$region.name} to find it empty, and went home without a word.
+The race for the inheritance in {$region.name} is over, and {$beast.name} has nothing to show for it but blisters.
+
+[rival.goal.inheritance.yours]
+{$beast.name.cap} arrived in {$region.name} to find you had taken the inheritance first, and swore in front of witnesses that you would pay for it.
+They say {$beast.name} kicked over a brazier in {$region.name} on hearing that the inheritance was yours.
+
+[rival.goal.war.start]
+{$beast.name.cap} has gone to {$region.name} to fight {$what} for the sect.
+Word comes that {$beast.name} is with the sect's fighters in {$region.name}, against {$what}.
+
+[rival.goal.war.won]
+The war in {$region.name} went their sect's way, and {$beast.name} was in the front line when {$what} gave ground.
+{$beast.name.cap} came back from {$region.name} with a captured banner of {$what} and a limp.
+
+[rival.goal.war.lost]
+{$what.cap} had the better of the war in {$region.name}, and {$beast.name} was among those who fell back.
+{$beast.name.cap} came home from {$region.name} beaten, with the sect's dead on carts behind.
+
+[rival.goal.rise.start]
+{$beast.name.cap} is running errands for the elders from dawn to dusk, hoping for a better place in the sect.
+They say {$beast.name} has taken on the sect's worst errands to catch the elders' eye.
+
+[rival.goal.rise.promoted]
+{$beast.name.cap} has been made {$what}. There was a banquet, and the cook complained about it for a week.
+The elders have made {$beast.name} {$what}, with a new robe and a room of their own.
+
+[rival.goal.rise.served]
+{$beast.name.cap} worked hard for the sect and got nothing for it but thanks.
+The elders were pleased with {$beast.name}, they say, but not pleased enough.
+
+[rival.goal.duel.start]
+A runner brings a letter from {$beast.name}: a formal duel in {$region.name}, with stakes, and a line calling you a coward in advance.
+{$beast.name.cap} has sent a challenge letter. A formal duel in {$region.name}, a witness from each side, and the loser pays.
+
+[rival.goal.duel.ignored]
+{$beast.name.cap} waited for you in {$region.name} and you never came. Every inn on that road has heard about it.
+You did not answer the letter. {$beast.name.cap} tells anyone who will listen that you were afraid.
+
+[rival.goal.closed.start]
+{$beast.name.cap} has shut the door of a cave and left word not to be disturbed until the next breakthrough.
+They say {$beast.name} has gone into closed-door cultivation; the servants push food under the door.
+
+[rival.goal.closed.end]
+{$beast.name.cap} has come out of closed-door cultivation at {$what}, thinner, and pleased with it.
+The cave door is open again: {$beast.name} came out at {$what} and went straight to the dining hall.
+
+[rival.goal.hunt.start]
+{$beast.name.cap} has gone into {$region.name} after {$what}, with a borrowed spear and two hunters.
+Word comes that {$beast.name} is hunting {$what} in {$region.name}, for pride or for the bounty.
+
+[rival.goal.hunt.won]
+{$beast.name.cap} caught {$what} in {$region.name} and left it a scar to remember. It got away, but slowly.
+They say {$beast.name} drove {$what} off with a gash across the shoulder.
+
+[rival.goal.hunt.lost]
+{$what.cap} was too much for {$beast.name}, who came back from {$region.name} on a door used as a stretcher.
+{$beast.name.cap} found {$what} in {$region.name} and lost; the hunters who went along are not talking.
+
+# The rumor of the day while a goal is under way ({$what}: the sect of the
+# tournament, the inheritance or the war's enemy; the nemesis; else their own sect).
+
+[rival.rumor.tournament]
+{world.rumor.opening} {$beast.name} has been seen practising at night in {$region.name}, for the tournament of {$what}
+{world.rumor.opening} the bookmakers in {$region.name} give even odds on {$beast.name} at the tournament
+
+[rival.rumor.inheritance]
+{world.rumor.opening} {$beast.name} bought every map of {$region.name} in {place.town}, looking for the old master's cave
+{world.rumor.opening} {$beast.name} is camped in the ruins of {$region.name}, a day ahead of {$what}
+
+[rival.rumor.war]
+{world.rumor.opening} {$beast.name} cut down two of {$what} at a ford in {$region.name}
+{world.rumor.opening} {$beast.name} is with the fighters in {$region.name} and has not slept in a bed since the war began
+
+[rival.rumor.rise]
+{world.rumor.opening} {$beast.name} carries water for the elders of {$what} and hopes they notice
+{world.rumor.opening} {$beast.name} has been given the ledgers of {$what} to keep, and hates every page
+
+[rival.rumor.duel]
+{world.rumor.opening} {$beast.name} is waiting in {$region.name} to settle things with you, and telling the whole road about it
+{world.rumor.opening} {$beast.name} has taken a room at an inn in {$region.name} with a view of the road, and is waiting for you
+
+[rival.rumor.closed]
+{world.rumor.opening} {$beast.name} has walled up a cave door and will not come out before the next breakthrough
+{world.rumor.opening} the servants of {$what} leave rice outside a cave door for {$beast.name} every morning
+
+[rival.rumor.hunt]
+{world.rumor.opening} {$beast.name} is tracking {$what} through {$region.name}
+{world.rumor.opening} {$beast.name} has put up a reward in {$region.name} for anyone who has seen {$what}
+
+# On the road: the duel, and the tone of their opinion of you.
+
+[rival.meet.duel]
+{$beast.name.cap} is waiting where the letter said, sword unwrapped, with a witness from {$what} sitting on a rock to keep it honest.
+On the road stands {$beast.name}, who has been here since morning. "You came. I was beginning to tell people you would not."
+
+[rival.meet.bitter]
+{$beast.name.cap} stands in the middle of the road and does not step aside. "You again."
+{$beast.name.cap} sees you coming and spits in the dust. Whatever you did, it has not been forgotten.
+
+[rival.meet.friendly]
+{$beast.name.cap} waves from the roadside and offers you half a melon. "Sit a moment. The road will wait."
+{$beast.name.cap} greets you by name and asks after your cultivation as if the answer mattered.
+
+[rival.duelwon]
+You win the duel. {$beast.name.cap} pays the stakes in full, counting each stone out loud.
+The duel ends with {$beast.name} on one knee. The witness writes down the result, and your rival pays without a word.
+
+[rival.duellost]
+{$beast.name.cap} wins the duel and takes the stakes from your hand, not unkindly.
+You lose the duel. {$beast.name.cap} weighs the purse, nods, and is gone before you are back on your feet.
+
+[rival.line.duel.won]
+You fought your rival {$beast.name} in a formal duel in {$region.name}, won, and took the stakes.
+In {$region.name} you beat your rival {$beast.name} in a formal duel, with a witness on each side.
+
+[rival.line.duel.lost]
+You lost a formal duel to your rival {$beast.name} in {$region.name}, and paid the stakes.
+
+[rival.line.duel.refused]
+In {$region.name} you refused your rival {$beast.name}'s duel, and {$beast.name} has told the whole road.
+
 # v0.2.8: nemeses. {$beast.name} is the nemesis's name with its epithet
 # ("Greymaw the Twice-Burned"), {$region.name} where it happens.
 [nemesis.name.beast]

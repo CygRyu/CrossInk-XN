@@ -19,8 +19,8 @@
 // pack_report.txt, or deletes an old report when everything is fine.
 //
 // Memory, all owned by this object (allocated by the activity in onEnter()):
-// 448 index records (5.4 KB, heap, because the count is only known at run
-// time and 5.4 KB is too much for a task stack; 384 before v0.3.2), the file table (~0.9 KB) and
+// 512 index records (6.1 KB, heap, because the count is only known at run
+// time and 6.1 KB is too much for a task stack; 448 before v0.3.4, 384 before v0.3.2), the file table (~0.9 KB) and
 // a 128-byte read buffer. A rebuild borrows ~4.3 KB more for its duration
 // (a 256-byte line buffer, the findings, the first 20 report messages, 3.2 KB,
 // and the checker, ~0.7 KB; module README "Memory"); nothing else allocates.
@@ -30,7 +30,7 @@ struct ScanFindings;  // problems a rescan found, for pack_report.txt
 
 class PackStore : public PackReader {
  public:
-  static constexpr uint16_t kMaxSections = 448;  // v0.3.2: 384 before (the living world's 55 lists)
+  static constexpr uint16_t kMaxSections = 512;  // v0.3.4 (user): 448 since v0.3.2, 384 before; 12 B of RAM each
   static constexpr uint8_t kMaxFiles = 15;       // SD sources 1..15
   static constexpr size_t kNameMax = 48;         // "lists/<name>.txt", relative to the game folder
 

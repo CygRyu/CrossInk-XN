@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 
+#include "Agenda.h"
 #include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Daily.h"
@@ -358,6 +359,16 @@ class CultivationActivity final : public Activity {
   void rivalChronicle(const char* listKey, const char* region, const char* name, const char* what, uint32_t extra,
                       const char* note = nullptr);  // v0.2.9: a sentence added at the end ("Noticed: ...")
   cultivation::rivals::News rivalNews_;
+  // v0.3.4: the rival's agenda this visit (Agenda.h), stepped with the world. One event goes into the
+  // Return summary (agendaSummary_, -1 none), every other one straight into the Chronicle.
+  cultivation::agenda::Steps agendaSteps_;
+  int8_t agendaSummary_ = -1;
+  void appendAgendaLines(bool summary);  // true: the summary's one line; false: the rest, to the Chronicle
+  bool agendaEventLine(const cultivation::agenda::Event& e, cultivation::lifelog::Line& line);
+  bool agendaRumorOfTheDay(uint32_t when);
+  void agendaNowLine(char* out, size_t len);
+  // The rival's name for the text: their own once met, "a young disciple of <sect>" before.
+  bool agendaRivalName(char* name, size_t nameLen, char* sect, size_t sectLen);
   // v0.3.2: the living world (CultivationWorld.cpp). This visit's world years and their events; the
   // event whose line went into the Return summary (-1 none); the rest go to the Chronicle after it.
   cultivation::sects::Steps worldSteps_;
@@ -376,6 +387,7 @@ class CultivationActivity final : public Activity {
     char rival[kNameSize] = {};
     char sect[kNameSize] = {};
     char say[200] = {};
+    char now[224] = {};  // v0.3.4: "Now: ..." (the agenda)
     char seats[cultivation::rivals::kLadderSize][kNameSize] = {};
     char nemeses[cultivation::rivals::kNemesisMax][cultivation::exploretext::kNameSize] = {};
     char kinds[cultivation::rivals::kNemesisMax][cultivation::exploretext::kNameSize] = {};
