@@ -159,7 +159,8 @@ TEST(V031Days, TheRankingWorksOnReadingDays) {
   ASSERT_TRUE(rivals::ladderOpen(g.state));
   EXPECT_NE(rivals::challengeBout(g.state).block, rivals::Block::NoDate);
   rivals::challenge(g.state);
-  EXPECT_EQ(rivals::challengeBout(g.state).block == rivals::Block::DoneToday ||
+  g.state.progress.stamina = 0;  // v0.3.6: the extra challenges need stamina
+  EXPECT_EQ(rivals::challengeBout(g.state).block == rivals::Block::NoStamina ||
                 rivals::challengeBout(g.state).block == rivals::Block::NoHp,
             true);
   g.state.progress.hp = 100;
@@ -243,8 +244,10 @@ TEST(V031Days, ShiftingMovesEveryStoredDayAndKeepsNone) {
   days::shiftStoredDays(s, 10);
   EXPECT_EQ(daily::today(s), kMonday + 10);
   s.progress.hp = 100;
-  // The ladder's challenge day moved with it: still "done" on the shifted today.
-  EXPECT_EQ(rivals::challengeBout(s).block, rivals::Block::DoneToday);
+  s.progress.stamina = 0;
+  // The ladder's challenge day moved with it: the free one still used on the shifted today
+  // (v0.3.6: only an extra one, with stamina, is left).
+  EXPECT_EQ(rivals::challengeBout(s).block, rivals::Block::NoStamina);
   // A day never stored stays none.
   GameState empty;
   days::shiftStoredDays(empty, 5);

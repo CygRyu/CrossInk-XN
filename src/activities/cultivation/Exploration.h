@@ -19,7 +19,7 @@
 // shows once you stand next to it, its content once you step on it. 15-20
 // tiles hold content (herb, ore, ruin, hidden cave, beast lair, merchant,
 // quiet spot, the guardian); the rest are paths. A step to a neighbouring
-// walkable tile costs 1 stamina.
+// walkable tile costs 1 stamina (v0.3.6: none in a Trivial or Cleared region, where a fight costs 1).
 //
 // Random encounters happen on manual steps only, at the region's own rate
 // (5-18%), rolled from the world seed and a stored step counter, so leaving
@@ -270,7 +270,12 @@ struct StepResult {
   sects::Influence world;   // v0.3.3: a ruin or cave won at an inheritance (its reward is in `reward`)
 };
 
-enum class StepError : uint8_t { None, NotAdjacent, Blocked, NoStamina, NoHp, FightWaiting };
+// TooTired (v0.3.6): free walking at 0 stamina, and the tile would be a fight (a lair, the guardian).
+enum class StepError : uint8_t { None, NotAdjacent, Blocked, NoStamina, NoHp, FightWaiting, TooTired };
+// v0.3.6 (user): a Trivial or Cleared region is walked for free; any fight there costs 1 stamina
+// (fought, won or lost; slipping past, paying off or incense are free). At 0 stamina there, nothing
+// new starts a fight: no random encounter, ambush or duel, no lair or guardian, no spar or challenge.
+bool freeWalk(const GameState& state, uint8_t region);
 StepError canStep(const GameState& state, const Layout& layout, uint8_t region, uint8_t to);
 
 // Spends 1 stamina and moves; then a lair or guardian fight, a random
@@ -368,6 +373,7 @@ struct Meeting {
   bool duel = false;        // v0.3.4: their formal duel (stakes in stones, a loss costs HP)
   uint32_t stakes = 0;
   int8_t cast = -1;           // v0.3.5: one of the cast (Cast.h), else -1
+  bool tired = false;         // v0.3.6: free region, 0 stamina: the fight offer is refused
   bool friendly = false;      // ... who thinks well of you: 10% off, a free Talk
   Wound wound = Wound::None;  // v0.2.9: already in level difference, chance and damage
 };

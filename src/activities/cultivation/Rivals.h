@@ -34,7 +34,8 @@
 // player at rank P, ranks above P show seats 1..P-1, ranks below show seats
 // P..19. The rival takes the seat their stage gives (18 at their realm's
 // first stage, 3 at its last) while in the player's realm. Once a calendar day
-// the player may challenge the rank above (unranked: rank 20); once a day the
+// the player may challenge the rank above (unranked: rank 20; v0.3.6: then up to 3 more that day,
+// 1 stamina each, won or lost); once a day the
 // one below challenges the player, who may decline for free. A won bout
 // swaps ranks and pays 20 x (realm + 1) stones; a lost one costs 10% of max
 // HP (and needs that much). Rank 20 fights about 6 levels below the player,
@@ -58,7 +59,8 @@
 //     1 temperament, 2 talent percent (80-125), 3 realm last announced
 //     4-7 virtual reading in tenths of a minute (u32)
 //     8-9 last day credited + 1, 10-11 reaction start day + 1 (u16)
-//     12 reaction (0 none, 1 beaten, 2 overtaken), 13 your wins, 14 your losses, 15 spare
+//     12 reaction (0 none, 1 beaten, 2 overtaken), 13 your wins, 14 your losses,
+//     15 extra ranking challenges taken on the last challenge day (v0.3.6)
 //   16-23 the ladder: 16 realm + 1, 17 your rank (0 unranked), 18-19 last
 //     challenge day + 1, 20-21 last defence day + 1, 22 best rank, 23 the
 //     region you last entered + 1 (where nemeses roam to)
@@ -166,7 +168,9 @@ Rung rung(const GameState& state, uint8_t rank);
 uint32_t seatSeed(const GameState& state, uint8_t seat);  // names seat n of the current realm's ladder
 int rankOffset(uint8_t rank);                             // -6 at 20 .. +8 at 1
 
-enum class Block : uint8_t { None = 0, NoLadder, NoDate, DoneToday, AtTop, NoOneBelow, NoHp };
+// NoStamina (v0.3.6): the day's free challenge is used and an extra one needs 1 stamina.
+enum class Block : uint8_t { None = 0, NoLadder, NoDate, DoneToday, AtTop, NoOneBelow, NoHp, NoStamina };
+constexpr uint8_t kExtraChallenges = 3;  // v0.3.6 (user): after the free one, up to 3 a day, 1 stamina each
 struct Bout {
   Block block = Block::NoLadder;
   uint8_t rank = 0;  // the opponent's rank now
@@ -176,6 +180,8 @@ struct Bout {
   uint16_t hpCost = 0;
   uint32_t stones = 0;
   explore::Wound wound = explore::Wound::None;  // v0.2.9: already in danger and chance
+  bool extra = false;                           // v0.3.6: the day's free challenge is used: this one costs 1 stamina
+  uint8_t extraLeft = 0;                        // extra challenges left today
 };
 Bout challengeBout(const GameState& state);
 Bout defenceBout(const GameState& state);  // block None: someone below challenges you today

@@ -732,7 +732,10 @@ void CultivationActivity::renderLadder(const int x, int y, const int width, cons
             case LadderRow::Challenge: {
               const rivals::Bout b = rivals::challengeBout(*state_);
               if (b.block == rivals::Block::AtTop) return ctr(CULT_LADDER_TOP);
-              snprintf(t, sizeof(t), ctr(CULT_LADDER_CHALLENGE_FORMAT), static_cast<unsigned>(b.rank));
+              snprintf(t, sizeof(t),
+                       b.extra && b.block != rivals::Block::DoneToday ? ctr(CULT_LADDER_AGAIN_FORMAT)
+                                                                      : ctr(CULT_LADDER_CHALLENGE_FORMAT),
+                       static_cast<unsigned>(b.rank));
               return t;
             }
             case LadderRow::Accept:
@@ -768,13 +771,21 @@ void CultivationActivity::renderLadder(const int x, int y, const int width, cons
               case rivals::Block::NoDate:
                 return ctr(CULT_LADDER_NO_DATE);
               case rivals::Block::DoneToday:
-                return ctr(CULT_LADDER_DONE);
+                return b.extra ? ctr(CULT_LADDER_ALL_DONE) : ctr(CULT_LADDER_DONE);
+              case rivals::Block::NoStamina:
+                return ctr(CULT_LADDER_NO_STAMINA);
               case rivals::Block::AtTop:
                 return "";
               case rivals::Block::NoHp:
                 snprintf(t, sizeof(t), ctr(CULT_LADDER_NO_HP_FORMAT), static_cast<unsigned>(b.hpCost));
                 return t;
               default:
+                if (b.extra) {
+                  snprintf(t, sizeof(t), ctr(CULT_LADDER_AGAIN_SUB_FORMAT), dangerWord(b.danger),
+                           static_cast<unsigned>(b.chance), static_cast<unsigned>(b.hpCost),
+                           static_cast<unsigned long>(b.stones), static_cast<unsigned>(b.extraLeft));
+                  return t;
+                }
                 snprintf(t, sizeof(t), ctr(CULT_LADDER_CHALLENGE_SUB_FORMAT), dangerWord(b.danger),
                          static_cast<unsigned>(b.chance), static_cast<unsigned>(b.hpCost),
                          static_cast<unsigned long>(b.stones));

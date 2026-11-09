@@ -866,19 +866,35 @@ Fight pendingFight(const GameState& s, const Layout& l) {
 
 // --- Stepping ------------------------------------------------------------------------------
 
+// v0.3.6 (user): walking a Trivial or Cleared region is free; a fight there costs 1 stamina.
+bool freeWalk(const GameState& s, const uint8_t region) {
+  return regionDanger(s, region) == Danger::Trivial || cleared(s, region);
+}
+bool tired(const GameState& s, const uint8_t region) { return freeWalk(s, region) && s.progress.stamina == 0; }
+// A fight in a free region costs a point (none to pay: a fight that was already waiting is free).
+void payFight(GameState& s, const uint8_t region) {
+  if (freeWalk(s, region) && s.progress.stamina > 0) s.progress.stamina = static_cast<uint8_t>(s.progress.stamina - 1);
+}
+
 StepError canStep(const GameState& s, const Layout& l, const uint8_t region, const uint8_t to) {
   if (s.exploration[5] != 0) return StepError::FightWaiting;
   if (s.progress.hp == 0) return StepError::NoHp;
   if (!adjacent(position(s, l, region), to)) return StepError::NotAdjacent;
   if (!walkable(l, to)) return StepError::Blocked;
-  if (s.progress.stamina == 0) return StepError::NoStamina;
+  if (s.progress.stamina == 0) {
+    // v0.3.6: free walking needs no stamina, but at 0 a lair or the guardian (a fight) is out of reach.
+    if (!freeWalk(s, region)) return StepError::NoStamina;
+    const Tile t = l.tiles[to];
+    if ((t == Tile::Lair || t == Tile::Guardian) && !used(s, region, to)) return StepError::TooTired;
+  }
   return StepError::None;
 }
 
 StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8_t to) {
   StepResult r;
   if (canStep(s, l, region, to) != StepError::None) return r;
-  s.progress.stamina = static_cast<uint8_t>(s.progress.stamina - 1);
+  const bool exhausted = tired(s, region);  // v0.3.6: free walking at 0 stamina: no fight can start
+  if (!freeWalk(s, region)) s.progress.stamina = static_cast<uint8_t>(s.progress.stamina - 1);
   setPosition(s, region, to);
   if (!charted(s, region, to)) daily::note(s, daily::Task::Chart);  // v0.2.6: a daily task
   chart(s, region, to);
@@ -895,8 +911,9 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     r.fight = true;
     return r;
   }
-  // v0.3.4: your rival's challenge letter: they wait for you on this region's road.
-  if (agenda::duelWaitingIn(s, region)) {
+  // v0.3.4: your rival's challenge letter: they wait for you on this region's road (v0.3.6: not when
+  // you are too tired to fight; they keep waiting).
+  if (agenda::duelWaitingIn(s, region) && !exhausted) {
     s.exploration[7] = kDuelSlot;
     s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
     setPending(s, region, FightKind::Meeting);
@@ -904,7 +921,7 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     return r;
   }
   // v0.2.8: a nemesis roaming this region finds you (6%, Ambusher 12%), unless resting.
-  {
+  if (!exhausted) {
     const int nemi = rivals::ambush(s, region, contentSeed(worldSeedOf(s), kKindNemesisFind, c));
     if (nemi >= 0) {
       s.exploration[7] = static_cast<uint8_t>(kNemesisSlot | (nemi + 1));
@@ -926,7 +943,8 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
     }
   }
   Rng encounter(contentSeed(worldSeedOf(s), kKindEncounter, c));
-  if (encounter.below(100) < sects::encounterPercent(s, region, l.encounterPercent)) {  // v0.3.2: beast tide
+  // v0.3.2: a beast tide raises the rate; v0.3.6: the roll is taken, but too tired, nothing attacks.
+  if (encounter.below(100) < sects::encounterPercent(s, region, l.encounterPercent) && !exhausted) {
     // A foe that got away from you here comes back one time in three.
     const int waiting = waitingFoeIn(s, region);
     s.exploration[7] = waiting >= 0 && encounter.below(3) == 0 ? static_cast<uint8_t>(waiting + 1) : 0;
@@ -986,6 +1004,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     res.refused = true;
     return res;
   }
+  if (choice == FightChoice::Fight) payFight(s, f.region);  // v0.3.6: slipping, paying, incense: free
   // v0.2.1: who this was, before the counter (which names new enemies) moves on.
   const int ring = f.kind == FightKind::Beast ? returningFoe(s) : -1;
   const uint32_t seed = beastSeed(s);
@@ -1214,7 +1233,7 @@ uint16_t percentOf(const uint16_t price, const uint32_t percent) {
 }
 }  // namespace
 
-Meeting pendingMeeting(const GameState& s, const Layout& l) {
+static Meeting pendingMeetingOf(const GameState& s, const Layout& l) {
   Meeting m;
   const int region = meetingRegion(s);
   if (region < 0) return m;
@@ -1330,6 +1349,13 @@ Meeting pendingMeeting(const GameState& s, const Layout& l) {
   (void)l;
   m.talked = (s.exploration[6] & kMeetFlagTalked) != 0;
   m.traded = (s.exploration[6] & kMeetFlagBought) != 0;
+  return m;
+}
+
+Meeting pendingMeeting(const GameState& s, const Layout& l) {
+  Meeting m = pendingMeetingOf(s, l);
+  // v0.3.6: in a free region at 0 stamina a spar, a challenge or a duel cannot be fought.
+  m.tired = m.active && m.offer != Offer::Trade && tired(s, m.region);
   return m;
 }
 
@@ -1451,10 +1477,11 @@ MeetResult meet(GameState& s, const Layout& l, const MeetChoice choice) {
   }
 
   // Offer: a spar or a challenge (a trade is the shop).
-  if (m.offer == Offer::Trade) {
+  if (m.offer == Offer::Trade || m.tired) {  // v0.3.6: too tired to fight in a free region
     res.refused = true;
     return res;
   }
+  payFight(s, m.region);  // v0.3.6: a spar, a challenge or a duel in a free region costs 1 stamina
   const uint32_t c = counter(s);
   Rng rng(contentSeed(worldSeedOf(s), kKindFightRoll, c));
   res.roll = static_cast<uint8_t>(rng.below(100));

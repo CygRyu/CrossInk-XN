@@ -413,8 +413,9 @@ TEST(Ladder, StartsUnrankedAndClimbsOneRankADay) {
     const rivals::BoutResult r = rivals::challenge(g.state);
     ASSERT_TRUE(r.done);
     if (rivals::playerRank(g.state) == 1) break;
-    // A second challenge the same day is refused.
-    EXPECT_EQ(rivals::challengeBout(g.state).block, rivals::Block::DoneToday);
+    // A second challenge the same day is refused without stamina (v0.3.6: with it, up to 3 more).
+    g.state.progress.stamina = 0;
+    EXPECT_EQ(rivals::challengeBout(g.state).block, rivals::Block::NoStamina);
     EXPECT_FALSE(rivals::challenge(g.state).done);
     if (r.won) {
       ++climbed;

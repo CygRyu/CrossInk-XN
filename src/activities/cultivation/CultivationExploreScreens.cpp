@@ -1613,11 +1613,13 @@ void CultivationActivity::renderRegions(const int x, int y, const int width, con
           }
           if (explore::cleared(*state_, region)) {
             const uint32_t hours = (explore::upheavalMinutesLeft(*state_, region) + 59u) / 60u;
-            snprintf(sub, sizeof(sub), ctr(CULT_REGION_CLEARED_SUB_FORMAT), danger, static_cast<unsigned>(hours));
+            snprintf(sub, sizeof(sub), ctr(CULT_REGION_CLEARED_FREE_SUB_FORMAT), danger, static_cast<unsigned>(hours));
           } else {
-            snprintf(sub, sizeof(sub), ctr(CULT_REGION_SUB_FORMAT), danger,
-                     static_cast<unsigned>(explore::chartedCount(*state_, region)),
-                     static_cast<unsigned>(ev.walkable[region]));
+            snprintf(
+                sub, sizeof(sub),
+                explore::freeWalk(*state_, region) ? ctr(CULT_REGION_FREE_SUB_FORMAT) : ctr(CULT_REGION_SUB_FORMAT),
+                danger, static_cast<unsigned>(explore::chartedCount(*state_, region)),
+                static_cast<unsigned>(ev.walkable[region]));
           }
         } else if (i == ev.regionCount) {
           snprintf(sub, sizeof(sub), ctr(CULT_BAG_SUB_FORMAT), static_cast<unsigned long>(state_->progress.stones),
@@ -1794,8 +1796,14 @@ void CultivationActivity::renderMapInfo(const int x, int y, const int width, con
   } else if (explore::meetingRegion(s) == v.region) {
     info(ctr(CULT_MEET_WAITS));
   } else if (target != here && p.hp > 0) {
-    info(ctr(CULT_TILE_STEP_COST));
-    if (p.stamina == 0) info(ctr(CULT_NO_STAMINA));
+    if (explore::canStep(s, v.layout, v.region, target) == explore::StepError::TooTired) {  // v0.3.6
+      info(ctr(CULT_TILE_TOO_TIRED));
+    } else if (explore::freeWalk(s, v.region)) {
+      info(p.stamina == 0 ? ctr(CULT_TILE_FREE_TIRED) : ctr(CULT_TILE_FREE_STEP));
+    } else {
+      info(ctr(CULT_TILE_STEP_COST));
+      if (p.stamina == 0) info(ctr(CULT_NO_STAMINA));
+    }
   }
   if (!known) return;
   using explore::Tile;
@@ -1923,8 +1931,11 @@ void CultivationActivity::renderFight(const int x, int y, const int width, const
         char row[96];
         char name[64];
         switch (list[i]) {
-          case FightRow::Fight:
-            return ctr(CULT_FIGHT_ROW);
+          case FightRow::Fight: {  // v0.3.6: in a free region the fight is what costs stamina
+            const explore::Fight fight = explore::pendingFight(*state_, explore_->layout);
+            return explore::freeWalk(*state_, fight.region) && state_->progress.stamina > 0 ? ctr(CULT_FIGHT_ROW_PAID)
+                                                                                            : ctr(CULT_FIGHT_ROW);
+          }
           case FightRow::Slip:
             return ctr(CULT_SLIP_ROW);
           case FightRow::Pay:
@@ -2045,11 +2056,16 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
         char row[96];
         char name[64];
         switch (list[i]) {
-          case MeetRow::Offer:
-            return mm.offer == explore::Offer::Spar    ? ctr(CULT_SPAR_ROW)
-                   : mm.offer == explore::Offer::Trade ? ctr(CULT_TRADE)
-                   : mm.offer == explore::Offer::Duel  ? ctr(CULT_DUEL_ROW)
-                                                       : ctr(CULT_CHALLENGE_ROW);
+          case MeetRow::Offer: {
+            const char* label = mm.offer == explore::Offer::Spar    ? ctr(CULT_SPAR_ROW)
+                                : mm.offer == explore::Offer::Trade ? ctr(CULT_TRADE)
+                                : mm.offer == explore::Offer::Duel  ? ctr(CULT_DUEL_ROW)
+                                                                    : ctr(CULT_CHALLENGE_ROW);
+            // v0.3.6: in a free region the fight is what costs stamina.
+            if (mm.offer == explore::Offer::Trade || mm.tired || !explore::freeWalk(*state_, mm.region)) return label;
+            snprintf(row, sizeof(row), ctr(CULT_MEET_PAID_ROW_FORMAT), label);
+            return row;
+          }
           case MeetRow::Talk:
             return ctr(CULT_TALK_ROW);
           case MeetRow::Tonic:
@@ -2069,7 +2085,9 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
         char sub[160];
         switch (list[i]) {
           case MeetRow::Offer:
-            if (mm.rival && mm.offer == explore::Offer::Spar) {  // v0.2.8
+            if (mm.tired) {  // v0.3.6
+              snprintf(sub, sizeof(sub), "%s", ctr(CULT_MEET_TIRED));
+            } else if (mm.rival && mm.offer == explore::Offer::Spar) {  // v0.2.8
               snprintf(sub, sizeof(sub), ctr(CULT_RIVAL_SPAR_SUB_FORMAT), static_cast<unsigned>(mm.chance));
             } else if (mm.offer == explore::Offer::Spar) {
               snprintf(sub, sizeof(sub), ctr(CULT_SPAR_SUB_FORMAT), static_cast<unsigned>(mm.chance));
@@ -2098,6 +2116,12 @@ void CultivationActivity::renderMeeting(const int x, int y, const int width, con
             break;
         }
         return sub;
+      },
+      nullptr, nullptr, false,
+      [this](const int i) -> bool {  // v0.3.6: too tired to fight, the offer is greyed
+        MeetRow list[4];
+        const uint8_t n = meetRowList(list);
+        return i < n && list[i] == MeetRow::Offer && explore::pendingMeeting(*state_, explore_->layout).tired;
       });
 }
 

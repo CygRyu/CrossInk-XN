@@ -37,6 +37,7 @@ constexpr uint8_t kReactDay = 10;
 constexpr uint8_t kReact = 12;
 constexpr uint8_t kWins = 13;
 constexpr uint8_t kLosses = 14;
+constexpr uint8_t kExtraUsed = 15;  // v0.3.6: extra ranking challenges taken on the last challenge day
 constexpr uint8_t kCreated = 0x01;
 constexpr uint8_t kKnown = 0x02;
 constexpr uint8_t kAhead = 0x04;
@@ -642,10 +643,17 @@ Bout challengeBout(const GameState& s) {
   }
   b = boutAgainst(s, p == 0 ? kLadderSize : static_cast<uint8_t>(p - 1));
   const uint32_t today = todayOf(s);
+  // v0.3.6 (user): after the day's free challenge, up to 3 more, 1 stamina each, won or lost.
+  const bool usedFree = today != kNoDay && dayOf(rv(s) + kChallengeDay) == today;
+  const uint8_t used = usedFree ? rv(s)[kExtraUsed] : 0;
+  b.extra = usedFree;
+  b.extraLeft = static_cast<uint8_t>(used < kExtraChallenges ? kExtraChallenges - used : 0);
   if (today == kNoDay) {
     b.block = Block::NoDate;
-  } else if (dayOf(rv(s) + kChallengeDay) == today) {
+  } else if (usedFree && used >= kExtraChallenges) {
     b.block = Block::DoneToday;
+  } else if (usedFree && s.progress.stamina == 0) {
+    b.block = Block::NoStamina;
   } else if (s.progress.hp < b.hpCost) {
     b.block = Block::NoHp;
   }
@@ -679,7 +687,17 @@ BoutResult play(GameState& s, const Bout& b, const bool defence) {
   res.who = b.who;
   res.rival = b.who.rival;
   res.rankBefore = playerRank(s);
-  Rng rng(contentSeed(worldSeedOf(s), kKindLadder, (today << 8) | (static_cast<uint32_t>(b.rank) << 1) | defence));
+  uint32_t key = (today << 8) | (static_cast<uint32_t>(b.rank) << 1) | defence;
+  if (!defence) {  // v0.3.6: an extra challenge costs a point; each gets its own roll
+    if (b.extra) {
+      s.progress.stamina = static_cast<uint8_t>(s.progress.stamina > 0 ? s.progress.stamina - 1 : 0);
+      r[kExtraUsed] = static_cast<uint8_t>(r[kExtraUsed] + 1);
+      key = mix32(key, 0x45585452u + r[kExtraUsed]);
+    } else {
+      r[kExtraUsed] = 0;
+    }
+  }
+  Rng rng(contentSeed(worldSeedOf(s), kKindLadder, key));
   res.roll = static_cast<uint8_t>(rng.below(100));
   res.won = res.roll < b.chance;
   putDay(r + (defence ? kDefenceDay : kChallengeDay), today);

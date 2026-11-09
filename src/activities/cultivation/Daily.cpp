@@ -57,18 +57,20 @@ bool readingTask(const Task t) { return t == Task::ReadMinutes || t == Task::Tur
 // A game task the player can do today.
 bool possible(const GameState& s, const Task t) {
   const uint8_t regions = explore::unlockedCount(s);
-  const bool canWalk = regions > 0 && s.progress.stamina > 0;
+  // v0.3.6: a Trivial or Cleared region is walked without stamina.
+  bool canWalk = regions > 0 && s.progress.stamina > 0;
+  for (uint8_t r = 0; r < regions && !canWalk; ++r) canWalk = explore::freeWalk(s, r);
   switch (t) {
-    case Task::Chart:
-      if (!canWalk) return false;
+    case Task::Chart:  // an uncleared region the player can walk today
       for (uint8_t r = 0; r < regions; ++r) {
-        if (!explore::cleared(s, r)) return true;
+        if (!explore::cleared(s, r) && (s.progress.stamina > 0 || explore::freeWalk(s, r))) return true;
       }
       return false;
     case Task::Gather:
-    case Task::WinFight:
     case Task::Merchant:
       return canWalk;
+    case Task::WinFight:  // v0.3.6: every fight costs stamina, free region or not
+      return canWalk && s.progress.stamina > 0;
     case Task::Brew:
       return alchemy::knownCount(s) > 0 || alchemy::brewing(s);
     case Task::Meridian:
