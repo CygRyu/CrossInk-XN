@@ -637,7 +637,11 @@ void CultivationActivity::renderRivalCard(const int x, int y, const int width, c
   const rivals::Rival r = rivals::rival(s);
   char line[224];
   if (!r.exists || !r.known || !rivals_) {
-    drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_RIVAL_UNMET), 8);
+    y = drawWrapped(UI_10_FONT_ID, x, y, width, ctr(CULT_RIVAL_UNMET), 8);
+    if (r.exists && rivals_) {  // v0.3.7: their realm, by hearsay
+      snprintf(line, sizeof(line), ctr(CULT_RIVAL_UNMET_REALM_FORMAT), ui::realmName(r.realm));
+      drawWrapped(UI_10_FONT_ID, x, y + 8, width, line, 4);
+    }
     return;
   }
   const RivalsView& v = *rivals_;
@@ -910,6 +914,37 @@ void CultivationActivity::renderNemeses(const int x, int y, const int width, con
 // The rival's news since the last visit (two lines at most): into the Return
 // summary's log when there is one (the Chronicle gets it with the visit),
 // otherwise straight into the Chronicle.
+void CultivationActivity::nameGoneNemeses(const uint8_t mask) {
+  goneCount_ = 0;
+  if (mask == 0 || !grammar_ || !state_) return;
+  for (uint8_t i = 0; i < rivals::kNemesisMax; ++i) {
+    rivals::Nemesis n;
+    if ((mask & (1u << i)) == 0 || !rivals::nemesis(*state_, i, n)) continue;
+    char name[exploretext::kNameSize];
+    char region[exploretext::kNameSize];
+    if (!exploretext::nemesisName(*state_, i, *grammar_, name, sizeof(name))) continue;
+    if (!exploretext::regionName(*state_, n.region, *grammar_, region, sizeof(region))) region[0] = '\0';
+    const uint32_t seed = contentSeed(worldSeedOf(*state_), kKindRivalText, mix32(n.seed, 0x474F4E45u));
+    if (exploretext::personLine(goneLines_[goneCount_], *state_, "nemesis.line.gone", seed,
+                                region[0] != '\0' ? region : nullptr, name, nullptr, *grammar_)) {
+      ++goneCount_;
+    }
+  }
+  if (packs_) packs_->closeFile();
+}
+
+void CultivationActivity::appendGoneLines(const bool summary) {
+  for (uint8_t i = 0; i < goneCount_; ++i) {
+    if (summary && lifeLog_ && lifeLog_->count < lifelog::kMaxLines) {
+      lifeLog_->lines[lifeLog_->count++] = goneLines_[i];
+    } else {
+      if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
+      chronicle::appendLines(&goneLines_[i], 1);
+    }
+  }
+  goneCount_ = 0;
+}
+
 void CultivationActivity::appendRivalLines(const rivals::News& news) {
   if (!grammar_ || !state_) return;
   const rivals::Rival r = rivals::rival(*state_);

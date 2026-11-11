@@ -39,7 +39,8 @@ struct BuiltinPacks {
   }
 };
 
-GameState makeCharacter(const Origin origin = Origin::FarmersChild, const uint32_t pagesBefore = 0) {
+GameState makeCharacter(const Origin origin = Origin::FarmersChild, const uint32_t pagesBefore = 0,
+                        const uint32_t worldSeed = 0x5EED1234) {
   CharacterDraft d;
   snprintf(d.name, sizeof(d.name), "Lin Yue");
   d.gender = Gender::Female;
@@ -47,7 +48,7 @@ GameState makeCharacter(const Origin origin = Origin::FarmersChild, const uint32
   d.destiny.element = Element::Earth;
   d.destiny.purity = 20;
   d.destiny.talent = 1;
-  d.worldSeed = 0x5EED1234;
+  d.worldSeed = worldSeed;
   StatsSample before;
   before.pages = pagesBefore;
   before.completedBooks = pagesBefore > 0 ? 37 : 0;
@@ -127,6 +128,35 @@ TEST(LifeLog, LongVisitsShowSixLinesAndCountAll) {
   build(log, seasons(192, 225), 33, s, packs.grammar.get());
   EXPECT_EQ(log.seasonsPassed, 11u);
   EXPECT_EQ(log.count, kMaxSeasonLines);
+}
+
+TEST(LifeLog, ALongVisitNeverShowsTheSameLineTwice) {
+  // v0.3.7: the six shown seasons are spread over the visit; an even spread used to land on the
+  // same entry of a list again (one 20-hour summary had the same line three times).
+  BuiltinPacks packs;
+  int summaries = 0;
+  for (uint32_t world = 1; world <= 40; ++world) {
+    for (uint8_t realm = 0; realm <= 6; ++realm) {
+      for (const uint32_t span : {48u, 96u, 144u, 240u, 960u}) {
+        GameState s = makeCharacter(Origin::FarmersChild, 0, world * 7919u);
+        s.progress.realm = realm;
+        const uint32_t from = 400u + world * 13u;
+        s.progress.ageMonths = from + span;
+        LifeLog log;
+        build(log, seasons(from, from + span), span, s, packs.grammar.get());
+        std::set<std::string> seen;
+        for (uint8_t i = 0; i < log.count; ++i) {
+          if (log.lines[i].kind != LineKind::Season) continue;
+          const std::string text(log.lines[i].text);
+          const size_t cut = text.find(". ");
+          const std::string body = cut == std::string::npos ? text : text.substr(cut + 2);
+          EXPECT_TRUE(seen.insert(body).second) << "repeated: " << body;
+        }
+        ++summaries;
+      }
+    }
+  }
+  EXPECT_EQ(summaries, 40 * 7 * 5);
 }
 
 TEST(LifeLog, SameSeasonsGiveSameLines) {

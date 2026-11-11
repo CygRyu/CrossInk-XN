@@ -124,7 +124,10 @@ News update(GameState& state, const StatsSample& now);
 // Fight level: 10 x realm + stage (Layers as is, Early..Peak x 3) + 2 x realm
 // for their techniques. Never scaled to you.
 int rivalLevel(const GameState& state);
-// The rival may walk this region's road once their realm has opened it.
+// Their realm has opened this region (their goals: tournaments, inheritances, duels).
+bool reaches(const GameState& state, uint8_t region);
+// The rival may meet you on this region's road: where they reach, or (v0.3.7, until you have
+// met) any region you have opened, at their own strength.
 bool canMeetIn(const GameState& state, uint8_t region);
 // What the rival offers on the road: a trade (Idle; Erratic one meeting in two) or a spar.
 bool offersTrade(const GameState& state, uint8_t meeting);
@@ -213,6 +216,11 @@ constexpr uint8_t kLevelsPerWin = 2;
 constexpr uint8_t kLevelCapAbove = 12;
 constexpr uint16_t kRoamUnits = 12;  // 2 reading hours, in 10-minute units
 constexpr uint16_t kRestUnits = 12;
+// v0.3.7 (user): a Coward runs at most twice; the third time it finds you it is cornered and fights.
+constexpr uint8_t kCowardFlights = 2;
+// v0.3.7 (user): a nemesis Trivial for you over 10 reading hours gives up the grudge and leaves,
+// freeing its place. Nemesis bytes 22-23: the reading stamp it became Trivial (0 = it is not).
+constexpr uint16_t kOutgrownUnits = 60;  // 10 reading hours, in 10-minute units
 
 enum class Trait : uint8_t {
   None = 0,
@@ -227,7 +235,7 @@ enum class Trait : uint8_t {
   // weaknesses
   Overcome,   // your root's element beats its: -3 levels
   Proud,      // -2 levels on the fight after it beat you
-  Coward,     // flees without a fight when your chance is 60% or better
+  Coward,     // flees without a fight when your chance is 60% or better (v0.3.7: twice at most)
   Slow,       // slipping away always works
   Greedy,     // can be paid off, for half
   FearsDawn,  // -3 levels when met 06:00-12:00
@@ -287,8 +295,13 @@ int playerRegion(const GameState& state);  // -1 before any map
 // Birth: a new nemesis from an enemy that beat you, or a returning foe that
 // survived. Returns its index, or -1 when all three places are taken.
 int bear(GameState& state, explore::Enemy kind, uint8_t region, int level, uint32_t seed, uint32_t roll);
-// One visit: roaming on reading time.
-void roam(GameState& state);
+// One visit: roaming on reading time. v0.3.7: returns a bit per nemesis that has been Trivial for
+// you over kOutgrownUnits and gives up (still in its place, so it can be named); then letGo().
+uint8_t roam(GameState& state);
+// Frees the places in `mask` (a bit per nemesis), e.g. roam()'s result.
+void letGo(GameState& state, uint8_t mask);
+// v0.3.7: a Coward that has run kCowardFlights times is cornered and fights.
+bool cornered(const Nemesis& n);
 // A step in `region`: a nemesis there that is not resting finds you (rolled
 // from `roll`, 0-99 per nemesis in order). Returns its index or -1.
 int ambush(const GameState& state, uint8_t region, uint32_t seed);

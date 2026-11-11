@@ -256,13 +256,38 @@ void build(LifeLog& log, const VisitChange& change, const uint32_t monthsPassed,
 
   const uint32_t first = seasonOf(change.ageMonthsBefore);
   const uint8_t shown = static_cast<uint8_t>(log.seasonsPassed < kMaxSeasonLines ? log.seasonsPassed : kMaxSeasonLines);
+  SeasonPick used[kMaxSeasonLines];
+  uint8_t usedCount = 0;
   for (uint8_t i = 0; i < shown; ++i) {
     Line& line = log.lines[log.count];
     line.kind = LineKind::Season;
     line.season = shownSeason(first, log.seasonsPassed, i, shown);
     values.season = line.season;
     const uint32_t seed = contentSeed(world, kKindSeasonLine, line.season);
-    const SeasonPick pick = seasonPick(state, line.season, *grammar, ctx);
+    SeasonPick pick = seasonPick(state, line.season, *grammar, ctx);
+    // v0.3.7: a long visit shows seasons spread out, and an even spread could land on the same
+    // entry of a list again and again (one summary had the same line three times). Within one
+    // summary, a used entry steps on to the next unused one.
+    auto taken = [&](const SeasonPick& p) {
+      for (uint8_t k = 0; k < usedCount; ++k) {
+        if (used[k].entry == p.entry && strcmp(used[k].key, p.key) == 0) return true;
+      }
+      return false;
+    };
+    auto stepOn = [&](SeasonPick& p) {
+      const uint32_t size = grammar->entryCount(p.key, ctx);
+      for (uint32_t tries = 0; tries < size && taken(p); ++tries) p.entry = (p.entry + 1) % size;
+    };
+    if (pick.key != nullptr) {
+      stepOn(pick);
+      // A short list (an origin's has 4-5 lines) can run out: the shared list takes over.
+      if (taken(pick) && strcmp(pick.key, "log.any") != 0 && grammar->hasKey("log.any", ctx)) {
+        pick.key = "log.any";
+        pick.entry %= grammar->entryCount(pick.key, ctx);
+        stepOn(pick);
+      }
+      used[usedCount++] = pick;
+    }
     if (fill(line, pick.key, seed, *grammar, ctx, static_cast<int32_t>(pick.entry))) ++log.count;
   }
 

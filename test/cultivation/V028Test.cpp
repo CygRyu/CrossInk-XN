@@ -313,6 +313,7 @@ TEST(Rival, RecordAndReactions) {
 
 TEST(Rival, MeetsYouOnlyInRegionsTheirRealmHasOpened) {
   Game g = gameWith(Temper::Steady);
+  rivals::markKnown(g.state);                   // v0.3.7: once met; before that, see V037Test
   EXPECT_FALSE(rivals::canMeetIn(g.state, 0));  // still in Body Tempering
   const uint32_t m = 4u * 600u + 10u;           // just into Qi Condensation
   memcpy(g.state.rivals.data() + 4, &m, 4);

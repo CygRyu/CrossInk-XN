@@ -168,13 +168,13 @@ TEST(Exploration, EveryLayoutKeepsTheAgreedShape) {
         const uint8_t r = rowOf(l.entrance);
         const uint8_t c = colOf(l.entrance);
         EXPECT_TRUE(r == 0 || c == 0 || r == kGrid - 1 || c == kGrid - 1) << "the entrance is on the edge";
-        ASSERT_GE(l.encounterPercent, 5);
-        ASSERT_LE(l.encounterPercent, 18);
+        ASSERT_GE(l.encounterPercent, 10);  // v0.3.7
+        ASSERT_LE(l.encounterPercent, 25);
         rates.insert(l.encounterPercent);
       }
     }
   }
-  EXPECT_EQ(rates.size(), 14u) << "every rate from 5% to 18% occurs";
+  EXPECT_EQ(rates.size(), 16u) << "every rate from 10% to 25% occurs";
 }
 
 TEST(Exploration, LayoutsAreDeterministicAndReshapeChangesThem) {

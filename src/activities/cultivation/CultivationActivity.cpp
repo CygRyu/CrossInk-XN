@@ -533,7 +533,11 @@ void CultivationActivity::startVisit() {
   // v0.2.8: the rival's days since the last visit, the ranking's realm, nemeses roaming on reading time.
   rivals::setClockHour(currentLocalHour());
   rivalNews_ = rivals::update(*state_, now);
-  rivals::roam(*state_);
+  {
+    const uint8_t gone = rivals::roam(*state_);  // v0.3.7: outgrown nemeses give up the grudge
+    nameGoneNemeses(gone);
+    rivals::letGo(*state_, gone);
+  }
   // v0.3.2: the living world takes one step per reading hour (before the regions tick);
   // v0.3.4: the rival's agenda steps with it, after each year.
   worldSteps_ = agenda::advanceWorld(*state_, agendaSteps_, castSteps_);  // v0.3.5: and the cast
@@ -565,6 +569,7 @@ void CultivationActivity::startVisit() {
   } else {
     appendUpheavalLines(upheavals_);  // straight into the Chronicle
     appendRivalLines(rivalNews_);
+    appendGoneLines(false);       // v0.3.7
     appendAgendaLines(false);     // v0.3.4: no summary, so all of it into the Chronicle
     appendCastLines(false);       // v0.3.5
     appendWorldChronicleLines();  // v0.3.2
@@ -595,6 +600,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   lifeLog_ = makeUniqueNoThrow<lifelog::LifeLog>();
   if (!lifeLog_) {
     LOG_ERR("CULT", "Out of memory for the life log (%u bytes)", static_cast<unsigned>(sizeof(lifelog::LifeLog)));
+    appendGoneLines(false);       // v0.3.7
     appendAgendaLines(false);     // v0.3.4
     appendCastLines(false);       // v0.3.5
     appendWorldChronicleLines();  // v0.3.2: the world's news still reaches the Chronicle
@@ -603,6 +609,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   lifelog::build(*lifeLog_, change, visit_.monthsPassed, *state_, grammar_.get());
   appendUpheavalLines(upheavals_);  // Spatial Upheaval: after the visit's own lines
   appendRivalLines(rivalNews_);     // v0.2.8: then the rival's news
+  appendGoneLines(true);            // v0.3.7: a nemesis that gave up the grudge
   appendAgendaLines(true);          // v0.3.4: one line of their agenda; the rest after the visit's lines
   appendCastLines(true);            // v0.3.5: one line of the cast; the rest after the visit's lines
   if (ageWarning_ != lineage::Age::Fine && lifeLog_->count < lifelog::kMaxLines) {  // v0.3.0
@@ -1942,7 +1949,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   y += renderer.getLineHeight(SMALL_FONT_ID) + metrics.verticalSpacing * 2;
 
   // v0.2.0 (user's choice): the actions sit in a two-column grid of fixed rows
-  // at the bottom. The rumor's room (in the small font) and a missing-key line
+  // at the bottom. The rumor's room (v0.3.7: in the normal font) and a missing-key line
   // are reserved before the stats, which drop the talent and then the root
   // line rather than cut the rumor.
   const int rowStep = renderer.getLineHeight(UI_10_FONT_ID) + 4;
@@ -1959,7 +1966,9 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
   int rumorReserve = 6;
   if (rumor_[0] != '\0') {
     snprintf(line, sizeof(line), ctr(CULT_RUMOR_FORMAT), rumor_);
-    rumorReserve += static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, line, width, 5).size()) * smallLine +
+    // v0.3.7: room for the rumor in the normal font, so the stats give way before it shrinks
+    // (it changed size from day to day before).
+    rumorReserve += static_cast<int>(renderer.wrappedText(UI_10_FONT_ID, line, width, 6).size()) * textLine +
                     metrics.verticalSpacing * 2;
   }
   if (atBottleneck(s)) {

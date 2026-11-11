@@ -361,6 +361,11 @@ class CultivationActivity final : public Activity {
   void rivalChronicle(const char* listKey, const char* region, const char* name, const char* what, uint32_t extra,
                       const char* note = nullptr);  // v0.2.9: a sentence added at the end ("Noticed: ...")
   cultivation::rivals::News rivalNews_;
+  // v0.3.7: nemeses that gave up the grudge this visit (outgrown), written before their places were freed.
+  void nameGoneNemeses(uint8_t mask);
+  void appendGoneLines(bool summary);
+  cultivation::lifelog::Line goneLines_[cultivation::rivals::kNemesisMax];
+  uint8_t goneCount_ = 0;
   // v0.3.4: the rival's agenda this visit (Agenda.h), stepped with the world. One event goes into the
   // Return summary (agendaSummary_, -1 none), every other one straight into the Chronicle.
   cultivation::agenda::Steps agendaSteps_;

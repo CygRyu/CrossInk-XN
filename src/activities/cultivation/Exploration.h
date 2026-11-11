@@ -22,7 +22,7 @@
 // walkable tile costs 1 stamina (v0.3.6: none in a Trivial or Cleared region, where a fight costs 1).
 //
 // Random encounters happen on manual steps only, at the region's own rate
-// (5-18%), rolled from the world seed and a stored step counter, so leaving
+// (10-25% since v0.3.7; 5-18% before), rolled from the world seed and a stored step counter, so leaving
 // and re-entering never rerolls them. A lost fight costs HP and throws the
 // player onto a charted neighbouring tile. At 0 HP the map cannot be walked.
 //
@@ -68,9 +68,9 @@ enum class Tile : uint8_t { Blocked = 0, Path, Herb, Ore, Ruin, Cave, Lair, Merc
 struct Layout {
   Tile tiles[kTiles] = {};
   uint8_t entrance = 0;
-  uint8_t walkable = 0;          // charting goal
-  uint8_t content = 0;           // tiles that are not paths
-  uint8_t encounterPercent = 5;  // 5-18
+  uint8_t walkable = 0;           // charting goal
+  uint8_t content = 0;            // tiles that are not paths
+  uint8_t encounterPercent = 10;  // 10-25 (v0.3.7; 5-18 before)
   uint8_t guardianLevel = 0;
   uint8_t lairBonus[kTiles] = {};  // fixed extra level per lair, 0-4
 };
@@ -266,8 +266,9 @@ struct StepResult {
   uint16_t hpHealed = 0;
   bool clearedNow = false;  // the region was just cleared: clearReward holds its reward
   Reward clearReward;
-  int8_t nemesisFled = -1;  // v0.2.8: a Coward nemesis found you and ran (no fight)
-  sects::Influence world;   // v0.3.3: a ruin or cave won at an inheritance (its reward is in `reward`)
+  int8_t nemesisFled = -1;      // v0.2.8: a Coward nemesis found you and ran (no fight)
+  int8_t nemesisCornered = -1;  // v0.3.7: a Coward that has run twice is cornered and fights
+  sects::Influence world;       // v0.3.3: a ruin or cave won at an inheritance (its reward is in `reward`)
 };
 
 // TooTired (v0.3.6): free walking at 0 stamina, and the tile would be a fight (a lair, the guardian).

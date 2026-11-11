@@ -132,9 +132,9 @@ bool conditionGoalOn(const GameState& s, const Goal g, uint8_t& region) {
   const sects::Condition c = sects::condition(s, &region);
   switch (g) {
     case Goal::Tournament:
-      return c == sects::Condition::Tournament && rivals::canMeetIn(s, region);
+      return c == sects::Condition::Tournament && rivals::reaches(s, region);
     case Goal::Inheritance:
-      return c == sects::Condition::Inheritance && rivals::canMeetIn(s, region);
+      return c == sects::Condition::Inheritance && rivals::reaches(s, region);
     case Goal::War: {
       if (c != sects::Condition::SectWar) return false;
       const int8_t own = rivalSect(s);
@@ -148,14 +148,13 @@ bool conditionGoalOn(const GameState& s, const Goal g, uint8_t& region) {
 // A region of yours the rival can reach for a duel (the one you explored last first), or -1.
 int duelRegion(const GameState& s, Rng& rng) {
   const int last = rivals::playerRegion(s);
-  if (last >= 0 && explore::unlocked(s, static_cast<uint8_t>(last)) &&
-      rivals::canMeetIn(s, static_cast<uint8_t>(last))) {
+  if (last >= 0 && explore::unlocked(s, static_cast<uint8_t>(last)) && rivals::reaches(s, static_cast<uint8_t>(last))) {
     return last;
   }
   uint8_t options[explore::kRegionCount];
   uint8_t n = 0;
   for (uint8_t r = 0; r < explore::kRegionCount; ++r) {
-    if (explore::unlocked(s, r) && rivals::canMeetIn(s, r)) options[n++] = r;
+    if (explore::unlocked(s, r) && rivals::reaches(s, r)) options[n++] = r;
   }
   return n > 0 ? options[rng.below(n)] : -1;
 }
@@ -172,7 +171,7 @@ bool open(const GameState& s, const Goal g, const rivals::Rival& r) {
     case Goal::Duel: {
       if (!r.known || opinion(s) > kBitter) return false;
       for (uint8_t k = 0; k < explore::kRegionCount; ++k) {
-        if (explore::unlocked(s, k) && rivals::canMeetIn(s, k)) return true;
+        if (explore::unlocked(s, k) && rivals::reaches(s, k)) return true;
       }
       return false;
     }

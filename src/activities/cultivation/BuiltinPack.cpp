@@ -240,7 +240,7 @@ You guard a herb field for the {sect.name} and chase off {beast.a} with a burnin
 You copy sutras for a scholar in {place.town} by day and meditate in his woodshed by night.
 You sell a month of firewood to the kitchens of the {sect.name} for three taels and spend them all on a bowl of ginseng broth.
 A rogue cultivator robs you on the road below {name.mountain} and leaves you your boots.
-You learn to push Qi into your fists, and the first time you try it on a tree you break your wrist.
+You push Qi into your fists against a tree and break your wrist before you break the bark.
 A disciple of the {sect.name} pays you to take his turn at night watch, and you meditate on the wall until dawn.
 You lose a game of weiqi to an old man in {place.town} and owe him a month of chopping wood.
 The {sect.name} offers ten taels for the hide of {beast.a}, and you bring back two.
@@ -248,7 +248,7 @@ You trade your only good robe for a cracked jade slip that holds half of a breat
 A healer in {place.town} charges you five taels to set a rib you cracked sparring and tells you to stop sparring.
 Two outer disciples fight over a silver seam on {name.mountain}, and you are paid to carry the wounded down.
 You spend the {$season} in a rented room above a noodle shop in {place.town}, meditating through the noise of the kitchen.
-Your first try at storing Qi in your dantian leaves you dizzy for two days and owing the innkeeper for three.
+A night of storing Qi in your dantian leaves you dizzy for two days and owing the innkeeper for three.
 A caravan master hires you to stand behind him during a deal and pays you not to say a word.
 You find {herb} growing in a crack on {name.mountain} and sell it to a pill shop for half its worth because you need the money that day.
 An outer elder catches you reading the posted manuals without paying the copying fee and fines you a month's stipend.
@@ -263,32 +263,56 @@ You catch a thief at the market in {place.town} and find out he is the son of th
 
 # v0.2.9: Nascent Soul, and a shared list for Soul Transformation and later.
 [log.nascent]
-You spend the {$season} teaching the grandchildren of your first disciples, who are slower than their grandfathers were.
+You spend the {$season} teaching the grandchildren of your old disciples, who are slower than their grandfathers were.
 The {sect.name} asks you to judge two elders who stole from each other, and you fine them both the same.
 A young cultivator walks a month from {place.town} to ask you one question, and you answer it in four words.
-Your nascent soul leaves your body for the first time on {name.mountain}, and a fox makes off with your boots.
+Your nascent soul leaves your body during a sitting on {name.mountain}, and a fox makes off with your boots.
 You settle a forty-year feud between two families of {place.town} by making their eldest sons dig a well together.
 An envoy offers you a title and a hundred taels a year to guard the border, and you send him home with a pot of tea.
-You outlive the last person who knew you as a child, and pay for her funeral in {place.town}.
+You outlive another friend from your mortal years and pay for her funeral in {place.town}.
 A demonic cultivator who wronged you long ago is found dead in {place.region}, and you feel less than you expected.
 You burn a box of letters from your youth and keep one.
 The magistrate of {place.town} turns out to be the great-grandson of the magistrate who once jailed you for vagrancy.
 You walk the old post road to {place.town} on foot, as you did at sixteen, and find the inn has become a temple.
 Bandits on {name.mountain} know your face and send a cart of rice to your gate before you have said a word.
+You come out of seclusion on {name.mountain} to find foxes in your kitchen and a bill from the woodcutter.
+A messenger from the {sect.name} waits three days at your gate for an answer you give in one word.
+You judge a tournament in {place.town} and fail the son of the man who paid for it.
+A rogue cultivator in {place.region} sees you on the road and gives back a village's stolen grain before you ask.
+You repair the formation around the spirit vein of the {sect.name}, and the elders argue for a month over who has to thank you.
+A pill furnace you gave away years ago is sold back to you in {place.town} at ten times the price.
+You hold back a landslide above {place.town}, and a farmer scolds you for the mud on his roof.
+A disciple of one of your disciples asks you to settle a point of doctrine, and you have to look it up.
+You sort the library of the {sect.name} for a {$season} and keep three scrolls nobody will miss.
+The tea-houses of {place.town} make you three heads taller and two hundred years older than you are.
+A magistrate asks you to end a feud between two clans in {place.region}, and both clans send you the bill.
+You buy a tea-house in {place.town} to keep it from closing and never manage to collect the rent.
 
 [log.late]
-A dynasty falls in the lowlands, and the new emperor sends three officials to ask whether you mind.
+A new emperor takes the throne in the lowlands and sends three officials to ask whether you mind.
 You spend the {$season} learning the names of the towns around {name.mountain} again, since half of them have changed.
-The {sect.name} has had six sect masters since you joined, and the newest one bows lower than you would like.
+A new master of the {sect.name} climbs your mountain to pay respects and bows lower than you would like.
 A river shifts its bed near {place.town}, and you move the village out of its way in one night.
 Pilgrims leave rice and copper cash at the foot of your mountain, and a disciple carries it down to the poor of {place.town}.
-You find a sword you lost two hundred years ago hanging on the wall of a tea-house in {place.town}, and leave it there.
+You find a sword you lost long ago hanging on the wall of a tea-house in {place.town}, and leave it there.
 You settle a war between two sects over a spirit vein in {place.region}, and both send you their worst wine as thanks.
-A county in the south revises its tax rolls and finds it has listed you as a dead man for eighty years.
+A county in the south revises its tax rolls and finds it has listed you as dead since before its oldest clerk was born.
 You come out of seclusion to find someone has planted beans across the mouth of your cave.
 The great-granddaughter of an old enemy comes to kill you, and you send her home with a letter for her mother.
-The last of your own disciples dies of old age, and you carry the coffin yourself.
+One of your old disciples dies of old age, and you carry the coffin yourself.
 A merchant guild in {place.town} names a bridge after you and charges two copper to cross it.
+A young sect in {place.region} claims you founded it and asks you to pay for the new roof.
+The magistrate of {place.town} asks you to name his son and sends a cart of pears when you do.
+You walk through a sect war in {place.region} without drawing your sword, and both sides send apologies afterwards.
+A historian from {place.town} asks you about a battle you fought, and you correct three of his dates.
+The {sect.name} sends its brightest disciple to learn from you, and you send her back with a list of her elders' mistakes.
+Children in {place.town} play a game named after you and fight over who has to be you.
+A merchant in {place.town} sells portraits of you at five taels each, and none of them has the right nose.
+You give a farmer near {place.town} a spirit fruit seed, and forty years later his grandsons are suing each other over the tree.
+Three sects send envoys to your mountain in one {$season}, and you make them share one guest room.
+A thief carries off the stone tablet at your gate and brings it back the next night with a broken cart.
+You lend the {sect.name} a formation flag for a war in {place.region} and have to go and fetch it back yourself.
+A swordsman from {place.town} challenges you to settle a bet, and you let him last long enough to collect.
 
 [log.any]
 A peddler from {place.town} sells you a map of {place.region} that turns out to be [mostly|about half] right.
@@ -326,7 +350,7 @@ A man you beat in a fight years ago turns up in {place.town} as the magistrate's
 The {sect.name} makes you an inner disciple and gives you a room with a door that locks.
 You lead [five|eight|ten] outer disciples to clear {beast.a} out of a mine on {name.mountain} and bring all of them back.
 An elder of the {sect.name} asks you to tutor his grandson, who falls asleep in every lesson.
-You fly on a sword for the first time, crash into a pine tree and walk the rest of the way.
+You fly a sword into a crosswind, crash into a pine tree and walk the rest of the way.
 A rival inner disciple accuses you of stealing a pill from the alchemy hall, and the steward's ledger clears your name.
 You spend the {$season} sealed in a cave on {name.mountain}, coming out only to buy rice.
 The {sect.name} sends you to collect a debt from a merchant in {place.town}, and he pays the moment he sees your robe.
@@ -350,7 +374,7 @@ You copy a manual for the sect library and are allowed to keep a copy for yourse
 Your first teacher from your mortal days dies in {place.town}, and you pay for the funeral.
 
 [log.core]
-The {sect.name} makes you an elder, and the first thing the steward hands you is a list of debts.
+The {sect.name} gives you another hall to run, and the first thing its steward hands you is a list of debts.
 You take three disciples of your own and send the laziest one home to {place.town} within a month.
 A county magistrate in {place.town} asks you to find who poisoned his well, and you find it was his brother.
 You fly from {name.mountain} to {place.town} in a single morning and walk the last mile so as not to frighten the farmers.
@@ -1831,6 +1855,11 @@ In {$region.name} you drove off {$beast.name}, who will be back and will have le
 [nemesis.line.escaped]
 In {$region.name} you got away from {$beast.name}, for now.
 {$beast.name.cap} let you go in {$region.name}. You did not like being watched all the way to the bend in the road.
+
+[nemesis.line.gone]
+{$beast.name.cap} no longer haunts the roads of {$region.name}. You have outgrown the grudge, and so has your old enemy.
+Word from {$region.name} is that {$beast.name} has gone elsewhere. Whatever was between you is too small now to follow you.
+The trappers of {$region.name} say {$beast.name} no longer waits by the paths you walk. An old grudge ends without a fight.
 
 [nemesis.line.fled]
 {$beast.name.cap} saw you coming in {$region.name} and was gone before you could close the distance.

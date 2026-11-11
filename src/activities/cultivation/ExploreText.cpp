@@ -265,7 +265,15 @@ bool seatName(const GameState& s, const uint32_t seed, Grammar& grammar, char* o
   char sect[kNameSize];
   if (personSectName(s, sects::kNoRegion, seed, grammar, sect, sizeof(sect))) {
     char who[kNameSize];
-    if (!expandName(s, "{cultivator.name}", region, seed, grammar, who, sizeof(who))) return false;
+    // v0.3.7: four seats in five carry a real name; the six road nicknames repeated across twenty
+    // seats ("the one-armed swordsman ..." three times in a top four).
+    if (Rng(mix32(seed, 0x53454154u)).below(5) != 0) {
+      const Gender g = (seed >> 9) & 1u ? Gender::Female : Gender::Male;
+      suggestName(seed, 0, g, who, sizeof(who));
+      if (strcmp(who, s.character.name.data()) == 0) suggestName(seed, 1, g, who, sizeof(who));
+    } else if (!expandName(s, "{cultivator.name}", region, seed, grammar, who, sizeof(who))) {
+      return false;
+    }
     snprintf(out, len, "%s of %s", who, sect);
     return true;
   }

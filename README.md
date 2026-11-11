@@ -49,10 +49,10 @@ The game uses CrossInk's own reading stats, from this device only:
 
 |Device|File|
 |-|-|
-|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.6.bin`|
-|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.6.bin`|
-|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.6.bin`|
-|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.6.bin`|
+|Xteink X3 or X4|`firmware-x3-x4-cultivation-v0.3.7.bin`|
+|Xteink X4 Pro|`firmware-x4-pro-cultivation-v0.3.7.bin`|
+|Xteink X4 Classic|`firmware-x4-classic-cultivation-v0.3.7.bin`|
+|Seeed Studio Sticky|`firmware-sticky-cultivation-v0.3.7.bin`|
 
 2. Flash it. If your reader already runs CrossInk, copy the file to the SD card and choose **Settings > System > SD Card Firmware Update**. Otherwise see the [command line instructions](./docs/installation.md#command-line).
 3. Set the date and time in the settings if your reader has a clock. Without a date (the original X4 has no clock), the daily systems, your rival and the ranking run on reading days: a new day after an hour of reading and a sleep.

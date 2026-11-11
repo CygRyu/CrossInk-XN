@@ -626,6 +626,16 @@ void CultivationActivity::openFight() {
           appendSentence(v.fightText, sizeof(v.fightText), line);
         }
       }
+      // v0.3.7 (user): a Coward that has run twice would run again, but cannot.
+      rivals::Nemesis n;
+      if (f.nemesis >= 0 && named && f.chance >= 60 && rivals::nemesis(*state_, static_cast<uint8_t>(f.nemesis), n) &&
+          rivals::cornered(n)) {
+        char cap[exploretext::kNameSize];
+        capitalized(v.beast, cap, sizeof(cap));
+        char line[200];
+        snprintf(line, sizeof(line), ctr(CULT_NEMESIS_CORNERED_FORMAT), cap);
+        appendSentence(v.fightText, sizeof(v.fightText), line);
+      }
       if (packs_) packs_->closeFile();
     }
     selected_ = 0;

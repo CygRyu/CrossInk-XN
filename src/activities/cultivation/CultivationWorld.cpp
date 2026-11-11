@@ -69,6 +69,21 @@ int priority(const GameState& s, const sects::Event& e) {
   }
 }
 
+// v0.3.7: a story that ends through its region's condition (an inheritance taken, a war decided)
+// ended twice in the news, once as the story and once as the condition, in the same visit.
+// The condition's line says it; the story's is left out.
+bool doubled(const sects::Steps& steps, const uint8_t i) {
+  const sects::Event& e = steps.events[i];
+  if (e.kind != sects::EventKind::Ended) return false;
+  for (uint8_t j = 0; j < steps.count; ++j) {
+    const sects::Event& c = steps.events[j];
+    if (c.kind != sects::EventKind::ConditionEnded || c.region != e.region || c.sect != e.sect) continue;
+    const int gap = static_cast<int>(c.year) - static_cast<int>(e.year);
+    if (gap >= -1 && gap <= 1) return true;
+  }
+  return false;
+}
+
 uint32_t eventSeed(const GameState& s, const sects::Event& e) {
   return contentSeed(worldSeedOf(s), kKindWorldText,
                      (static_cast<uint32_t>(e.year) << 8) | (static_cast<uint32_t>(e.sect) << 4) |
@@ -175,6 +190,7 @@ void CultivationActivity::appendWorldSummaryLine() {
   if (!lifeLog_ || worldSteps_.count == 0) return;
   int best = -1;
   for (uint8_t i = 0; i < worldSteps_.count; ++i) {
+    if (doubled(worldSteps_, i)) continue;  // v0.3.7
     if (best < 0 || priority(*state_, worldSteps_.events[i]) >= priority(*state_, worldSteps_.events[best])) best = i;
   }
   if (best < 0 || lifeLog_->count >= lifelog::kMaxLines) return;
@@ -191,6 +207,7 @@ void CultivationActivity::appendWorldChronicleLines() {
   bool opened = chronicle::exists();
   for (uint8_t i = 0; i < worldSteps_.count; ++i) {
     lifelog::Line line;
+    if (doubled(worldSteps_, i)) continue;  // v0.3.7: the condition's line tells it
     if (!worldEventLine(worldSteps_.events[i], line)) continue;
     if (!opened) {
       chronicle::writeOpening(*state_, grammar_.get());

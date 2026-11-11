@@ -498,7 +498,7 @@ bool unique(const Tile t) { return t == Tile::Ruin || t == Tile::Cave || t == Ti
 Layout generate(const uint32_t worldSeed, const uint8_t region, const uint8_t reshapeCount) {
   Layout l;
   Rng rng(contentSeed(worldSeed, kKindLayout, (static_cast<uint32_t>(region) << 8) | reshapeCount));
-  l.encounterPercent = static_cast<uint8_t>(rng.range(5, 18));
+  l.encounterPercent = static_cast<uint8_t>(rng.range(10, 25));  // v0.3.7 (user; 5-18 before)
 
   // Terrain: an entrance on the edge and 8-12 crags, every walkable tile
   // reachable from the entrance (otherwise the next roll is tried).
@@ -928,8 +928,11 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
       setPending(s, region, FightKind::Beast);
       rivals::Nemesis n;
       rivals::nemesis(s, static_cast<uint8_t>(nemi), n);
-      if (rivals::hasTrait(n, rivals::Trait::Coward) && pendingFight(s, l).chance >= 60) {
+      const bool scared = rivals::hasTrait(n, rivals::Trait::Coward) && pendingFight(s, l).chance >= 60;
+      if (scared && rivals::cornered(n)) r.nemesisCornered = static_cast<int8_t>(nemi);  // v0.3.7 (user)
+      if (scared && !rivals::cornered(n)) {
         // A Coward runs when your chance is 60% or better: no fight, the tile as usual.
+        // v0.3.7 (user): twice at most; the third time it is cornered and fights.
         setPending(s, region, FightKind::None);
         s.exploration[7] = 0;
         rivals::itFled(s, static_cast<uint8_t>(nemi));

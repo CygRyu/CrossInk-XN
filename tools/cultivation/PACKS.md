@@ -162,6 +162,7 @@ Region slots have a theme each, in order: `marsh`, `wastes`, `forest`, `gorge`, 
 | `nemesis.name.beast`, `nemesis.name.bandit`, `nemesis.epithet`, `nemesis.epithet.scar`, `nemesis.epithet.victor` | v0.2.8: a nemesis's name and epithet, joined as "Greymaw the Twice-Burned"; write epithets without "the" |
 | `explore.fight.nemesis`, `explore.fight.nemesis.person` | v0.2.8: a nemesis finds you (a beast; a bandit or cultivator) |
 | `nemesis.line.born`, `.won`, `.lost`, `.escaped`, `.fled` | v0.2.8: Chronicle lines: it beat you and became your nemesis, beat you again, was beaten and got away, you got away, it ran |
+| `nemesis.line.gone` | v0.3.7: summary and Chronicle: a nemesis that has been Trivial for you over 10 reading hours gives up the grudge and leaves. `{$beast.name}` the nemesis, `{$region.name}` where it was |
 | `world.rumor.opening` | v0.3.2: openings for the living world's rumors ("Travellers say"); they name no sect, so only the world's five sects are named |
 | `world.rumor.<story>.early`, `.late` | v0.3.2: a live story, the rumor of the day one day in three (lower case, no full stop; follows `world.rumor.opening`). `<story>`: `feud`, `succession`, `bandits`, `tournament`, `fair`, `tide`, `ruins`, `blight`. `.early` while the story is at its first stage |
 | `world.line.<story>.start`, `.good`, `.bad` | v0.3.2: Chronicle and summary lines: a sect's story begins, ends well, ends badly |

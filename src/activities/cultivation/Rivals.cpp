@@ -74,6 +74,7 @@ constexpr uint8_t kNEpithet = 13;
 constexpr uint8_t kNSeed = 14;
 constexpr uint8_t kNMoved = 18;
 constexpr uint8_t kNRest = 20;
+constexpr uint8_t kNTrivialSince = 22;  // v0.3.7: reading stamp it became Trivial for you (0 = not)
 static_assert(kNemBase + kNemBytes * kNemesisMax <= sizeof(GameState::rivals), "rivals block");
 
 int g_clockHour = -1;
@@ -484,9 +485,17 @@ void shiftDays(GameState& s, const int32_t delta) {
   }
 }
 
-bool canMeetIn(const GameState& s, const uint8_t region) {
+bool reaches(const GameState& s, const uint8_t region) {
   const Rival r = rival(s);
   return r.exists && r.realm >= explore::unlockRealm(region);
+}
+
+bool canMeetIn(const GameState& s, const uint8_t region) {
+  // v0.3.7 (user): until the first meeting they come looking for you in any region you have open,
+  // at their own strength; after it, only where their own realm has taken them.
+  const Rival r = rival(s);
+  if (r.exists && !r.known) return explore::unlocked(s, region);
+  return reaches(s, region);
 }
 
 bool offersTrade(const GameState& s, const uint8_t meeting) {
@@ -883,13 +892,27 @@ int bear(GameState& s, const explore::Enemy kind, const uint8_t region, const in
   return index;
 }
 
-void roam(GameState& s) {
+uint8_t roam(GameState& s) {
   const int target = playerRegion(s);
   const uint16_t now = stampNow(s);
+  const int you = explore::playerLevel(s);
+  uint8_t gone = 0;
   for (uint8_t i = 0; i < kNemesisMax; ++i) {
     Nemesis n;
     if (!nemesis(s, i, n)) continue;
     uint8_t* b = nem(s, i);
+    // v0.3.7 (user): outgrown. Trivial for you over 10 reading hours: it gives up the grudge.
+    if (explore::dangerFor(you - fightLevel(s, n, -1)) == explore::Danger::Trivial) {
+      const uint16_t since = static_cast<uint16_t>(get16(b + kNTrivialSince));
+      if (since == 0 || since > now) {
+        put16(b + kNTrivialSince, now);
+      } else if (now - since >= kOutgrownUnits) {
+        gone = static_cast<uint8_t>(gone | (1u << i));
+        continue;
+      }
+    } else if (get16(b + kNTrivialSince) != 0) {
+      put16(b + kNTrivialSince, 0);
+    }
     const uint16_t period = hasTrait(n, Trait::Hunter) ? kRoamUnits / 2 : kRoamUnits;
     if (n.movedStamp == 0 || now <= n.movedStamp) {
       if (n.movedStamp == 0) put16(b + kNMoved, now);
@@ -903,7 +926,18 @@ void roam(GameState& s) {
     for (uint32_t k = 0; k < steps && region != target; ++k) region += region < target ? 1 : -1;
     b[kNRegion] = static_cast<uint8_t>((b[kNRegion] & 0xF0) | (region & 0x0F));
   }
+  return gone;
 }
+
+void letGo(GameState& s, const uint8_t mask) {
+  for (uint8_t i = 0; i < kNemesisMax; ++i) {
+    if ((mask & (1u << i)) == 0) continue;
+    uint8_t* b = nem(s, i);
+    for (uint8_t k = 0; k < kNemBytes; ++k) b[k] = 0;
+  }
+}
+
+bool cornered(const Nemesis& n) { return hasTrait(n, Trait::Coward) && n.fled >= kCowardFlights; }
 
 int ambush(const GameState& s, const uint8_t region, const uint32_t seed) {
   for (uint8_t i = 0; i < kNemesisMax; ++i) {
