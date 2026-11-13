@@ -59,6 +59,7 @@ set(CULTIVATION_CORE_SOURCES
   ${CULTIVATION_SRC}/Cast.cpp
   ${CULTIVATION_SRC}/Lineage.cpp
   ${CULTIVATION_SRC}/Codex.cpp
+  ${CULTIVATION_SRC}/Achievements.cpp
 )
 
 add_executable(CultivationCoreTest
@@ -89,6 +90,7 @@ add_executable(CultivationCoreTest
   V035Test.cpp
   V036Test.cpp
   V037Test.cpp
+  V038Test.cpp
   ${CULTIVATION_CORE_SOURCES}
   ${CULTIVATION_SRC}/PackStore.cpp
   ${CULTIVATION_SRC}/Chronicle.cpp

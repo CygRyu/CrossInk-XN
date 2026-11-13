@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "Achievements.h"
 #include "Daos.h"
 #include "Rng.h"
 #include "Scrolls.h"
@@ -212,6 +213,7 @@ uint32_t sell(GameState& state, const uint8_t index) {
   if (index >= count(state) || get(state, index).equipped()) return 0;
   const uint32_t price = sellPrice(get(state, index));
   removeAt(state, index);
+  achievements::earn(state, achievements::Id::SellScroll);  // v0.3.8
   const uint32_t room = UINT32_MAX - state.progress.stones;
   state.progress.stones += price < room ? price : room;
   return price;
@@ -294,6 +296,8 @@ uint8_t mint(GameState& state, const BookRecord& book, const bool alreadyMinted,
   }
   s.comprehension = share;
 
+  // v0.3.8: a book finished for the first time in this life counts toward the books over all lives.
+  if (!alreadyMinted) achievements::addCount(state, achievements::Counter::Books);
   if (alreadyMinted) {  // spent as a key or sold earlier in this life
     out[0].kind = EventKind::AlreadyUsed;
     out[0].scroll = s;

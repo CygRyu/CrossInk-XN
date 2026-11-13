@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Achievements.h"
 #include "Agenda.h"
 #include "Daily.h"
 #include "Exploration.h"
@@ -720,6 +721,7 @@ BoutResult play(GameState& s, const Bout& b, const bool defence) {
       const int8_t who = sects::personSect(s, sects::kNoRegion, seatSeed(s, b.who.seat));
       res.world = sects::cultivatorBeaten(s, sects::kNoRegion, who);
       agenda::sawWin(s, sects::kNoRegion, who, res.world);  // v0.3.4
+      achievements::noteInfluence(s, res.world);            // v0.3.8
     }
   } else {
     res.hpLost = b.hpCost < s.progress.hp ? b.hpCost : s.progress.hp;

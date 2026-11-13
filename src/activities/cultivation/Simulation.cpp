@@ -191,13 +191,16 @@ uint32_t qiMultiplierPermille(const GameState& state) {
 }
 
 void createCharacter(GameState& state, const CharacterDraft& draft, const StatsSample& now) {
-  // v0.3.0: the lineage and the codex outlive a life; so does having read the Guide.
+  // v0.3.0: the lineage and the codex outlive a life; so does having read the Guide (v0.3.8: and the
+  // achievements).
   const std::array<uint8_t, 72> lineageKept = state.lineage;
   uint8_t codexKept[codex::kBytes];
   memcpy(codexKept, state.flagsAndCodex.data() + codex::kFirstByte, codex::kBytes);
   const uint8_t guideKept = static_cast<uint8_t>(state.flagsAndCodex[kGuideSeenByte] & kGuideSeenBit);
+  const std::array<uint8_t, 384> achievementsKept = state.achievements;  // v0.3.8: the player's
   state.reset();
   state.lineage = lineageKept;
+  state.achievements = achievementsKept;
   memcpy(state.flagsAndCodex.data() + codex::kFirstByte, codexKept, codex::kBytes);
   state.flagsAndCodex[kGuideSeenByte] = guideKept;
   state.snapshot = bridge::takeBaseline(now);

@@ -480,8 +480,8 @@ TEST(V035Meet, AStepCanMeetThem) {
 // --- Save and text ---------------------------------------------------------------------------------
 
 TEST(V035Save, VersionNineRoundTripsAndAnOlderSaveFoundsTheCastLater) {
-  EXPECT_EQ(save::kSaveVersion, 9);
-  EXPECT_EQ(save::kPayloadSize, 1781u);
+  EXPECT_GE(save::kSaveVersion, 9);  // v0.3.8: save v10 appends the achievements
+  EXPECT_EQ(save::kPayloadSizeV9, 1781u);
   GameState s = world(19);
   read(s, 5);
   cast::met(s, 2, explore::MeetOutcome::Talked, false);

@@ -11,6 +11,7 @@
 #include <memory>
 #include <string>
 
+#include "Achievements.h"
 #include "Agenda.h"
 #include "Alchemy.h"
 #include "Breakthrough.h"
@@ -110,7 +111,10 @@ class CultivationActivity final : public Activity {
     Perks,           // legacy perks, then a new life
     Collection,      // the codex and the memento sets
     CollectionPage,  // one set (or the codex)
-    PastLives,       // the Chronicles of lives that ended
+    PastLives,
+    Achievements,       // v0.3.8 (CultivationAchievementScreens.cpp): the groups and the totals
+    AchievementList,    // one group's achievements
+    AchievementDetail,  // one achievement       // the Chronicles of lives that ended
     Error
   };
   // What the Cultivator screen's list offers right now.
@@ -321,7 +325,20 @@ class CultivationActivity final : public Activity {
   void appendMemento(uint8_t memento, bool duplicate, uint16_t stones, char* out, size_t len) const;
   void mementoChronicle(uint8_t memento);                        // a Chronicle line for a new one
   void noteMementos(const cultivation::explore::StepResult& r);  // the line for each new one in a step's result
-  enum class LineageRow : uint8_t { Collection, Reincarnate, Abandon, NewLife };
+  // v0.3.8: achievements (CultivationAchievementScreens.cpp), browsed from Lineage.
+  bool handleAchievements(bool back, bool confirm, bool up, bool down);  // true on an achievement screen
+  void openAchievements();
+  void renderAchievements(int x, int y, int width, int bottom);
+  void renderAchievementList(int x, int y, int width, int bottom);
+  void renderAchievementDetail(int x, int y, int width, int bottom);
+  void achievementLabels(const char*& confirmLabel, const char*& upLabel, const char*& downLabel) const;
+  const char* achievementTitle() const;
+  // What was earned since the activity last looked: one line in the Return summary (`summary`, when
+  // the life log has room) or the Chronicle plus a notice on the Cultivator screen.
+  void announceAchievements(bool summary);
+  uint8_t achSeenBits_[cultivation::achievements::kBitBytes] = {};  // the earned bits last announced
+  char achNotice_[200] = {};  // "Achievement earned: ..." on the Cultivator screen until the next action
+  enum class LineageRow : uint8_t { Collection, Reincarnate, Abandon, NewLife, Achievements };
   uint8_t lineageRowList(LineageRow* out) const;
   struct LineageView {
     static constexpr uint8_t kCandidates = 12;
@@ -340,6 +357,10 @@ class CultivationActivity final : public Activity {
     uint8_t page = 0;  // CollectionPage: 0 the codex, 1-8 a memento set
     int lineageSelected = 0;
     int collectionSelected = 0;
+    uint8_t achGroup = 0;  // v0.3.8: the group on AchievementList
+    uint8_t achId = 0;     // the one on AchievementDetail
+    int achGroupSelected = 0;
+    int achItemSelected = 0;
   };
   std::unique_ptr<LineageView> lineage_;
   int lineageReturn_ = 0;

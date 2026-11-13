@@ -385,7 +385,10 @@ void CultivationActivity::onEnter() {
 
   loadPacks();
 
-  switch (save::load(*state_)) {
+  const save::LoadResult loaded = save::load(*state_);
+  // v0.3.8: what is earned already is not news.
+  memcpy(achSeenBits_, state_->achievements.data() + achievements::kBitsOffset, achievements::kBitBytes);
+  switch (loaded) {
     case save::LoadResult::Loaded:
       if (state_->isCreated()) {
         startVisit();
@@ -481,7 +484,9 @@ void CultivationActivity::updateRumor() {
 }
 
 bool CultivationActivity::persist() {
-  codex::observe(*state_);  // v0.3.0: the codex follows what the life shows
+  codex::observe(*state_);        // v0.3.0: the codex follows what the life shows
+  achievements::update(*state_);  // v0.3.8: and the achievements; new ones go to the Chronicle first
+  announceAchievements(false);
   saveFailed_ = !save::store(*state_);
   if (saveFailed_) {
     LOG_ERR("CULT", "Saving the game failed");
@@ -553,6 +558,7 @@ void CultivationActivity::startVisit() {
   }
   // v0.1.10: herbs regrow and cleared regions reshape on reading time.
   upheavals_ = explore::tick(*state_);
+  achievements::update(*state_);  // v0.3.8: announced with the visit's lines below
   updateRumor();
   visitSeconds_ = gains.seconds;
   visitReset_ = gains.resetDetected;
@@ -569,6 +575,7 @@ void CultivationActivity::startVisit() {
   } else {
     appendUpheavalLines(upheavals_);  // straight into the Chronicle
     appendRivalLines(rivalNews_);
+    announceAchievements(false);  // v0.3.8
     appendGoneLines(false);       // v0.3.7
     appendAgendaLines(false);     // v0.3.4: no summary, so all of it into the Chronicle
     appendCastLines(false);       // v0.3.5
@@ -600,6 +607,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
   lifeLog_ = makeUniqueNoThrow<lifelog::LifeLog>();
   if (!lifeLog_) {
     LOG_ERR("CULT", "Out of memory for the life log (%u bytes)", static_cast<unsigned>(sizeof(lifelog::LifeLog)));
+    announceAchievements(false);  // v0.3.8
     appendGoneLines(false);       // v0.3.7
     appendAgendaLines(false);     // v0.3.4
     appendCastLines(false);       // v0.3.5
@@ -619,6 +627,7 @@ void CultivationActivity::writeLifeLog(const lifelog::VisitChange& change) {
     snprintf(line.text, sizeof(line.text), "%s",
              ageWarning_ == lineage::Age::Failing ? ctr(CULT_AGE_FAILING) : ctr(CULT_AGE_GREYING));
   }
+  announceAchievements(true);  // v0.3.8: what was earned, one line
   // v0.3.2: last, one line of the world's news; the Chronicle gets all of it, in order, after the visit.
   appendWorldSummaryLine();
   if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
@@ -876,7 +885,10 @@ uint8_t CultivationActivity::seenBit(const Action action) {
 bool CultivationActivity::isNew(const Action action) const {
   if (action == Action::Guide) return (state_->flagsAndCodex[kGuideSeenByte] & kGuideSeenBit) == 0;  // v0.2.9
   // v0.3.0: new once reincarnation opens (Foundation Establishment); the bit outlives the life.
-  if (action == Action::Lineage) return lineage::canReincarnate(*state_) && !lineage::cellSeen(*state_);
+  // v0.3.8: and while an achievement is earned that the list has not shown yet.
+  if (action == Action::Lineage) {
+    return (lineage::canReincarnate(*state_) && !lineage::cellSeen(*state_)) || achievements::unseen(*state_);
+  }
   const uint8_t bit = seenBit(action);
   return bit != 0 && (state_->flagsAndCodex[6] & bit) == 0;
 }
@@ -908,6 +920,7 @@ void CultivationActivity::setUpSeenFlags() {
 
 void CultivationActivity::runAction() {
   if (selected_ < 0 || selected_ >= actionCount_) return;
+  achNotice_[0] = '\0';           // v0.3.8: shown until the next action
   markSeen(actions_[selected_]);  // v0.2.7
   switch (actions_[selected_]) {
     case Action::Breakthrough: {
@@ -1113,13 +1126,14 @@ void CultivationActivity::loop() {
   if (back) mappedInput.suppressNextBackRelease();
   if (confirm) mappedInput.suppressNextConfirmRelease();
 
-  if (handleExplore(back, confirm, up, down)) return;    // exploration screens (CultivationExploreScreens.cpp)
-  if (handleAlchemy(back, confirm, up, down)) return;    // alchemy screens (CultivationAlchemyScreens.cpp)
-  if (handleMeridians(back, confirm, up, down)) return;  // v0.2.4 (CultivationMeridianScreens.cpp)
-  if (handleDaily(back, confirm, up, down)) return;      // v0.2.6 (CultivationDailyScreens.cpp)
-  if (handleRivals(back, confirm, up, down)) return;     // v0.2.8 (CultivationRivalScreens.cpp)
-  if (handleGuide(back, confirm, up, down)) return;      // v0.2.9 (CultivationGuideScreens.cpp)
-  if (handleLineage(back, confirm, up, down)) return;    // v0.3.0 (CultivationLineageScreens.cpp)
+  if (handleExplore(back, confirm, up, down)) return;       // exploration screens (CultivationExploreScreens.cpp)
+  if (handleAlchemy(back, confirm, up, down)) return;       // alchemy screens (CultivationAlchemyScreens.cpp)
+  if (handleMeridians(back, confirm, up, down)) return;     // v0.2.4 (CultivationMeridianScreens.cpp)
+  if (handleDaily(back, confirm, up, down)) return;         // v0.2.6 (CultivationDailyScreens.cpp)
+  if (handleRivals(back, confirm, up, down)) return;        // v0.2.8 (CultivationRivalScreens.cpp)
+  if (handleGuide(back, confirm, up, down)) return;         // v0.2.9 (CultivationGuideScreens.cpp)
+  if (handleAchievements(back, confirm, up, down)) return;  // v0.3.8 (CultivationAchievementScreens.cpp)
+  if (handleLineage(back, confirm, up, down)) return;       // v0.3.0 (CultivationLineageScreens.cpp)
 
   switch (screen_) {
     case Screen::Error:
@@ -1530,7 +1544,8 @@ void CultivationActivity::render(RenderLock&&) {
   char guideTitleBuf[72];
   if (screen_ == Screen::Guide) title = ctr(CULT_GUIDE_TITLE);  // v0.2.9
   if (screen_ == Screen::GuidePage) title = guideTitle(guideTitleBuf, sizeof(guideTitleBuf));
-  if (const char* t = lineageTitle()) title = t;  // v0.3.0
+  if (const char* t = lineageTitle()) title = t;      // v0.3.0
+  if (const char* t = achievementTitle()) title = t;  // v0.3.8
   if (mappedInput.hasTouchHardware()) {
     TouchHeaderBackButton::drawCompact(renderer, title);
   } else {
@@ -1771,6 +1786,18 @@ void CultivationActivity::render(RenderLock&&) {
       renderPastLives(x, top, width, bottom);
       lineageLabels(confirmLabel, upLabel, downLabel);
       break;
+    case Screen::Achievements:  // v0.3.8
+      renderAchievements(x, top, width, bottom);
+      achievementLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::AchievementList:
+      renderAchievementList(x, top, width, bottom);
+      achievementLabels(confirmLabel, upLabel, downLabel);
+      break;
+    case Screen::AchievementDetail:
+      renderAchievementDetail(x, top, width, bottom);
+      achievementLabels(confirmLabel, upLabel, downLabel);
+      break;
     case Screen::Recipes:
       renderRecipes(x, top, width, bottom);
       alchemyLabels(confirmLabel, upLabel, downLabel);
@@ -1975,6 +2002,10 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
     const breakthrough::Chance c = breakthrough::chanceFor(s);
     if (c.needsKey && !c.hasKey) rumorReserve += smallLine + 4;
   }
+  // v0.3.8: an achievement earned since the last action, above the rumor (the stats give way first).
+  if (achNotice_[0] != '\0') {
+    rumorReserve += static_cast<int>(renderer.wrappedText(SMALL_FONT_ID, achNotice_, width, 2).size()) * smallLine + 4;
+  }
 
   // Short lines share a row, the second on the right; a pair too wide for one row takes two.
   auto pairRows = [&](const char* left, const char* right) {
@@ -2097,6 +2128,7 @@ void CultivationActivity::renderCultivator(const int x, int y, const int width, 
       y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, line, fits(smallLine, 1));
     }
   }
+  if (achNotice_[0] != '\0') y = drawWrapped(SMALL_FONT_ID, x, y + 4, width, achNotice_, fits(smallLine, 2));
   if (rumor_[0] != '\0') {
     snprintf(line, sizeof(line), ctr(CULT_RUMOR_FORMAT), rumor_);
     y += metrics.verticalSpacing * 2;

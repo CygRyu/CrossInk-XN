@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Achievements.h"
 #include "Alchemy.h"
 #include "Daily.h"
 #include "Daos.h"
@@ -294,6 +295,7 @@ Experiment experiment(GameState& s, const Item* in, const uint8_t count) {
     if (!sameParts(book.recipes[i], parts, count)) continue;
     e.recipe = i;
     e.learned = !known(s, i);
+    if (e.learned) achievements::earn(s, achievements::Id::Experiment);  // v0.3.8
     learn(s, i);
     startBrew(s, i);
     return e;

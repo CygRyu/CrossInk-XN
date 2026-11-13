@@ -79,8 +79,8 @@ constexpr GuideTopic kTopics[] = {
      GuideGate::Always},
     {GameStr::CULT_GUIDE_T9,  // v0.3.0
      GameStr::CULT_GUIDE_T9_SUB,
-     {GameStr::CULT_GUIDE_T9_P1, GameStr::CULT_GUIDE_T9_P2, GameStr::CULT_GUIDE_T9_P2},
-     2,
+     {GameStr::CULT_GUIDE_T9_P1, GameStr::CULT_GUIDE_T9_P2, GameStr::CULT_GUIDE_T9_P3},  // v0.3.8: P3
+     3,
      GuideGate::Always},
     {GameStr::CULT_GUIDE_T10,  // v0.3.1
      GameStr::CULT_GUIDE_T10_SUB,

@@ -12,6 +12,7 @@
 #include <cstring>
 #include <string>
 
+#include "Achievements.h"
 #include "Chronicle.h"
 #include "Codex.h"
 #include "CultivationActivity.h"
@@ -131,9 +132,11 @@ uint8_t CultivationActivity::lineageRowList(LineageRow* out) const {
   if (lineage_ && lineage_->oldAge) {
     out[n++] = LineageRow::NewLife;
     out[n++] = LineageRow::Collection;
+    out[n++] = LineageRow::Achievements;  // v0.3.8
     return n;
   }
   out[n++] = LineageRow::Collection;
+  out[n++] = LineageRow::Achievements;  // v0.3.8
   if (lineage::canReincarnate(*state_)) out[n++] = LineageRow::Reincarnate;
   if (lineage::canAbandon(*state_)) out[n++] = LineageRow::Abandon;
   return n;
@@ -172,6 +175,9 @@ void CultivationActivity::lineageChoose() {
     case LineageRow::Collection:
       selected_ = v.collectionSelected;
       screen_ = Screen::Collection;
+      return;
+    case LineageRow::Achievements:  // v0.3.8
+      openAchievements();
       return;
     case LineageRow::Reincarnate:
       v.kind = lineage::EndKind::Reincarnated;
@@ -249,6 +255,9 @@ void CultivationActivity::endThisLife() {
   if (!chronicle::exists()) chronicle::writeOpening(*state_, grammar_.get());
   chronicle::appendLines(&line, 1);
   if (packs_) packs_->closeFile();
+  // v0.3.8: old age or abandoning earns its achievement in this life's Chronicle (endLife repeats it).
+  achievements::lifeEnding(*state_, v.kind == lineage::EndKind::OldAge, v.kind == lineage::EndKind::Abandoned);
+  announceAchievements(false);
 
   const lineage::EndResult r = lineage::endLife(*state_, v.kind, v.chosen, v.chosenCount);
   LOG_INF("CULT", "Life %u ended (%u): %u imprints, best realm %d -> %d, %u scrolls carried",
@@ -646,6 +655,15 @@ void CultivationActivity::renderLineage(const int x, int y, const int width, con
                  switch (r[i]) {
                    case LineageRow::Collection:
                      return ctr(CULT_LINEAGE_ROW_COLLECTION);
+                   case LineageRow::Achievements: {  // v0.3.8
+                     char row[80];
+                     snprintf(row, sizeof(row),
+                              achievements::unseen(*state_) ? ctr(CULT_LINEAGE_ROW_ACH_NEW_FORMAT)
+                                                            : ctr(CULT_LINEAGE_ROW_ACH_FORMAT),
+                              static_cast<unsigned>(achievements::earnedCount(*state_)),
+                              static_cast<unsigned>(achievements::kCount));
+                     return row;
+                   }
                    case LineageRow::Reincarnate:
                      return ctr(CULT_LINEAGE_ROW_REINCARNATE);
                    case LineageRow::Abandon:

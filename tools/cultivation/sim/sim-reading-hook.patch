@@ -78,5 +78,6 @@
 +  simAddReading();
 +#endif
  
-   switch (save::load(*state_)) {
-     case save::LoadResult::Loaded:
+   const save::LoadResult loaded = save::load(*state_);
+   // v0.3.8: what is earned already is not news.
+   memcpy(achSeenBits_, state_->achievements.data() + achievements::kBitsOffset, achievements::kBitBytes);

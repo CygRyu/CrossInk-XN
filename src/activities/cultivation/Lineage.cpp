@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "Achievements.h"
 #include "Alchemy.h"
 #include "Codex.h"
 #include "Daos.h"
@@ -200,6 +201,8 @@ EndResult endLife(GameState& state, const EndKind kind, const uint8_t* echo, con
   EndResult res;
   if (!state.isCreated()) return res;
   codex::observe(state);
+  // v0.3.8: a last look at the achievements, then old age or abandoning (they outlive the life).
+  achievements::lifeEnding(state, kind == EndKind::OldAge, kind == EndKind::Abandoned);
   uint8_t* l = state.lineage.data();
   res.lifeNumber = lifeNumberOf(state);
   res.bestBefore = bestRealm(state);
@@ -246,8 +249,10 @@ EndResult endLife(GameState& state, const EndKind kind, const uint8_t* echo, con
   uint8_t codexBytes[codex::kBytes];
   memcpy(codexBytes, state.flagsAndCodex.data() + codex::kFirstByte, codex::kBytes);
   const uint8_t guide = static_cast<uint8_t>(state.flagsAndCodex[kGuideSeenByte] & kGuideSeenBit);
+  const std::array<uint8_t, achievements::kBlockSize> keptAchievements = state.achievements;  // v0.3.8
   state.reset();
   state.lineage = kept;
+  achievements::restoreAfterLife(state, keptAchievements.data());
   memcpy(state.flagsAndCodex.data() + codex::kFirstByte, codexBytes, codex::kBytes);
   state.flagsAndCodex[kGuideSeenByte] = guide;
   return res;

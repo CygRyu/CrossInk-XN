@@ -23,15 +23,16 @@
 namespace cultivation {
 namespace lifelog {
 
-constexpr uint8_t kMaxSeasonLines = 6;    // DOC: "up to 6"
-constexpr uint8_t kMaxUpheavalLines = 2;  // v0.1.10: regions reshaped by Spatial Upheaval this visit
-constexpr uint8_t kMaxRivalLines = 2;     // v0.2.8: news of your rival this visit
-constexpr uint8_t kMaxWorldLines = 1;     // v0.3.2: the living world's news (the rest go to the Chronicle)
-constexpr uint8_t kMaxAgendaLines = 1;    // v0.3.4: the rival's agenda (the rest go to the Chronicle)
-constexpr uint8_t kMaxCastLines = 1;      // v0.3.5: the cast (the rest go to the Chronicle)
-// + one stage line + one bottleneck line + upheavals + rival news + agenda + world news
-constexpr uint8_t kMaxLines =
-    kMaxSeasonLines + 2 + kMaxUpheavalLines + kMaxRivalLines + kMaxAgendaLines + kMaxCastLines + kMaxWorldLines;
+constexpr uint8_t kMaxSeasonLines = 6;       // DOC: "up to 6"
+constexpr uint8_t kMaxUpheavalLines = 2;     // v0.1.10: regions reshaped by Spatial Upheaval this visit
+constexpr uint8_t kMaxRivalLines = 2;        // v0.2.8: news of your rival this visit
+constexpr uint8_t kMaxWorldLines = 1;        // v0.3.2: the living world's news (the rest go to the Chronicle)
+constexpr uint8_t kMaxAgendaLines = 1;       // v0.3.4: the rival's agenda (the rest go to the Chronicle)
+constexpr uint8_t kMaxCastLines = 1;         // v0.3.5: the cast (the rest go to the Chronicle)
+constexpr uint8_t kMaxAchievementLines = 1;  // v0.3.8: what was earned this visit (one line for all)
+// + one stage line + one bottleneck line + upheavals + rival news + agenda + world news + achievements
+constexpr uint8_t kMaxLines = kMaxSeasonLines + 2 + kMaxUpheavalLines + kMaxRivalLines + kMaxAgendaLines +
+                              kMaxCastLines + kMaxWorldLines + kMaxAchievementLines;
 constexpr size_t kLineSize = 200;  // "Winter, age 123. " plus a pack line (under 180 bytes)
 
 inline uint32_t seasonOf(const uint32_t ageMonths) { return ageMonths / 3; }

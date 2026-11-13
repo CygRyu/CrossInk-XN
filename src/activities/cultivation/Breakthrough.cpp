@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Achievements.h"
 #include "Alchemy.h"
 #include "Breakthrough.h"
 #include "Daily.h"
@@ -203,8 +204,10 @@ Result attempt(GameState& state) {
 
   if (!r.success) {
     failAttempt(state);
+    achievements::earn(state, achievements::Id::FirstFailure);  // v0.3.8
     return r;
   }
+  if (p.failures >= 3) achievements::earn(state, achievements::Id::FourthTime);  // v0.3.8: after three in a row
   alchemy::clearPillInUse(state);
 
   if (c.needsKey && c.keyIndex >= 0) {

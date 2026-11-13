@@ -4,6 +4,7 @@
 
 #include <cstring>
 
+#include "Achievements.h"
 #include "Cast.h"
 #include "Rivals.h"
 #include "Rng.h"
@@ -170,6 +171,8 @@ void forget(GameState& s, const uint8_t i) {
 void die(GameState& s, const uint8_t i, const Cause cause, const uint16_t year, Steps& out) {
   push(out, eventOf(s, cause == Cause::War ? EventKind::DiedWar : EventKind::DiedOld, i, year));
   uint8_t* b = pb(s, i);
+  if ((b[0] & kMet) != 0)
+    achievements::earn(s, achievements::Id::Mourned);  // v0.3.8: before a newcomer takes the place
   b[0] = static_cast<uint8_t>((b[0] & kMet) | kDead);
   b[6] = static_cast<uint8_t>((b[6] & 0x1F) | (static_cast<uint8_t>(cause) << 5));
   put16(b + 2, year);

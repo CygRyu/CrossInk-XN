@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Achievements.h"
 #include "Agenda.h"
 #include "Exploration.h"
 #include "Rivals.h"
@@ -537,6 +538,7 @@ DuelResult settleDuel(GameState& s, const bool fought, const bool youWon) {
   }
   const uint32_t stakes = duelStakes(s);
   res.won = youWon;
+  achievements::earn(s, youWon ? achievements::Id::WinDuel : achievements::Id::LoseDuel);  // v0.3.8
   if (youWon) {
     res.stones = stakes;
     s.progress.stones += stakes;

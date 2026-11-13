@@ -33,6 +33,7 @@ void GameState::reset() {
   lineage.fill(0);
   living.fill(0);
   cast.fill(0);
+  achievements.fill(0);
 }
 
 namespace save {
@@ -252,6 +253,8 @@ void transfer(Io& io, State& s) {
   io.bytes(s.living.data(), s.living.size());
   // Save v9 (v0.3.5): 160 bytes
   io.bytes(s.cast.data(), s.cast.size());
+  // Save v10 (v0.3.8): 384 bytes
+  io.bytes(s.achievements.data(), s.achievements.size());
 }
 
 uint16_t readLe16(const uint8_t* p) { return static_cast<uint16_t>(p[0] | (p[1] << 8)); }

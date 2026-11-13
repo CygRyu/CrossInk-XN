@@ -115,7 +115,7 @@ struct EndResult {
 // Ends the current life: records it in the lineage (best realm, imprints, the
 // last life's name and age, Echo scrolls by slot in the library, the rival's
 // seed for Familiar Face), then clears everything that belongs to one life.
-// Kept: the lineage block, the codex (Codex.h), and the Guide-seen bit. The
+// Kept: the lineage block, the codex (Codex.h), the achievements (v0.3.8) and the Guide-seen bit. The
 // character is then "not created": the next visit starts character creation.
 // `echo` lists library slots (up to the Echo rank; ignored when abandoning).
 EndResult endLife(GameState& state, EndKind kind, const uint8_t* echo, uint8_t echoCount);

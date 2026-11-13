@@ -2,6 +2,7 @@
 
 #if CROSSINK_CULTIVATION
 
+#include "Achievements.h"
 #include "Agenda.h"
 #include "Alchemy.h"
 #include "Cast.h"
@@ -324,6 +325,7 @@ void checkClear(GameState& s, const Layout& l, const uint8_t region, StepResult&
   set16(b + 15, stampNow(s));
   Rng rng(contentSeed(worldSeedOf(s), kKindClearReward, (static_cast<uint32_t>(region) << 8) | b[10]));
   r.clearedNow = true;
+  achievements::addCount(s, achievements::Counter::Cleared);  // v0.3.8: over all lives
   r.clearReward.stones = 100u * (region + 1u);
   s.progress.stones += r.clearReward.stones;
   give(s, r.clearReward, inventory::Item::TonicGreater, 1);
@@ -378,8 +380,9 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
           p.stones += r.reward.stones;
         }
         r.outcome = TileOutcome::RuinWon;
-        r.world = sects::searchWon(s, region);  // v0.3.3: an inheritance, yours before the sects get it
-        agenda::sawSearch(s, r.world);          // v0.3.4: the rival racing for it is bitter
+        achievements::earn(s, achievements::Id::Ruin);  // v0.3.8
+        r.world = sects::searchWon(s, region);          // v0.3.3: an inheritance, yours before the sects get it
+        agenda::sawSearch(s, r.world);                  // v0.3.4: the rival racing for it is bitter
         worldReward(s, r.world, region, r.reward, rng);
         mementoChance(s, r.reward, codex::Source::Ruin,
                       0x10000u | (static_cast<uint32_t>(region) << 8) |
@@ -404,7 +407,8 @@ void resolveTile(GameState& s, const Layout& l, const uint8_t region, StepResult
         give(s, r.reward, inventory::herbFor(region), 1);
       }
       r.outcome = TileOutcome::CaveFound;
-      r.world = sects::searchWon(s, region);  // v0.3.3: an inheritance in a cave counts too
+      achievements::earn(s, achievements::Id::Cave);  // v0.3.8
+      r.world = sects::searchWon(s, region);          // v0.3.3: an inheritance in a cave counts too
       agenda::sawSearch(s, r.world);
       worldReward(s, r.world, region, r.reward, rng);
       mementoChance(s, r.reward, codex::Source::Cave,
@@ -929,7 +933,10 @@ StepResult step(GameState& s, const Layout& l, const uint8_t region, const uint8
       rivals::Nemesis n;
       rivals::nemesis(s, static_cast<uint8_t>(nemi), n);
       const bool scared = rivals::hasTrait(n, rivals::Trait::Coward) && pendingFight(s, l).chance >= 60;
-      if (scared && rivals::cornered(n)) r.nemesisCornered = static_cast<int8_t>(nemi);  // v0.3.7 (user)
+      if (scared && rivals::cornered(n)) {  // v0.3.7 (user)
+        r.nemesisCornered = static_cast<int8_t>(nemi);
+        achievements::earn(s, achievements::Id::Cornered);  // v0.3.8
+      }
       if (scared && !rivals::cornered(n)) {
         // A Coward runs when your chance is 60% or better: no fight, the tile as usual.
         // v0.3.7 (user): twice at most; the third time it is cornered and fights.
@@ -1082,7 +1089,8 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
     damage = f.slipDamage;
   } else if (res.roll < f.chance) {
     res.won = true;
-    daily::note(s, daily::Task::WinFight);  // v0.2.6
+    daily::note(s, daily::Task::WinFight);                        // v0.2.6
+    achievements::addCount(s, achievements::Counter::FightsWon);  // v0.3.8: over all lives
     switch (f.kind) {
       case FightKind::Beast:
         res.reward.stones = halve(kindStones(f.enemy, rng.range(5, 10) * (f.region + 1u)), half);
@@ -1128,6 +1136,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
         markUsed(s, f.region, f.tile);
         b[11] = static_cast<uint8_t>(b[11] | kFlagGuardian);
         res.guardianBeaten = true;
+        achievements::addCount(s, achievements::Counter::Guardians);  // v0.3.8
         break;
       }
     }
@@ -1144,6 +1153,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
       }
       agenda::sawWin(s, f.region, who, res.world);  // v0.3.4: the rival's side, their sect
       worldReward(s, res.world, f.region, res.reward, rng);
+      achievements::noteInfluence(s, res.world);  // v0.3.8: a camp broken, a war decided
     }
     // v0.2.0: a beaten cultivator sometimes leaves a recipe slip.
     if (f.enemy == Enemy::Cultivator && alchemy::slipRecipe(s) >= 0 &&
@@ -1180,6 +1190,7 @@ FightResult fight(GameState& s, const Layout& l, const FightChoice choice) {
   // v0.2.9 (user): a loss that takes the last HP is a collapse: carried back
   // to the entrance; nothing owned is lost.
   res.collapsed = damage >= p.hp;
+  if (res.collapsed) achievements::earn(s, achievements::Id::Collapse);  // v0.3.8
   res.hpLost = damage < p.hp ? damage : p.hp;
   p.hp = static_cast<uint16_t>(p.hp - res.hpLost);
   if (nemi >= 0) {  // v0.2.8: it grows from beating you
@@ -1379,6 +1390,8 @@ namespace {
 void finishMeeting(GameState& s, const Layout& l, const Meeting& m, const MeetOutcome outcome, const bool tileToo,
                    MeetResult& res) {
   setCounter(s, counter(s) + 1);
+  achievements::earn(s, achievements::Id::RoadMeeting);  // v0.3.8
+  if (outcome == MeetOutcome::Won) achievements::addCount(s, achievements::Counter::FightsWon);
   setPending(s, m.region, FightKind::None);
   s.exploration[6] = static_cast<uint8_t>(s.exploration[6] & ~kMeetFlags);
   if (m.cast >= 0) {  // v0.3.5: one of the cast remembers you in their own bytes
@@ -1669,7 +1682,8 @@ bool buyFromTrader(GameState& s, const Layout& l, const uint8_t region, const ui
     const uint8_t bought = static_cast<uint8_t>((s.exploration[6] >> kMeetBoughtShift) + count);
     s.exploration[6] = static_cast<uint8_t>((s.exploration[6] & 0x1F) | (bought << kMeetBoughtShift));
   }
-  daily::note(s, daily::Task::Merchant);  // v0.2.6
+  daily::note(s, daily::Task::Merchant);              // v0.2.6
+  achievements::earn(s, achievements::Id::Merchant);  // v0.3.8: a traveller's goods count too
   return true;
 }
 }  // namespace
@@ -1720,6 +1734,7 @@ bool useRegionTalisman(GameState& s, const uint8_t region) {
   if (!canUseRegionTalisman(s, region)) return false;
   inventory::remove(s, inventory::Item::RegionTalisman);
   reshape(s, region);
+  achievements::earn(s, achievements::Id::Talisman);  // v0.3.8
   return true;
 }
 
@@ -1804,7 +1819,8 @@ bool buy(GameState& s, const Layout& l, const uint8_t region, const uint8_t tile
   } else {
     inventory::add(s, st.lines[line].item, count);
   }
-  daily::note(s, daily::Task::Merchant);  // v0.2.6
+  daily::note(s, daily::Task::Merchant);              // v0.2.6
+  achievements::earn(s, achievements::Id::Merchant);  // v0.3.8
   if (st.lines[line].limited) {
     const uint8_t bitIndex = static_cast<uint8_t>(merchantOrdinal(l, tile) * 3 + line - 2);
     if (bitIndex < 8) regionBytes(s, region)[18] = static_cast<uint8_t>(regionBytes(s, region)[18] | (1u << bitIndex));
