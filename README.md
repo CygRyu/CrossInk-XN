@@ -33,7 +33,7 @@ Nothing happens while the book is closed, and nothing is lost either: no decay, 
 - **The Chronicle:** your character's whole life, written as you go, readable as a book in the reader.
 - **Lives and rebirth:** each realm gives a lifespan. From Foundation Establishment you can reincarnate into a new world, carrying imprints, legacy perks and a small Qi bonus from your best realm; every past life's Chronicle is kept.
 - **A collection:** a codex that fills as your lineage sees more, and 64 mementos to find across lives. Cosmetic only.
-- **Achievements:** 136 of them, like on Steam or RetroAchievements: from your first hour of reading to a thousand hours, a hundred books, a Flawless Golden Core or a tenth life. Four tiers from Mortal to Immortal mark the hard ones, counted ones show your progress, and some stay hidden with a hint until you earn them. They stay with you through every life. For completion only: they never change the game.
+- **Achievements:** 136 of them: from your first hour of reading to a thousand hours, a hundred books, a Flawless Golden Core or a tenth life. Four tiers from Mortal to Immortal mark the hard ones, counted ones show your progress, and some stay hidden with a hint until you earn them. They stay with you through every life. For completion only: they never change the game.
 - **A Guide in the game** that explains how reading turns into progress, with more topics as the game opens up.
 - **Fair to every reader:** night or morning, daily or weekends only, fast or slow pages, all earn the same power. Only time spent reading counts, and only on this device.
 
